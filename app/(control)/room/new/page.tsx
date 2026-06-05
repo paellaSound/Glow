@@ -3,10 +3,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { Button } from '@/components/ui/button';
+import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MockAd } from '@/components/glow/mock-ad';
 import { useGlowSocket } from '@/lib/glow/socket';
 import { createClient } from '@/lib/supabase/client';
@@ -75,7 +74,9 @@ export default function CreateRoomPage() {
   }
 
   return (
-    <main className="mx-auto max-w-lg px-4 py-10">
+    <main className="relative mx-auto max-w-lg px-6 py-12 min-h-[100dvh] flex flex-col justify-center overflow-hidden">
+      <SectionGlow glowColor="magenta" position="center" />
+
       {showAd && pendingCreate ? (
         <MockAd
           placement="room_create"
@@ -93,70 +94,79 @@ export default function CreateRoomPage() {
         />
       ) : null}
 
-      <Card className="border-border bg-card text-card-foreground">
-        <CardHeader>
-          <CardTitle>Create Room</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="rounded-lg border border-border p-4">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={positionRequired}
-                onChange={(e) => setPositionRequired(e.target.checked)}
-                className="mt-1 rounded border-border"
-              />
-              <span className="flex flex-col gap-1">
-                <span className="font-medium">Is player position important?</span>
-                <span className="text-sm text-muted-foreground">
-                  {positionRequired
-                    ? 'Players will pick a grid cell when joining. You control colors per position.'
-                    : 'Players join without a grid. Colors apply to everyone at once.'}
-                </span>
-              </span>
-            </label>
+      <PageTransitionWrapper>
+        <NeonCard glowColor="magenta" borderVariant="magenta" className="p-8">
+          <div className="text-center mb-8">
+            <NeonTitle as="h2" color="magenta" className="text-2xl font-black tracking-widest">
+              CREATE ROOM
+            </NeonTitle>
+            <p className="text-[10px] font-cyber tracking-widest text-muted-foreground uppercase mt-1">
+              Configure Light Desk System
+            </p>
           </div>
 
-          {positionRequired ? (
-            <>
-              <div>
-                <Label htmlFor="rows">Rows</Label>
-                <Input
-                  id="rows"
-                  type="number"
-                  min={1}
-                  max={entitlements?.maxGridRows ?? 5}
-                  value={rows}
-                  onChange={(e) => setRows(Number(e.target.value))}
-                  className="mt-2"
+          <div className="flex flex-col gap-6">
+            <div className="rounded-xl border border-white/5 dark:bg-white/5 bg-zinc-50 p-4 transition-all duration-300">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={positionRequired}
+                  onChange={(e) => setPositionRequired(e.target.checked)}
+                  className="mt-1 rounded-full border-border bg-transparent text-neon-magenta focus:ring-neon-magenta"
                 />
-              </div>
-              <div>
-                <Label htmlFor="cols">Columns</Label>
-                <Input
-                  id="cols"
-                  type="number"
-                  min={1}
-                  max={entitlements?.maxGridCols ?? 5}
-                  value={cols}
-                  onChange={(e) => setCols(Number(e.target.value))}
-                  className="mt-2"
-                />
-              </div>
-            </>
-          ) : null}
+                <span className="flex flex-col gap-1">
+                  <span className="font-cyber text-sm font-semibold tracking-wide text-foreground">Is player position important?</span>
+                  <span className="text-xs text-muted-foreground leading-normal">
+                    {positionRequired
+                      ? 'Players will pick a grid cell when joining. You control colors per position.'
+                      : 'Players join without a grid. Colors apply to everyone at once.'}
+                  </span>
+                </span>
+              </label>
+            </div>
 
-          <p className="text-sm text-muted-foreground">
-            Plan limit: {entitlements?.maxDevices ?? 10} devices
-            {positionRequired
-              ? ` · ${entitlements?.maxGridRows ?? 5}x${entitlements?.maxGridCols ?? 5} max grid`
-              : ''}
-          </p>
-          <Button onClick={handleCreateClick} disabled={creating}>
-            {creating ? 'Creating...' : 'Create Room'}
-          </Button>
-        </CardContent>
-      </Card>
+            {positionRequired ? (
+              <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="space-y-2">
+                  <Label htmlFor="rows" className="font-cyber text-xs uppercase tracking-wider text-zinc-300">Rows</Label>
+                  <Input
+                    id="rows"
+                    type="number"
+                    min={1}
+                    max={entitlements?.maxGridRows ?? 5}
+                    value={rows}
+                    onChange={(e) => setRows(Number(e.target.value))}
+                    className="font-cyber tracking-wide text-center"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cols" className="font-cyber text-xs uppercase tracking-wider text-zinc-300">Columns</Label>
+                  <Input
+                    id="cols"
+                    type="number"
+                    min={1}
+                    max={entitlements?.maxGridCols ?? 5}
+                    value={cols}
+                    onChange={(e) => setCols(Number(e.target.value))}
+                    className="font-cyber tracking-wide text-center"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            <p className="text-xs font-cyber tracking-wide text-muted-foreground text-center">
+              Plan limit: {entitlements?.maxDevices ?? 10} devices
+              {positionRequired
+                ? ` · ${entitlements?.maxGridRows ?? 5}x${entitlements?.maxGridCols ?? 5} max grid`
+                : ''}
+            </p>
+            
+            <NeonButton onClick={handleCreateClick} color="magenta" variant="solid" className="w-full text-xs uppercase tracking-widest h-11" disabled={creating}>
+              {creating ? 'Creating Grid...' : 'Deploy Grid'}
+            </NeonButton>
+          </div>
+        </NeonCard>
+      </PageTransitionWrapper>
     </main>
   );
 }

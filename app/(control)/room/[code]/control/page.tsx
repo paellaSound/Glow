@@ -3,8 +3,7 @@
 import { Suspense, use, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { parseMatrixParam } from '@/lib/glow/join-url';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { ColorPad } from '@/components/glow/color-pad';
 import { DeviceList } from '@/components/glow/device-list';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
@@ -104,114 +103,132 @@ function ControlContent({ code }: { code: string }) {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-6">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold">Room {code.toUpperCase()}</h1>
-            <RoomShareControls
-              roomCode={code}
-              matrixEnabled={shareMatrixEnabled}
-              onMatrixEnabledChange={setShareMatrixEnabled}
-              compact
-            />
+    <main className="relative mx-auto max-w-6xl px-6 py-8 min-h-screen overflow-hidden">
+      <SectionGlow glowColor="mixed" position="top" />
+
+      <PageTransitionWrapper>
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4 border-b border-border/40 pb-6">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-4">
+              <NeonTitle as="h1" color="cyan" className="text-3xl font-black tracking-widest leading-none">
+                ROOM {code.toUpperCase()}
+              </NeonTitle>
+              <RoomShareControls
+                roomCode={code}
+                matrixEnabled={shareMatrixEnabled}
+                onMatrixEnabledChange={setShareMatrixEnabled}
+                compact
+              />
+            </div>
+            <p className="mt-2 text-xs font-cyber tracking-wider text-muted-foreground uppercase">
+              STATUS: <span className={connected ? 'text-neon-cyan neon-text-cyan' : 'text-zinc-500'}>{connected ? 'ONLINE' : 'CONNECTING...'}</span> · {roomState?.devices.length ?? 0} GRID UNITS
+            </p>
           </div>
-          <p className="mt-1 text-sm text-zinc-400">
-            {connected ? 'Connected' : 'Connecting...'} · {roomState?.devices.length ?? 0} devices
-          </p>
+          <div className="flex flex-wrap gap-3">
+            <NeonButton color="cyan" variant="outline" onClick={toggleFallback} className="h-9 text-xs uppercase tracking-widest px-4">
+              Fallback {fallbackEnabled ? 'On' : 'Off'}
+            </NeonButton>
+            <NeonButton
+              color="magenta"
+              variant="outline"
+              className="h-9 text-xs uppercase tracking-widest px-4 border-red-500/20 hover:border-red-500 text-red-500/90 hover:text-red-500"
+              onClick={() => socket.current?.emit('orchestrator:close_room', { roomCode: code.toUpperCase() })}
+            >
+              Close Room
+            </NeonButton>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={toggleFallback}>
-            Fallback {fallbackEnabled ? 'On' : 'Off'}
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => socket.current?.emit('orchestrator:close_room', { roomCode: code.toUpperCase() })}
-          >
-            Close Room
-          </Button>
-        </div>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {matrixEnabled ? (
-          <Card className="border-white/10 bg-zinc-900 text-white">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Matrix</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => setMatrixEnabled(false)}>
-                Hide
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {roomState ? (
-                <MatrixPanel
-                  roomState={roomState}
-                  selectedCell={selectedCell}
-                  onCellClick={(row, col) => {
-                    setSelectedCell({ row, col });
-                    sendColor('#FF0055', row, col);
-                  }}
-                />
-              ) : (
-                <p className="text-sm text-zinc-400">Waiting for room state...</p>
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="border-white/10 bg-zinc-900 text-white">
-            <CardHeader>
-              <CardTitle>Matrix</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <p className="text-sm text-zinc-400">
-                Matrix mode is off. Colors apply to all connected players.
-              </p>
-              <Button variant="outline" onClick={() => setMatrixEnabled(true)}>
-                Enable matrix
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+        <div className="grid gap-8 lg:grid-cols-2">
+          {matrixEnabled ? (
+            <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-6">
+              <div className="flex flex-row items-center justify-between mb-6">
+                <NeonTitle as="h3" color="cyan" className="text-lg font-black tracking-widest">
+                  TACTILE MATRIX
+                </NeonTitle>
+                <NeonButton color="cyan" variant="ghost" className="h-7 px-3 text-[10px] uppercase tracking-wider" onClick={() => setMatrixEnabled(false)}>
+                  Disable
+                </NeonButton>
+              </div>
+              <div className="p-1 rounded-xl bg-black/20 border border-white/5">
+                {roomState ? (
+                  <MatrixPanel
+                    roomState={roomState}
+                    selectedCell={selectedCell}
+                    onCellClick={(row, col) => {
+                      setSelectedCell({ row, col });
+                      sendColor('#FF0055', row, col);
+                    }}
+                  />
+                ) : (
+                  <p className="text-xs font-cyber text-muted-foreground text-center py-6">Waiting for grid response...</p>
+                )}
+              </div>
+            </NeonCard>
+          ) : (
+            <NeonCard glowColor="none" borderVariant="default" hoverEffect={false} className="p-6 flex flex-col justify-between min-h-[200px]">
+              <div className="mb-4">
+                <NeonTitle as="h3" color="white" className="text-lg font-black tracking-widest">
+                  TACTILE MATRIX
+                </NeonTitle>
+                <p className="text-xs text-muted-foreground leading-relaxed mt-2">
+                  Matrix mode is disabled. All active screen units are bound to global broad-frequency control.
+                </p>
+              </div>
+              <NeonButton color="cyan" variant="solid" onClick={() => setMatrixEnabled(true)} className="w-full text-xs uppercase tracking-widest h-10 mt-4">
+                Activate Matrix Grid
+              </NeonButton>
+            </NeonCard>
+          )}
 
-        <div className="flex flex-col gap-6">
-          {roomState ? (
-            <DeviceList
-              roomState={roomState}
-              onIdentify={(publicId) =>
-                socket.current?.emit('orchestrator:identify_device', {
-                  roomCode: code.toUpperCase(),
-                  devicePublicId: publicId,
-                })
-              }
-            />
-          ) : null}
+          <div className="flex flex-col gap-8">
+            {roomState ? (
+              <DeviceList
+                roomState={roomState}
+                onIdentify={(publicId) =>
+                  socket.current?.emit('orchestrator:identify_device', {
+                    roomCode: code.toUpperCase(),
+                    devicePublicId: publicId,
+                  })
+                }
+              />
+            ) : null}
 
-          <Card className="border-white/10 bg-zinc-900 text-white">
-            <CardHeader>
-              <CardTitle>Color Pad</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {colorHint ? <p className="mb-3 text-sm text-amber-300">{colorHint}</p> : null}
+            <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-6">
+              <div className="mb-4">
+                <NeonTitle as="h3" color="cyan" className="text-lg font-black tracking-widest">
+                  COLOR FREQUENCY
+                </NeonTitle>
+              </div>
+              {colorHint ? <p className="mb-3 text-xs font-cyber text-amber-300 tracking-wide uppercase">{colorHint}</p> : null}
               <ColorPad onColor={(colorHex) => sendColor(colorHex)} />
-            </CardContent>
-          </Card>
+            </NeonCard>
 
-          <Card className="border-white/10 bg-zinc-900 text-white">
-            <CardHeader>
-              <CardTitle>Presets</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {(roomState?.entitlements.availablePresets ?? ['solid', 'flash', 'pulse']).map(
-                (presetId) => (
-                  <Button key={presetId} variant="outline" onClick={() => runPreset(presetId)}>
-                    {PRESET_LABELS[presetId] ?? presetId}
-                  </Button>
-                )
-              )}
-            </CardContent>
-          </Card>
+            <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-6">
+              <div className="mb-4">
+                <NeonTitle as="h3" color="violet" className="text-lg font-black tracking-widest">
+                  PRESET WAVES
+                </NeonTitle>
+              </div>
+              <div className="flex flex-wrap gap-2.5">
+                {(roomState?.entitlements.availablePresets ?? ['solid', 'flash', 'pulse']).map(
+                  (presetId) => (
+                    <NeonButton
+                      key={presetId}
+                      color="violet"
+                      variant="outline"
+                      onClick={() => runPreset(presetId)}
+                      className="text-xs uppercase tracking-widest px-4 py-1.5 h-9"
+                    >
+                      {PRESET_LABELS[presetId] ?? presetId}
+                    </NeonButton>
+                  )
+                )}
+              </div>
+            </NeonCard>
+          </div>
         </div>
-      </div>
+      </PageTransitionWrapper>
     </main>
   );
 }

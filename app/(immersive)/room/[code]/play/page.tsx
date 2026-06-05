@@ -14,6 +14,7 @@ import {
   getStoredDeviceId,
   storeDeviceId,
 } from '@/lib/glow/player-session';
+import { useOrchestratorDelay } from '@/lib/glow/use-orchestrator-delay';
 import type {
   FallbackModeEvent,
   VisualColorEvent,
@@ -41,8 +42,14 @@ function PlayerContent({
   matrixRequired: boolean;
 }) {
   const roomCode = code.toUpperCase();
-  const { connected, emitWithCallback, on } = useGlowSocket();
+  const { connected, emit, emitWithCallback, on } = useGlowSocket();
   const [joined, setJoined] = useState(false);
+  const { delayMs, trackOrchestratorMessage } = useOrchestratorDelay({
+    connected,
+    enabled: joined,
+    emit,
+    on,
+  });
   const [devicePublicId, setDevicePublicId] = useState<string | null>(null);
   const [connectionLost, setConnectionLost] = useState(false);
   const [reconnecting, setReconnecting] = useState(false);
@@ -161,11 +168,21 @@ function PlayerContent({
 
   useEffect(() => {
     const unsubscribers = [
-      on('visual:color', (event) => visual.scheduleColor(event as VisualColorEvent)),
-      on('visual:preset', (event) => visual.schedulePreset(event as VisualPresetEvent)),
-      on('fallback:mode_changed', (event) =>
-        visual.setFallbackMode(event as FallbackModeEvent)
-      ),
+      on('visual:color', (event) => {
+        const payload = event as VisualColorEvent;
+        trackOrchestratorMessage(payload.targetTimestamp);
+        visual.scheduleColor(payload);
+      }),
+      on('visual:preset', (event) => {
+        const payload = event as VisualPresetEvent;
+        trackOrchestratorMessage(payload.targetTimestamp, payload.seedTimestamp);
+        visual.schedulePreset(payload);
+      }),
+      on('fallback:mode_changed', (event) => {
+        const payload = event as FallbackModeEvent;
+        trackOrchestratorMessage(payload.seedTimestamp, payload.seedTimestamp);
+        visual.setFallbackMode(payload);
+      }),
       on('device:identify', (event) => {
         const payload = event as { label: string };
         visual.triggerIdentify(payload.label);
@@ -180,7 +197,7 @@ function PlayerContent({
     return () => {
       unsubscribers.forEach((unsub) => unsub?.());
     };
-  }, [on, visual]);
+  }, [on, trackOrchestratorMessage, visual]);
 
   async function requestPosition(row: number, col: number) {
     const response = await emitWithCallback<{
@@ -235,7 +252,10 @@ function PlayerContent({
       <WakeLock />
 
       <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4">
-        <div className="rounded bg-black/40 px-3 py-1 text-xs text-white">{statusLabel}</div>
+        <div className="rounded bg-black/40 px-3 py-1 text-xs text-white">
+          {statusLabel}
+          {joined && connected && delayMs !== null ? ` (${delayMs}ms)` : ''}
+        </div>
         <FullscreenButton />
       </div>
 

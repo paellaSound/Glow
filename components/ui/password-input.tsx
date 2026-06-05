@@ -14,13 +14,13 @@ function PasswordInput({ className, ...props }: React.ComponentProps<typeof Inpu
       <Input
         {...props}
         type={visible ? 'text' : 'password'}
-        className={cn('pr-10', className)}
+        className={cn('pr-12', className)}
       />
       <Button
         type="button"
         variant="ghost"
         size="icon"
-        className="absolute top-0 right-0 h-full px-3 hover:bg-transparent"
+        className="absolute top-1/2 -translate-y-1/2 right-1.5 size-7 p-0 flex items-center justify-center hover:bg-transparent"
         onClick={() => setVisible((value) => !value)}
         aria-label={visible ? 'Hide password' : 'Show password'}
         tabIndex={-1}

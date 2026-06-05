@@ -15,7 +15,7 @@ export function MatrixPanel({ roomState, selectedCell, onCellClick }: MatrixPane
 
   return (
     <div
-      className="grid gap-1"
+      className="grid gap-1.5"
       style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
     >
       {Array.from({ length: rows * cols }).map((_, index) => {
@@ -30,11 +30,11 @@ export function MatrixPanel({ roomState, selectedCell, onCellClick }: MatrixPane
             type="button"
             onClick={() => onCellClick(row, col)}
             className={cn(
-              'aspect-square rounded border text-[10px] font-medium transition',
+              'aspect-square rounded-md border text-xs font-cyber transition-all duration-300 cursor-pointer',
               cell
-                ? 'border-orange-500/60 bg-orange-500/20 text-orange-200'
-                : 'border-white/10 bg-white/5 text-zinc-500',
-              isSelected && 'ring-2 ring-orange-400'
+                ? 'border-neon-cyan/70 bg-neon-cyan/15 text-neon-cyan neon-glow-cyan'
+                : 'border-white/5 bg-white/5 text-zinc-600 hover:bg-white/10 hover:border-white/10',
+              isSelected && 'ring-2 ring-neon-magenta border-neon-magenta/90 shadow-[0_0_12px_rgba(255,0,200,0.4)]'
             )}
           >
             {cell?.label ?? '·'}

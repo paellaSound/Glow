@@ -48,11 +48,16 @@ export function useGlowSocket() {
     };
   }, []);
 
+  const emit = useCallback((event: string, payload: unknown) => {
+    socketRef.current?.emit(event, payload);
+  }, []);
+
   return {
     socket: socketRef,
     connected,
     roomState,
     emitWithCallback,
+    emit,
     on,
   };
 }

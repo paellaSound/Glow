@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
-import { Manrope } from 'next/font/google';
+import { Manrope, Syne, Space_Grotesk } from 'next/font/google';
 import { getProfile, getTeamForUser } from '@/lib/db/queries';
 import { ThemeProvider } from '@/components/theme-provider';
 import { SWRConfig } from 'swr';
@@ -23,7 +23,20 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-const manrope = Manrope({ subsets: ['latin'] });
+const manrope = Manrope({
+  subsets: ['latin'],
+  variable: '--font-sans',
+});
+
+const syne = Syne({
+  subsets: ['latin'],
+  variable: '--font-display',
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-cyber',
+});
 
 export default function RootLayout({
   children,
@@ -31,8 +44,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={manrope.className}>
-      <body className="min-h-[100dvh] bg-background text-foreground">
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${manrope.variable} ${syne.variable} ${spaceGrotesk.variable}`}
+    >
+      <body className="min-h-[100dvh] bg-background text-foreground font-sans">
         <ThemeProvider>
           <SWRConfig
             value={{
@@ -49,3 +66,4 @@ export default function RootLayout({
     </html>
   );
 }
+
