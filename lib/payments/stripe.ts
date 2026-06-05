@@ -8,8 +8,11 @@ import {
 } from '@/lib/db/queries';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-04-30.basil'
+  apiVersion: '2026-05-27.dahlia'
 });
+
+// 2026-04-30.basil
+// 2026-05-27.dahlia
 
 export async function createCheckoutSession({
   team,
