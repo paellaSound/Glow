@@ -2,7 +2,6 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { bootstrapUserProfile } from '@/lib/db/queries';
 
 function authRedirect(path: string, redirectTo?: string) {
   const target = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/room/new';
@@ -18,6 +17,7 @@ async function bootstrapFromSession() {
 
   if (!user) return null;
 
+  const { bootstrapUserProfile } = await import('@/lib/db/queries');
   return bootstrapUserProfile(
     user.id,
     user.email ?? '',
@@ -119,6 +119,7 @@ export async function ensureUserBootstrap() {
 
   if (!user) return null;
 
+  const { bootstrapUserProfile } = await import('@/lib/db/queries');
   return bootstrapUserProfile(
     user.id,
     user.email ?? '',

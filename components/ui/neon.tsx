@@ -212,3 +212,40 @@ export function PageTransitionWrapper({
     </div>
   );
 }
+
+// ==========================================
+// 6. Tooltip Component
+// ==========================================
+interface TooltipProps {
+  content: string;
+  children: React.ReactNode;
+  title?: string;
+  color?: 'cyan' | 'magenta' | 'violet';
+}
+
+export function Tooltip({ content, children, title = 'HELP / INFO', color = 'cyan' }: TooltipProps) {
+  const colorTitles = {
+    cyan: 'text-neon-cyan',
+    magenta: 'text-neon-magenta',
+    violet: 'text-neon-violet',
+  };
+
+  const arrowColors = {
+    cyan: 'dark:border-neon-cyan/20 border-neon-cyan/25',
+    magenta: 'dark:border-neon-magenta/20 border-neon-magenta/25',
+    violet: 'dark:border-neon-violet/20 border-neon-violet/25',
+  };
+
+  return (
+    <div className="group relative inline-block">
+      {children}
+      <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 w-64 -translate-x-1/2 scale-95 rounded-xl border border-border bg-card/95 p-4 text-[11px] leading-relaxed text-muted-foreground opacity-0 shadow-xl backdrop-blur-md transition-all duration-300 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:scale-100 group-focus-within:opacity-100 select-none">
+        <div className={cn("font-cyber uppercase tracking-widest mb-1.5 text-[9px] font-bold", colorTitles[color])}>
+          {title}
+        </div>
+        {content}
+        <div className={cn("absolute top-full left-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1.5 bg-card border-r border-b border-border rotate-45", arrowColors[color])} />
+      </div>
+    </div>
+  );
+}

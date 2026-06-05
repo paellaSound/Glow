@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { PresetPicker } from '@/components/glow/preset-picker';
-import { DEFAULT_ENTITLEMENTS } from '@/lib/entitlements';
+import { DEFAULT_ENTITLEMENTS } from '@/lib/entitlements-defaults';
 import { getPreset } from '@/lib/glow/presets';
 import type { PlanEntitlements, PresetId, PresetParams } from '@/lib/glow/types';
 import { useVisualEngine } from '@/lib/glow/visual-engine';

@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
 import { planEntitlements, plans, teams } from '@/lib/db/schema';
+import { DEFAULT_ENTITLEMENTS } from '@/lib/entitlements-defaults';
 
 export type PlanEntitlements = {
   maxDevices: number;
@@ -17,20 +18,7 @@ export type PlanEntitlements = {
   priorityReconnectWindowSeconds: number;
 };
 
-export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
-  maxDevices: 10,
-  adsEnabled: true,
-  availablePresets: ['solid', 'flash', 'pulse', 'audio'],
-  audioReactive: true,
-  matrixMode: true,
-  advancedMatrix: false,
-  customGridSize: false,
-  maxGridRows: 5,
-  maxGridCols: 5,
-  maxRoomDurationMinutes: 60,
-  manualFallbackMode: true,
-  priorityReconnectWindowSeconds: 60,
-};
+export { DEFAULT_ENTITLEMENTS };
 
 const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   max_devices: 'maxDevices',
