@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ColorPad } from '@/components/glow/color-pad';
 import { DeviceList } from '@/components/glow/device-list';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
+import { RoomShareControls } from '@/components/glow/room-share-controls';
 import { useGlowSocket } from '@/lib/glow/socket';
 import { PRESET_LABELS } from '@/lib/glow/presets';
 import { createClient } from '@/lib/supabase/client';
@@ -21,6 +22,9 @@ export default function ControlPage({
   const { connected, roomState, emitWithCallback, socket } = useGlowSocket();
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [fallbackEnabled, setFallbackEnabled] = useState(false);
+  const [matrixEnabled, setMatrixEnabled] = useState(false);
+  const [shareMatrixEnabled, setShareMatrixEnabled] = useState(false);
+  const [colorHint, setColorHint] = useState<string | null>(null);
 
   useEffect(() => {
     async function rejoin() {
@@ -42,16 +46,33 @@ export default function ControlPage({
   }, [connected, code, emitWithCallback, router]);
 
   function sendColor(colorHex: string, row?: number, col?: number) {
+    const roomCode = code.toUpperCase();
+    const targetTimestamp = Date.now() + 100;
+
+    if (!matrixEnabled) {
+      socket.current?.emit('orchestrator:broadcast_color', {
+        roomCode,
+        colorHex,
+        targetTimestamp,
+      });
+      return;
+    }
+
     const targetRow = row ?? selectedCell?.row;
     const targetCol = col ?? selectedCell?.col;
-    if (targetRow === undefined || targetCol === undefined) return;
+    if (targetRow === undefined || targetCol === undefined) {
+      setColorHint('Select a matrix cell first');
+      window.setTimeout(() => setColorHint(null), 2500);
+      return;
+    }
 
+    setColorHint(null);
     socket.current?.emit('orchestrator:set_cell_color', {
-      roomCode: code.toUpperCase(),
+      roomCode,
       row: targetRow,
       col: targetCol,
       colorHex,
-      targetTimestamp: Date.now() + 100,
+      targetTimestamp,
     });
   }
 
@@ -77,9 +98,17 @@ export default function ControlPage({
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Room {code.toUpperCase()}</h1>
-          <p className="text-sm text-zinc-400">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold">Room {code.toUpperCase()}</h1>
+            <RoomShareControls
+              roomCode={code}
+              matrixEnabled={shareMatrixEnabled}
+              onMatrixEnabledChange={setShareMatrixEnabled}
+              compact
+            />
+          </div>
+          <p className="mt-1 text-sm text-zinc-400">
             {connected ? 'Connected' : 'Connecting...'} · {roomState?.devices.length ?? 0} devices
           </p>
         </div>
@@ -97,25 +126,44 @@ export default function ControlPage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="border-white/10 bg-zinc-900 text-white">
-          <CardHeader>
-            <CardTitle>Matrix</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {roomState ? (
-              <MatrixPanel
-                roomState={roomState}
-                selectedCell={selectedCell}
-                onCellClick={(row, col) => {
-                  setSelectedCell({ row, col });
-                  sendColor('#FF0055', row, col);
-                }}
-              />
-            ) : (
-              <p className="text-sm text-zinc-400">Waiting for room state...</p>
-            )}
-          </CardContent>
-        </Card>
+        {matrixEnabled ? (
+          <Card className="border-white/10 bg-zinc-900 text-white">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Matrix</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setMatrixEnabled(false)}>
+                Hide
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {roomState ? (
+                <MatrixPanel
+                  roomState={roomState}
+                  selectedCell={selectedCell}
+                  onCellClick={(row, col) => {
+                    setSelectedCell({ row, col });
+                    sendColor('#FF0055', row, col);
+                  }}
+                />
+              ) : (
+                <p className="text-sm text-zinc-400">Waiting for room state...</p>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-white/10 bg-zinc-900 text-white">
+            <CardHeader>
+              <CardTitle>Matrix</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              <p className="text-sm text-zinc-400">
+                Matrix mode is off. Colors apply to all connected players.
+              </p>
+              <Button variant="outline" onClick={() => setMatrixEnabled(true)}>
+                Enable matrix
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="flex flex-col gap-6">
           {roomState ? (
@@ -135,6 +183,7 @@ export default function ControlPage({
               <CardTitle>Color Pad</CardTitle>
             </CardHeader>
             <CardContent>
+              {colorHint ? <p className="mb-3 text-sm text-amber-300">{colorHint}</p> : null}
               <ColorPad onColor={(colorHex) => sendColor(colorHex)} />
             </CardContent>
           </Card>

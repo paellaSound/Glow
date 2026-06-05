@@ -27,6 +27,7 @@ export function useVisualEngine(options: VisualEngineOptions) {
   const [identifyLabel, setIdentifyLabel] = useState<string | null>(null);
   const fallbackRef = useRef<FallbackModeEvent | null>(null);
   const presetRef = useRef<VisualPresetEvent | null>(null);
+  const directColorRef = useRef<string | null>(null);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -42,13 +43,15 @@ export function useVisualEngine(options: VisualEngineOptions) {
           now
         );
         setColor(c);
-      } else if (presetRef.current && options.row !== undefined && options.col !== undefined) {
+      } else if (directColorRef.current) {
+        setColor(directColorRef.current);
+      } else if (presetRef.current) {
         const preset = presetRef.current;
         const elapsed = now - preset.targetTimestamp;
         if (elapsed >= 0) {
           const ctx: PresetContext = {
-            row: options.row,
-            col: options.col,
+            row: options.row ?? 0,
+            col: options.col ?? 0,
             timeMs: elapsed,
             seed: preset.seedTimestamp,
             matrixRows: preset.matrix.rows,
@@ -70,10 +73,14 @@ export function useVisualEngine(options: VisualEngineOptions) {
   function scheduleColor(event: VisualColorEvent) {
     presetRef.current = null;
     const delay = Math.max(0, event.targetTimestamp - Date.now());
-    window.setTimeout(() => setColor(event.colorHex), delay);
+    window.setTimeout(() => {
+      directColorRef.current = event.colorHex;
+      setColor(event.colorHex);
+    }, delay);
   }
 
   function schedulePreset(event: VisualPresetEvent) {
+    directColorRef.current = null;
     presetRef.current = event;
   }
 
@@ -81,6 +88,8 @@ export function useVisualEngine(options: VisualEngineOptions) {
     fallbackRef.current = event;
     if (!event.enabled) {
       presetRef.current = null;
+    } else {
+      directColorRef.current = null;
     }
   }
 

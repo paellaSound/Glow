@@ -8,25 +8,34 @@ import { FullscreenButton } from '@/components/glow/fullscreen-button';
 import { WakeLock } from '@/components/glow/wake-lock';
 import { Button } from '@/components/ui/button';
 import { labelFromPosition } from '@/lib/glow/matrix';
+import { parseMatrixParam } from '@/lib/glow/join-url';
 import type {
   FallbackModeEvent,
   VisualColorEvent,
   VisualPresetEvent,
 } from '@/lib/glow/types';
 
-function PlayerContent({ code, nickname }: { code: string; nickname?: string }) {
+function PlayerContent({
+  code,
+  nickname,
+  matrixRequired,
+}: {
+  code: string;
+  nickname?: string;
+  matrixRequired: boolean;
+}) {
   const { connected, emitWithCallback, on } = useGlowSocket();
   const [joined, setJoined] = useState(false);
   const [position, setPosition] = useState<{ row: number; col: number; label?: string } | null>(
     null
   );
   const [matrixSize, setMatrixSize] = useState({ rows: 3, cols: 3 });
-  const [pickMode, setPickMode] = useState(true);
+  const [pickMode, setPickMode] = useState(matrixRequired);
 
   const visual = useVisualEngine({
     roomCode: code.toUpperCase(),
-    row: position?.row,
-    col: position?.col,
+    row: position?.row ?? 0,
+    col: position?.col ?? 0,
     matrixRows: matrixSize.rows,
     matrixCols: matrixSize.cols,
   });
@@ -54,9 +63,11 @@ function PlayerContent({ code, nickname }: { code: string; nickname?: string }) 
       if (response.row !== undefined && response.col !== undefined) {
         setPosition({ row: response.row, col: response.col, label: response.label });
         setPickMode(false);
+      } else if (!matrixRequired) {
+        setPickMode(false);
       }
     });
-  }, [connected, joined, code, nickname, emitWithCallback]);
+  }, [connected, joined, code, nickname, matrixRequired, emitWithCallback]);
 
   useEffect(() => {
     const unsubscribers = [
@@ -130,7 +141,7 @@ function PlayerContent({ code, nickname }: { code: string; nickname?: string }) 
         </div>
       ) : null}
 
-      {pickMode && joined ? (
+      {matrixRequired && pickMode && joined ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
           <p className="text-center text-white">Pick your position</p>
           <div
@@ -161,7 +172,10 @@ function PlayerContent({ code, nickname }: { code: string; nickname?: string }) 
 function PlayerSearchParams({ code }: { code: string }) {
   const searchParams = useSearchParams();
   const nickname = searchParams.get('nickname') ?? undefined;
-  return <PlayerContent code={code} nickname={nickname} />;
+  const matrixRequired = parseMatrixParam(searchParams.get('matrix'));
+  return (
+    <PlayerContent code={code} nickname={nickname} matrixRequired={matrixRequired} />
+  );
 }
 
 export default function PlayerPage({

@@ -30,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`bg-zinc-950 text-white ${manrope.className}`}>
+    <html lang="en" className={`dark bg-zinc-950 text-white ${manrope.className}`}>
       <body className="min-h-[100dvh] bg-zinc-950">
         <SWRConfig
           value={{
