@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { PresetPicker } from '@/components/glow/preset-picker';
-import { getPreset, presetsForPlan } from '@/lib/glow/presets';
+import { DEFAULT_ENTITLEMENTS } from '@/lib/entitlements';
+import { getPreset } from '@/lib/glow/presets';
 import type { PlanEntitlements, PresetId, PresetParams } from '@/lib/glow/types';
 import { useVisualEngine } from '@/lib/glow/visual-engine';
 
-const FREE_PRESETS = presetsForPlan('free');
 
 export default function StandalonePage() {
   const [activePreset, setActivePreset] = useState<string | null>(null);
@@ -27,7 +27,7 @@ export default function StandalonePage() {
     void loadEntitlements();
   }, []);
 
-  const availablePresets = entitlements?.availablePresets ?? FREE_PRESETS;
+  const availablePresets = entitlements?.availablePresets ?? DEFAULT_ENTITLEMENTS.availablePresets;
 
   function runPreset(presetId: PresetId, params?: PresetParams) {
     setActivePreset(presetId);
@@ -58,7 +58,7 @@ export default function StandalonePage() {
       <div className="absolute inset-x-0 bottom-0 p-4">
         <PresetPicker
           availablePresetIds={availablePresets}
-          audioReactive={entitlements?.audioReactive ?? false}
+          audioReactive={entitlements?.audioReactive ?? DEFAULT_ENTITLEMENTS.audioReactive}
           activePresetId={activePreset}
           onRun={runPreset}
         />

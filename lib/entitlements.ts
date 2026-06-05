@@ -20,8 +20,8 @@ export type PlanEntitlements = {
 export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   maxDevices: 10,
   adsEnabled: true,
-  availablePresets: ['solid', 'flash', 'pulse'],
-  audioReactive: false,
+  availablePresets: ['solid', 'flash', 'pulse', 'audio'],
+  audioReactive: true,
   matrixMode: true,
   advancedMatrix: false,
   customGridSize: false,
@@ -110,8 +110,8 @@ export const PLAN_SEED_DATA = [
     entitlements: {
       max_devices: 10,
       ads_enabled: true,
-      available_presets: ['solid', 'flash', 'pulse'],
-      audio_reactive: false,
+      available_presets: ['solid', 'flash', 'pulse', 'audio'],
+      audio_reactive: true,
       matrix_mode: true,
       advanced_matrix: false,
       custom_grid_size: false,
