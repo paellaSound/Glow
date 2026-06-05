@@ -3,6 +3,10 @@ import { db } from './drizzle';
 import { plans, planEntitlements } from './schema';
 import { PLAN_SEED_DATA } from '@/lib/entitlements';
 
+function valuesMatch(a: unknown, b: unknown): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export async function ensurePlansSeeded() {
   for (const planData of PLAN_SEED_DATA) {
     const existing = await db
@@ -29,20 +33,28 @@ export async function ensurePlansSeeded() {
       planId = existing[0].id;
     }
 
-    for (const [key, value] of Object.entries(planData.entitlements)) {
-      const existingEnt = await db
-        .select()
-        .from(planEntitlements)
-        .where(eq(planEntitlements.planId, planId))
-        .limit(100);
+    const existingEnt = await db
+      .select()
+      .from(planEntitlements)
+      .where(eq(planEntitlements.planId, planId));
 
-      const hasKey = existingEnt.some((entry) => entry.key === key);
-      if (!hasKey) {
+    for (const [key, value] of Object.entries(planData.entitlements)) {
+      const existingRow = existingEnt.find((entry) => entry.key === key);
+
+      if (!existingRow) {
         await db.insert(planEntitlements).values({
           planId,
           key,
           valueJson: value,
         });
+        continue;
+      }
+
+      if (!valuesMatch(existingRow.valueJson, value)) {
+        await db
+          .update(planEntitlements)
+          .set({ valueJson: value, updatedAt: new Date() })
+          .where(eq(planEntitlements.id, existingRow.id));
       }
     }
   }

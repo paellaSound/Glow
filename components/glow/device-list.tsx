@@ -11,7 +11,7 @@ type DeviceListProps = {
 
 export function DeviceList({ roomState, onIdentify }: DeviceListProps) {
   return (
-    <Card className="border-white/10 bg-zinc-950 text-white">
+    <Card>
       <CardHeader>
         <CardTitle className="text-base">
           Devices ({roomState.devices.length}/{roomState.entitlements.maxDevices})
@@ -19,16 +19,16 @@ export function DeviceList({ roomState, onIdentify }: DeviceListProps) {
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         {roomState.devices.length === 0 ? (
-          <p className="text-sm text-zinc-400">Waiting for players to join...</p>
+          <p className="text-sm text-muted-foreground">Waiting for players to join...</p>
         ) : (
           roomState.devices.map((device) => (
             <div
               key={device.publicId}
-              className="flex items-center justify-between rounded-lg border border-white/10 p-3"
+              className="flex items-center justify-between rounded-lg border border-border/60 p-3 dark:border-white/10"
             >
               <div>
                 <p className="font-medium">{device.nickname ?? 'Anonymous player'}</p>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-muted-foreground">
                   {device.label ?? 'No position'} · {device.status}
                   {device.latencyMs !== undefined ? ` · ${device.latencyMs}ms` : ''}
                 </p>

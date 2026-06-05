@@ -324,7 +324,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground font-sans selection:bg-neon-magenta/30 selection:text-white transition-colors duration-300;
+    @apply bg-background text-foreground font-sans selection:bg-neon-magenta/30 selection:text-white;
   }
   
   /* Glass panel styles */

@@ -97,11 +97,11 @@ export default function CreateRoomPage() {
       <PageTransitionWrapper>
         <NeonCard glowColor="magenta" borderVariant="magenta" className="p-8">
           <div className="text-center mb-8">
-            <NeonTitle as="h2" color="magenta" className="text-2xl font-black tracking-widest">
-              CREATE ROOM
+            <NeonTitle as="h2" color="magenta" className="text-2xl font-black tracking-widest animate-pulse">
+              GLOW YOUR RAVE
             </NeonTitle>
             <p className="text-[10px] font-cyber tracking-widest text-muted-foreground uppercase mt-1">
-              Configure Light Desk System
+              SET UP THE LIGHTROOM GRID
             </p>
           </div>
 
@@ -115,11 +115,11 @@ export default function CreateRoomPage() {
                   className="mt-1 rounded-full border-border bg-transparent text-neon-magenta focus:ring-neon-magenta"
                 />
                 <span className="flex flex-col gap-1">
-                  <span className="font-cyber text-sm font-semibold tracking-wide text-foreground">Is player position important?</span>
+                  <span className="font-cyber text-sm font-semibold tracking-wide text-foreground">Position Screens in a Grid Matrix?</span>
                   <span className="text-xs text-muted-foreground leading-normal">
                     {positionRequired
-                      ? 'Players will pick a grid cell when joining. You control colors per position.'
-                      : 'Players join without a grid. Colors apply to everyone at once.'}
+                      ? 'Screens will lock to specific coordinates. Perfect for scrolling wave patterns and visual gradients.'
+                      : 'Screens join as one unified strobe unit. Colors and flashes sync globally.'}
                   </span>
                 </span>
               </label>
@@ -128,7 +128,7 @@ export default function CreateRoomPage() {
             {positionRequired ? (
               <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
                 <div className="space-y-2">
-                  <Label htmlFor="rows" className="font-cyber text-xs uppercase tracking-wider text-zinc-300">Rows</Label>
+                  <Label htmlFor="rows" className="font-cyber text-xs uppercase tracking-wider text-zinc-300">Grid Rows</Label>
                   <Input
                     id="rows"
                     type="number"
@@ -140,7 +140,7 @@ export default function CreateRoomPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cols" className="font-cyber text-xs uppercase tracking-wider text-zinc-300">Columns</Label>
+                  <Label htmlFor="cols" className="font-cyber text-xs uppercase tracking-wider text-zinc-300">Grid Columns</Label>
                   <Input
                     id="cols"
                     type="number"
@@ -155,14 +155,14 @@ export default function CreateRoomPage() {
             ) : null}
 
             <p className="text-xs font-cyber tracking-wide text-muted-foreground text-center">
-              Plan limit: {entitlements?.maxDevices ?? 10} devices
+              Rave Limit: Up to {entitlements?.maxDevices ?? 10} synced screens
               {positionRequired
                 ? ` · ${entitlements?.maxGridRows ?? 5}x${entitlements?.maxGridCols ?? 5} max grid`
                 : ''}
             </p>
             
             <NeonButton onClick={handleCreateClick} color="magenta" variant="solid" className="w-full text-xs uppercase tracking-widest h-11" disabled={creating}>
-              {creating ? 'Creating Grid...' : 'Deploy Grid'}
+              {creating ? 'DEPLOYING RIG...' : 'LAUNCH RAVE LIGHTSHOW'}
             </NeonButton>
           </div>
         </NeonCard>

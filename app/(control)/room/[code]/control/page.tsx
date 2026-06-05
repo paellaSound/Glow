@@ -17,7 +17,7 @@ import { createClient } from '@/lib/supabase/client';
 function ControlContent({ code }: { code: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { connected, roomState, emitWithCallback, socket } = useGlowSocket();
+  const { connected, roomState, emitWithCallback, socket, on } = useGlowSocket();
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [fallbackEnabled, setFallbackEnabled] = useState(false);
   const [matrixEnabled, setMatrixEnabled] = useState(false);
@@ -27,6 +27,7 @@ function ControlContent({ code }: { code: string }) {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [audioSource, setAudioSource] = useState<'local' | 'orchestrator'>('local');
   const [streamOrchestratorAudio, setStreamOrchestratorAudio] = useState(false);
+  const [closingRoom, setClosingRoom] = useState(false);
 
   const orchestratorAudio = useAudioAnalyzer({ enabled: streamOrchestratorAudio });
 
@@ -82,6 +83,40 @@ function ControlContent({ code }: { code: string }) {
       void rejoin();
     }
   }, [connected, code, emitWithCallback, router]);
+
+  useEffect(() => {
+    const unsubscribe = on('room:closed', () => {
+      setStreamOrchestratorAudio(false);
+      router.push('/');
+    });
+
+    return unsubscribe;
+  }, [on, router]);
+
+  async function handleCloseRoom() {
+    if (closingRoom) return;
+
+    setClosingRoom(true);
+    setStreamOrchestratorAudio(false);
+
+    try {
+      const response = await emitWithCallback<{ ok: boolean; reason?: string }>(
+        'orchestrator:close_room',
+        { roomCode: code.toUpperCase() }
+      );
+
+      if (!response.ok && response.reason !== 'Room not found') {
+        alert(response.reason ?? 'Could not close room');
+        setClosingRoom(false);
+        return;
+      }
+    } catch {
+      setClosingRoom(false);
+      return;
+    }
+
+    router.push('/');
+  }
 
   function sendColor(colorHex: string, row?: number, col?: number) {
     const roomCode = code.toUpperCase();
@@ -157,22 +192,21 @@ function ControlContent({ code }: { code: string }) {
               />
             </div>
             <p className="mt-2 text-xs font-cyber tracking-wider text-muted-foreground uppercase">
-              STATUS: <span className={connected ? 'text-neon-cyan neon-text-cyan' : 'text-zinc-500'}>{connected ? 'ONLINE' : 'CONNECTING...'}</span> · {roomState?.devices.length ?? 0} GRID UNITS
-              {streamOrchestratorAudio && orchestratorAudio.active ? ' · ORCH MIC ON' : ''}
-              {streamOrchestratorAudio && orchestratorAudio.error ? ` · ${orchestratorAudio.error.toUpperCase()}` : ''}
+              STATUS: <span className={connected ? 'text-neon-cyan neon-text-cyan' : 'text-zinc-500'}>{connected ? 'ONLINE' : 'CONNECTING...'}</span> · {roomState?.devices.length ?? 0} ACTIVE SCREENS
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
             <NeonButton color="cyan" variant="outline" onClick={toggleFallback} className="h-9 text-xs uppercase tracking-widest px-4">
-              Fallback {fallbackEnabled ? 'On' : 'Off'}
+              Auto-Strobe {fallbackEnabled ? 'On' : 'Off'}
             </NeonButton>
             <NeonButton
               color="magenta"
               variant="outline"
               className="h-9 text-xs uppercase tracking-widest px-4 border-red-500/20 hover:border-red-500 text-red-500/90 hover:text-red-500"
-              onClick={() => socket.current?.emit('orchestrator:close_room', { roomCode: code.toUpperCase() })}
+              disabled={closingRoom}
+              onClick={() => void handleCloseRoom()}
             >
-              Close Room
+              {closingRoom ? 'Closing...' : 'Terminate Rave'}
             </NeonButton>
           </div>
         </div>
@@ -182,10 +216,10 @@ function ControlContent({ code }: { code: string }) {
             <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-6">
               <div className="flex flex-row items-center justify-between mb-6">
                 <NeonTitle as="h3" color="cyan" className="text-lg font-black tracking-widest">
-                  TACTILE MATRIX
+                  STAGED GRID MATRIX
                 </NeonTitle>
                 <NeonButton color="cyan" variant="ghost" className="h-7 px-3 text-[10px] uppercase tracking-wider" onClick={() => setMatrixEnabled(false)}>
-                  Disable
+                  Offline
                 </NeonButton>
               </div>
               <div className="p-1 rounded-xl bg-black/20 border border-white/5">
@@ -207,14 +241,14 @@ function ControlContent({ code }: { code: string }) {
             <NeonCard glowColor="none" borderVariant="default" hoverEffect={false} className="p-6 flex flex-col justify-between min-h-[200px]">
               <div className="mb-4">
                 <NeonTitle as="h3" color="white" className="text-lg font-black tracking-widest">
-                  TACTILE MATRIX
+                  STAGED GRID MATRIX
                 </NeonTitle>
                 <p className="text-xs text-muted-foreground leading-relaxed mt-2">
-                  Matrix mode is disabled. All active screen units are bound to global broad-frequency control.
+                  Grid matrix is offline. All synced devices are firing strobe flashes in global harmony.
                 </p>
               </div>
               <NeonButton color="cyan" variant="solid" onClick={() => setMatrixEnabled(true)} className="w-full text-xs uppercase tracking-widest h-10 mt-4">
-                Activate Matrix Grid
+                BOOST TO GRID MATRIX
               </NeonButton>
             </NeonCard>
           )}
@@ -235,7 +269,7 @@ function ControlContent({ code }: { code: string }) {
             <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-6">
               <div className="mb-4">
                 <NeonTitle as="h3" color="cyan" className="text-lg font-black tracking-widest">
-                  COLOR FREQUENCY
+                  BEAT FREQUENCY COLORS
                 </NeonTitle>
               </div>
               {colorHint ? <p className="mb-3 text-xs font-cyber text-amber-300 tracking-wide uppercase">{colorHint}</p> : null}
@@ -245,7 +279,7 @@ function ControlContent({ code }: { code: string }) {
             <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-6">
               <div className="mb-4">
                 <NeonTitle as="h3" color="violet" className="text-lg font-black tracking-widest">
-                  PRESET WAVES
+                  RAVE PATTERN SEQUENCES
                 </NeonTitle>
               </div>
               <PresetPicker
