@@ -1,5 +1,6 @@
 {
   "private": true,
+  "packageManager": "pnpm@10.32.1",
   "scripts": {
     "dev": "next dev --turbopack --hostname 0.0.0.0",
     "build": "pnpm --filter glow-presets build && next build",
