@@ -8,8 +8,10 @@ import { ColorPad } from '@/components/glow/color-pad';
 import { DeviceList } from '@/components/glow/device-list';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
 import { RoomShareControls } from '@/components/glow/room-share-controls';
+import { PresetPicker } from '@/components/glow/preset-picker';
+import { useAudioAnalyzer } from '@/lib/glow/audio-analyzer';
 import { useGlowSocket } from '@/lib/glow/socket';
-import { PRESET_LABELS } from '@/lib/glow/presets';
+import type { PresetId, PresetParams } from '@/lib/glow/types';
 import { createClient } from '@/lib/supabase/client';
 
 function ControlContent({ code }: { code: string }) {
@@ -22,6 +24,35 @@ function ControlContent({ code }: { code: string }) {
   const [shareMatrixEnabled, setShareMatrixEnabled] = useState(false);
   const [colorHint, setColorHint] = useState<string | null>(null);
   const [matrixPrefApplied, setMatrixPrefApplied] = useState(false);
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [audioSource, setAudioSource] = useState<'local' | 'orchestrator'>('local');
+  const [streamOrchestratorAudio, setStreamOrchestratorAudio] = useState(false);
+
+  const orchestratorAudio = useAudioAnalyzer({ enabled: streamOrchestratorAudio });
+
+  useEffect(() => {
+    if (!streamOrchestratorAudio || !connected) {
+      return;
+    }
+
+    let rafId = 0;
+    let lastEmit = 0;
+
+    const tick = (now: number) => {
+      if (now - lastEmit >= 33) {
+        socket.current?.emit('orchestrator:audio_features', {
+          roomCode: code.toUpperCase(),
+          features: orchestratorAudio.featuresRef.current,
+          timestamp: now,
+        });
+        lastEmit = now;
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [streamOrchestratorAudio, connected, code, orchestratorAudio.featuresRef, socket]);
 
   useEffect(() => {
     const matrixParam = searchParams.get('matrix');
@@ -83,12 +114,17 @@ function ControlContent({ code }: { code: string }) {
     });
   }
 
-  function runPreset(presetId: string) {
+  function runPreset(presetId: PresetId, params?: PresetParams) {
+    setActivePresetId(presetId);
+    setStreamOrchestratorAudio(
+      presetId === 'audio' && params?.audioSource === 'orchestrator'
+    );
     socket.current?.emit('orchestrator:run_preset', {
       roomCode: code.toUpperCase(),
       presetId,
       seedTimestamp: Date.now(),
       targetTimestamp: Date.now() + 100,
+      params,
     });
   }
 
@@ -122,6 +158,8 @@ function ControlContent({ code }: { code: string }) {
             </div>
             <p className="mt-2 text-xs font-cyber tracking-wider text-muted-foreground uppercase">
               STATUS: <span className={connected ? 'text-neon-cyan neon-text-cyan' : 'text-zinc-500'}>{connected ? 'ONLINE' : 'CONNECTING...'}</span> · {roomState?.devices.length ?? 0} GRID UNITS
+              {streamOrchestratorAudio && orchestratorAudio.active ? ' · ORCH MIC ON' : ''}
+              {streamOrchestratorAudio && orchestratorAudio.error ? ` · ${orchestratorAudio.error.toUpperCase()}` : ''}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -210,21 +248,18 @@ function ControlContent({ code }: { code: string }) {
                   PRESET WAVES
                 </NeonTitle>
               </div>
-              <div className="flex flex-wrap gap-2.5">
-                {(roomState?.entitlements.availablePresets ?? ['solid', 'flash', 'pulse']).map(
-                  (presetId) => (
-                    <NeonButton
-                      key={presetId}
-                      color="violet"
-                      variant="outline"
-                      onClick={() => runPreset(presetId)}
-                      className="text-xs uppercase tracking-widest px-4 py-1.5 h-9"
-                    >
-                      {PRESET_LABELS[presetId] ?? presetId}
-                    </NeonButton>
-                  )
-                )}
-              </div>
+              <PresetPicker
+                availablePresetIds={
+                  roomState?.entitlements.availablePresets ?? ['solid', 'flash', 'pulse']
+                }
+                audioReactive={roomState?.entitlements.audioReactive ?? false}
+                audioSource={audioSource}
+                onAudioSourceChange={setAudioSource}
+                showAudioSource
+                activePresetId={activePresetId}
+                disabled={!connected}
+                onRun={runPreset}
+              />
             </NeonCard>
           </div>
         </div>

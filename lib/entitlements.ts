@@ -152,7 +152,7 @@ export const PLAN_SEED_DATA = [
     entitlements: {
       max_devices: 50,
       ads_enabled: false,
-      available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow', 'diagonal'],
+      available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow', 'diagonal', 'audio'],
       audio_reactive: true,
       matrix_mode: true,
       advanced_matrix: true,
@@ -173,7 +173,7 @@ export const PLAN_SEED_DATA = [
     entitlements: {
       max_devices: 999,
       ads_enabled: false,
-      available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow', 'diagonal', 'strobe'],
+      available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow', 'diagonal', 'strobe', 'audio'],
       audio_reactive: true,
       matrix_mode: true,
       advanced_matrix: true,

@@ -1,3 +1,12 @@
+export type {
+  AudioFeatures,
+  AudioSource,
+  PresetId,
+  PresetParams,
+  VisualAudioFeaturesEvent,
+  VisualPresetEvent,
+} from 'glow-presets';
+
 export type PlanEntitlements = {
   maxDevices: number;
   adsEnabled: boolean;
@@ -52,13 +61,6 @@ export type VisualColorEvent = {
   targetTimestamp: number;
   row?: number;
   col?: number;
-};
-
-export type VisualPresetEvent = {
-  presetId: string;
-  seedTimestamp: number;
-  targetTimestamp: number;
-  matrix: { rows: number; cols: number };
 };
 
 export type FallbackModeEvent = {

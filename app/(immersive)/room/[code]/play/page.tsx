@@ -17,6 +17,7 @@ import {
 import { useOrchestratorDelay } from '@/lib/glow/use-orchestrator-delay';
 import type {
   FallbackModeEvent,
+  VisualAudioFeaturesEvent,
   VisualColorEvent,
   VisualPresetEvent,
 } from '@/lib/glow/types';
@@ -177,6 +178,9 @@ function PlayerContent({
         const payload = event as VisualPresetEvent;
         trackOrchestratorMessage(payload.targetTimestamp, payload.seedTimestamp);
         visual.schedulePreset(payload);
+      }),
+      on('visual:audio_features', (event) => {
+        visual.setAudioFeatures(event as VisualAudioFeaturesEvent);
       }),
       on('fallback:mode_changed', (event) => {
         const payload = event as FallbackModeEvent;
