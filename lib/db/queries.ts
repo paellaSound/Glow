@@ -1,39 +1,50 @@
-import { desc, and, eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users } from './schema';
-import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/session';
+import {
+  profiles,
+  teams,
+  teamMembers,
+  plans,
+  adImpressions,
+  roomSessions,
+} from './schema';
+import { createClient } from '@/lib/supabase/server';
+import { getTeamEntitlements } from '@/lib/entitlements';
+import { getFreePlan } from './plan-seed';
 
-export async function getUser() {
-  const sessionCookie = (await cookies()).get('session');
-  if (!sessionCookie || !sessionCookie.value) {
-    return null;
-  }
+export async function getAuthUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+}
 
-  const sessionData = await verifyToken(sessionCookie.value);
-  if (
-    !sessionData ||
-    !sessionData.user ||
-    typeof sessionData.user.id !== 'number'
-  ) {
-    return null;
-  }
+export async function getProfile() {
+  const user = await getAuthUser();
+  if (!user) return null;
 
-  if (new Date(sessionData.expires) < new Date()) {
-    return null;
-  }
-
-  const user = await db
+  const result = await db
     .select()
-    .from(users)
-    .where(and(eq(users.id, sessionData.user.id), isNull(users.deletedAt)))
+    .from(profiles)
+    .where(eq(profiles.id, user.id))
     .limit(1);
 
-  if (user.length === 0) {
-    return null;
-  }
+  return result[0] ?? null;
+}
 
-  return user[0];
+export async function getTeamForUser() {
+  const profile = await getProfile();
+  if (!profile) return null;
+
+  const result = await db.query.teams.findFirst({
+    where: eq(teams.ownerUserId, profile.id),
+    with: {
+      plan: true,
+    },
+  });
+
+  return result ?? null;
 }
 
 export async function getTeamByStripeCustomerId(customerId: string) {
@@ -47,84 +58,144 @@ export async function getTeamByStripeCustomerId(customerId: string) {
 }
 
 export async function updateTeamSubscription(
-  teamId: number,
-  subscriptionData: {
+  teamId: string,
+  data: {
     stripeSubscriptionId: string | null;
     stripeProductId: string | null;
-    planName: string | null;
+    stripePriceId: string | null;
+    planId: string;
     subscriptionStatus: string;
   }
 ) {
   await db
     .update(teams)
     .set({
-      ...subscriptionData,
-      updatedAt: new Date()
+      ...data,
+      updatedAt: new Date(),
     })
     .where(eq(teams.id, teamId));
 }
 
-export async function getUserWithTeam(userId: number) {
-  const result = await db
-    .select({
-      user: users,
-      teamId: teamMembers.teamId
-    })
-    .from(users)
-    .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
-    .where(eq(users.id, userId))
+export async function bootstrapUserProfile(
+  userId: string,
+  email: string,
+  fullName?: string | null,
+  avatarUrl?: string | null
+) {
+  const existing = await db
+    .select()
+    .from(profiles)
+    .where(eq(profiles.id, userId))
     .limit(1);
 
-  return result[0];
-}
-
-export async function getActivityLogs() {
-  const user = await getUser();
-  if (!user) {
-    throw new Error('User not authenticated');
+  if (existing.length > 0) {
+    return existing[0];
   }
 
-  return await db
-    .select({
-      id: activityLogs.id,
-      action: activityLogs.action,
-      timestamp: activityLogs.timestamp,
-      ipAddress: activityLogs.ipAddress,
-      userName: users.name
+  const freePlan = await getFreePlan();
+
+  const [profile] = await db
+    .insert(profiles)
+    .values({
+      id: userId,
+      email,
+      fullName: fullName ?? null,
+      avatarUrl: avatarUrl ?? null,
     })
-    .from(activityLogs)
-    .leftJoin(users, eq(activityLogs.userId, users.id))
-    .where(eq(activityLogs.userId, user.id))
-    .orderBy(desc(activityLogs.timestamp))
-    .limit(10);
-}
+    .returning();
 
-export async function getTeamForUser() {
-  const user = await getUser();
-  if (!user) {
-    return null;
-  }
+  const [team] = await db
+    .insert(teams)
+    .values({
+      name: `${fullName ?? email.split('@')[0]}'s Team`,
+      ownerUserId: userId,
+      planId: freePlan.id,
+      subscriptionStatus: 'free',
+    })
+    .returning();
 
-  const result = await db.query.teamMembers.findFirst({
-    where: eq(teamMembers.userId, user.id),
-    with: {
-      team: {
-        with: {
-          teamMembers: {
-            with: {
-              user: {
-                columns: {
-                  id: true,
-                  name: true,
-                  email: true
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+  await db.insert(teamMembers).values({
+    teamId: team.id,
+    userId,
+    role: 'owner',
   });
 
-  return result?.team || null;
+  return profile;
 }
+
+export async function getPlanByCode(code: string) {
+  const result = await db.select().from(plans).where(eq(plans.code, code)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getPlanByStripePriceId(priceId: string) {
+  const result = await db
+    .select()
+    .from(plans)
+    .where(eq(plans.stripePriceId, priceId))
+    .limit(1);
+  return result[0] ?? null;
+}
+
+export async function getAllPlans() {
+  return db.query.plans.findMany({
+    where: eq(plans.isActive, true),
+    orderBy: (p, { asc }) => [asc(p.sortOrder)],
+    with: {
+      entitlements: true,
+    },
+  });
+}
+
+export async function recordAdImpression(data: {
+  roomSessionId?: string;
+  teamId?: string;
+  viewerType: 'orchestrator' | 'player';
+  placement: 'room_create' | 'room_join';
+  metadata?: Record<string, unknown>;
+}) {
+  await db.insert(adImpressions).values({
+    roomSessionId: data.roomSessionId ?? null,
+    teamId: data.teamId ?? null,
+    viewerType: data.viewerType,
+    placement: data.placement,
+    provider: 'mock',
+    metadata: data.metadata ?? {},
+  });
+}
+
+export async function createRoomSession(data: {
+  roomCode: string;
+  teamId: string;
+  orchestratorUserId: string;
+  planId: string;
+  planCodeSnapshot: string;
+  entitlementsSnapshot: Record<string, unknown>;
+  matrixRows: number;
+  matrixCols: number;
+  adsEnabledSnapshot: boolean;
+}) {
+  const [session] = await db.insert(roomSessions).values(data).returning();
+  return session;
+}
+
+export async function closeRoomSession(
+  sessionId: string,
+  data: {
+    closeReason: string;
+    peakDevices: number;
+    totalJoinedDevices: number;
+  }
+) {
+  await db
+    .update(roomSessions)
+    .set({
+      endedAt: new Date(),
+      closeReason: data.closeReason,
+      peakDevices: data.peakDevices,
+      totalJoinedDevices: data.totalJoinedDevices,
+    })
+    .where(eq(roomSessions.id, sessionId));
+}
+
+export { getTeamEntitlements };

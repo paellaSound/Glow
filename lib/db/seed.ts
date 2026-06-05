@@ -1,113 +1,138 @@
-import { stripe } from '../payments/stripe';
-import { db } from './drizzle';
-import { users, teams, teamMembers } from './schema';
-import { hashPassword } from '@/lib/auth/session';
+import './load-env';
+
 import { eq } from 'drizzle-orm';
+import { db } from './drizzle';
+import { plans } from './schema';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { bootstrapUserProfile } from './queries';
+import { ensurePlansSeeded } from './plan-seed';
 
-async function createStripeProducts() {
-  console.log('Checking existing Stripe products and prices...');
+const TEST_USER = {
+  email: 'test@test.com',
+  password: 'admin123',
+  fullName: 'Test User',
+};
 
-  const activeProducts = await stripe.products.list({ active: true });
-
-  let baseProduct = activeProducts.data.find((p) => p.name === 'Base');
-  if (!baseProduct) {
-    console.log('Creating Base product and price on Stripe...');
-    baseProduct = await stripe.products.create({
-      name: 'Base',
-      description: 'Base subscription plan',
-    });
-
-    await stripe.prices.create({
-      product: baseProduct.id,
-      unit_amount: 800, // $8 in cents
-      currency: 'usd',
-      recurring: {
-        interval: 'month',
-        trial_period_days: 7,
-      },
-    });
-  } else {
-    console.log('Base product already exists on Stripe.');
+async function seedTestUser() {
+  const admin = createAdminClient();
+  if (!admin) {
+    console.log(
+      'Skipping test user seed: set SUPABASE_SERVICE_ROLE_KEY in .env.local to create test@test.com'
+    );
+    return;
   }
 
-  let plusProduct = activeProducts.data.find((p) => p.name === 'Plus');
-  if (!plusProduct) {
-    console.log('Creating Plus product and price on Stripe...');
-    plusProduct = await stripe.products.create({
-      name: 'Plus',
-      description: 'Plus subscription plan',
-    });
+  console.log('Seeding test user...');
 
-    await stripe.prices.create({
-      product: plusProduct.id,
-      unit_amount: 1200, // $12 in cents
-      currency: 'usd',
-      recurring: {
-        interval: 'month',
-        trial_period_days: 7,
-      },
-    });
-  } else {
-    console.log('Plus product already exists on Stripe.');
+  const { data: listData, error: listError } = await admin.auth.admin.listUsers();
+  if (listError) {
+    console.warn('Could not list Supabase users:', listError.message);
+    return;
   }
 
-  console.log('Stripe products and prices check completed.');
+  const existing = listData.users.find(
+    (user) => user.email?.toLowerCase() === TEST_USER.email
+  );
+
+  let userId = existing?.id;
+
+  if (!userId) {
+    const { data, error } = await admin.auth.admin.createUser({
+      email: TEST_USER.email,
+      password: TEST_USER.password,
+      email_confirm: true,
+      user_metadata: { full_name: TEST_USER.fullName },
+    });
+
+    if (error) {
+      console.warn('Could not create test user:', error.message);
+      return;
+    }
+
+    userId = data.user.id;
+    console.log(`Created test user: ${TEST_USER.email}`);
+  } else {
+    await admin.auth.admin.updateUserById(userId, {
+      password: TEST_USER.password,
+      email_confirm: true,
+      user_metadata: { full_name: TEST_USER.fullName },
+    });
+    console.log(`Test user already exists: ${TEST_USER.email}`);
+  }
+
+  await bootstrapUserProfile(userId, TEST_USER.email, TEST_USER.fullName);
+  console.log(`Test credentials: ${TEST_USER.email} / ${TEST_USER.password}`);
+}
+
+async function seedPlans() {
+  console.log('Seeding plans and entitlements...');
+  await ensurePlansSeeded();
+  console.log('Plans and entitlements ready.');
+}
+
+async function syncStripeProducts() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    console.log('Skipping Stripe sync: STRIPE_SECRET_KEY not set.');
+    return;
+  }
+
+  const { stripe } = await import('../payments/stripe');
+
+  console.log('Syncing Stripe products for paid plans...');
+
+  const paidPlans = [
+    { code: 'plus_25', name: 'Plus 25', amount: 100 },
+    { code: 'plus_50', name: 'Plus 50', amount: 500 },
+    { code: 'pro', name: 'Pro', amount: 2500 },
+  ];
+
+  for (const planDef of paidPlans) {
+    const dbPlan = await db
+      .select()
+      .from(plans)
+      .where(eq(plans.code, planDef.code))
+      .limit(1);
+
+    if (dbPlan.length === 0) continue;
+
+    if (dbPlan[0].stripePriceId) {
+      console.log(`Stripe price already linked for ${planDef.code}`);
+      continue;
+    }
+
+    try {
+      const product = await stripe.products.create({
+        name: planDef.name,
+        description: `Glow ${planDef.name} plan`,
+      });
+
+      const price = await stripe.prices.create({
+        product: product.id,
+        unit_amount: planDef.amount,
+        currency: 'eur',
+        recurring: { interval: 'month' },
+      });
+
+      await db
+        .update(plans)
+        .set({
+          stripeProductId: product.id,
+          stripePriceId: price.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(plans.id, dbPlan[0].id));
+
+      console.log(`Created Stripe product/price for ${planDef.code}`);
+    } catch (error) {
+      console.warn(`Could not create Stripe product for ${planDef.code}:`, error);
+    }
+  }
 }
 
 async function seed() {
-  const email = 'test@test.com';
-  const password = 'admin123';
-  const passwordHash = await hashPassword(password);
-
-  console.log('Checking if test user exists...');
-  const existingUsers = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  let user;
-
-  if (existingUsers.length === 0) {
-    [user] = await db
-      .insert(users)
-      .values([
-        {
-          email: email,
-          passwordHash: passwordHash,
-          role: "owner",
-        },
-      ])
-      .returning();
-    console.log('Initial user created.');
-  } else {
-    user = existingUsers[0];
-    console.log('Initial user already exists.');
-  }
-
-  console.log('Checking if test team exists...');
-  const existingTeamMembers = await db
-    .select({ team: teams })
-    .from(teamMembers)
-    .innerJoin(teams, eq(teamMembers.teamId, teams.id))
-    .where(eq(teamMembers.userId, user.id))
-    .limit(1);
-
-  if (existingTeamMembers.length === 0) {
-    const [team] = await db
-      .insert(teams)
-      .values({
-        name: 'Test Team',
-      })
-      .returning();
-    console.log('Initial team created.');
-
-    await db.insert(teamMembers).values({
-      teamId: team.id,
-      userId: user.id,
-      role: 'owner',
-    });
-    console.log('Linked user to team.');
-  } else {
-    console.log('Test team already exists and user is linked.');
-  }
-
-  await createStripeProducts();
+  await seedPlans();
+  await syncStripeProducts();
+  await seedTestUser();
 }
 
 seed()
@@ -116,6 +141,6 @@ seed()
     process.exit(1);
   })
   .finally(() => {
-    console.log('Seed process finished. Exiting...');
+    console.log('Seed process finished.');
     process.exit(0);
   });
