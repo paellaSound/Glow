@@ -21,6 +21,7 @@ export default function CreateRoomPage() {
     fetcher
   );
   const { emitWithCallback } = useGlowSocket();
+  const [positionRequired, setPositionRequired] = useState(false);
   const [rows, setRows] = useState(3);
   const [cols, setCols] = useState(3);
   const [creating, setCreating] = useState(false);
@@ -48,7 +49,7 @@ export default function CreateRoomPage() {
         error?: string;
       }>('orchestrator:create_room', {
         accessToken: session.access_token,
-        matrix: { rows, cols },
+        matrix: positionRequired ? { rows, cols } : { rows: 1, cols: 1 },
       });
 
       if (response.error || !response.roomCode) {
@@ -56,7 +57,8 @@ export default function CreateRoomPage() {
         return;
       }
 
-      router.push(`/room/${response.roomCode}/control`);
+      const matrixQuery = positionRequired ? 'matrix=1' : 'matrix=0';
+      router.push(`/room/${response.roomCode}/control?${matrixQuery}`);
     } finally {
       setCreating(false);
       setPendingCreate(false);
@@ -91,38 +93,64 @@ export default function CreateRoomPage() {
         />
       ) : null}
 
-      <Card className="border-white/10 bg-zinc-900 text-white">
+      <Card className="border-border bg-card text-card-foreground">
         <CardHeader>
-          <CardTitle>Create Matrix Room</CardTitle>
+          <CardTitle>Create Room</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div>
-            <Label htmlFor="rows">Rows</Label>
-            <Input
-              id="rows"
-              type="number"
-              min={1}
-              max={entitlements?.maxGridRows ?? 5}
-              value={rows}
-              onChange={(e) => setRows(Number(e.target.value))}
-              className="mt-2"
-            />
+          <div className="rounded-lg border border-border p-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={positionRequired}
+                onChange={(e) => setPositionRequired(e.target.checked)}
+                className="mt-1 rounded border-border"
+              />
+              <span className="flex flex-col gap-1">
+                <span className="font-medium">Is player position important?</span>
+                <span className="text-sm text-muted-foreground">
+                  {positionRequired
+                    ? 'Players will pick a grid cell when joining. You control colors per position.'
+                    : 'Players join without a grid. Colors apply to everyone at once.'}
+                </span>
+              </span>
+            </label>
           </div>
-          <div>
-            <Label htmlFor="cols">Columns</Label>
-            <Input
-              id="cols"
-              type="number"
-              min={1}
-              max={entitlements?.maxGridCols ?? 5}
-              value={cols}
-              onChange={(e) => setCols(Number(e.target.value))}
-              className="mt-2"
-            />
-          </div>
-          <p className="text-sm text-zinc-400">
-            Plan limit: {entitlements?.maxDevices ?? 10} devices ·{' '}
-            {entitlements?.maxGridRows ?? 5}x{entitlements?.maxGridCols ?? 5} max grid
+
+          {positionRequired ? (
+            <>
+              <div>
+                <Label htmlFor="rows">Rows</Label>
+                <Input
+                  id="rows"
+                  type="number"
+                  min={1}
+                  max={entitlements?.maxGridRows ?? 5}
+                  value={rows}
+                  onChange={(e) => setRows(Number(e.target.value))}
+                  className="mt-2"
+                />
+              </div>
+              <div>
+                <Label htmlFor="cols">Columns</Label>
+                <Input
+                  id="cols"
+                  type="number"
+                  min={1}
+                  max={entitlements?.maxGridCols ?? 5}
+                  value={cols}
+                  onChange={(e) => setCols(Number(e.target.value))}
+                  className="mt-2"
+                />
+              </div>
+            </>
+          ) : null}
+
+          <p className="text-sm text-muted-foreground">
+            Plan limit: {entitlements?.maxDevices ?? 10} devices
+            {positionRequired
+              ? ` · ${entitlements?.maxGridRows ?? 5}x${entitlements?.maxGridCols ?? 5} max grid`
+              : ''}
           </p>
           <Button onClick={handleCreateClick} disabled={creating}>
             {creating ? 'Creating...' : 'Create Room'}

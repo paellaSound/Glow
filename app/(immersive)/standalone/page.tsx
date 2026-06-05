@@ -24,7 +24,7 @@ export default function StandalonePage() {
     <div className="relative min-h-[100dvh]" style={{ backgroundColor: visual.color }}>
       <div className="absolute inset-x-0 top-0 flex items-center justify-between p-4">
         <Link href="/">
-          <Button variant="outline" size="sm">
+          <Button size="sm">
             Home
           </Button>
         </Link>

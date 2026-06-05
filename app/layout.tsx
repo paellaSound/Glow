@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { Manrope } from 'next/font/google';
 import { getProfile, getTeamForUser } from '@/lib/db/queries';
+import { ThemeProvider } from '@/components/theme-provider';
 import { SWRConfig } from 'swr';
 
 export const metadata: Metadata = {
@@ -30,18 +31,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`dark bg-zinc-950 text-white ${manrope.className}`}>
-      <body className="min-h-[100dvh] bg-zinc-950">
-        <SWRConfig
-          value={{
-            fallback: {
-              '/api/user': getProfile(),
-              '/api/team': getTeamForUser(),
-            },
-          }}
-        >
-          {children}
-        </SWRConfig>
+    <html lang="en" suppressHydrationWarning className={manrope.className}>
+      <body className="min-h-[100dvh] bg-background text-foreground">
+        <ThemeProvider>
+          <SWRConfig
+            value={{
+              fallback: {
+                '/api/user': getProfile(),
+                '/api/team': getTeamForUser(),
+              },
+            }}
+          >
+            {children}
+          </SWRConfig>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,7 +1,8 @@
 'use client';
 
-import { use, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, use, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { parseMatrixParam } from '@/lib/glow/join-url';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ColorPad } from '@/components/glow/color-pad';
@@ -12,19 +13,26 @@ import { useGlowSocket } from '@/lib/glow/socket';
 import { PRESET_LABELS } from '@/lib/glow/presets';
 import { createClient } from '@/lib/supabase/client';
 
-export default function ControlPage({
-  params,
-}: {
-  params: Promise<{ code: string }>;
-}) {
-  const { code } = use(params);
+function ControlContent({ code }: { code: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { connected, roomState, emitWithCallback, socket } = useGlowSocket();
   const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>(null);
   const [fallbackEnabled, setFallbackEnabled] = useState(false);
   const [matrixEnabled, setMatrixEnabled] = useState(false);
   const [shareMatrixEnabled, setShareMatrixEnabled] = useState(false);
   const [colorHint, setColorHint] = useState<string | null>(null);
+  const [matrixPrefApplied, setMatrixPrefApplied] = useState(false);
+
+  useEffect(() => {
+    const matrixParam = searchParams.get('matrix');
+    if (matrixParam === null || matrixPrefApplied) return;
+
+    const enabled = parseMatrixParam(matrixParam);
+    setMatrixEnabled(enabled);
+    setShareMatrixEnabled(enabled);
+    setMatrixPrefApplied(true);
+  }, [searchParams, matrixPrefApplied]);
 
   useEffect(() => {
     async function rejoin() {
@@ -205,5 +213,19 @@ export default function ControlPage({
         </div>
       </div>
     </main>
+  );
+}
+
+export default function ControlPage({
+  params,
+}: {
+  params: Promise<{ code: string }>;
+}) {
+  const { code } = use(params);
+
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-6xl px-4 py-6">Loading...</main>}>
+      <ControlContent code={code} />
+    </Suspense>
   );
 }
