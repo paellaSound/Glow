@@ -72,7 +72,7 @@ function ControlContent({ code }: { code: string }) {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) {
-        router.push(`/sign-in?redirect=/room/${code}/control`);
+        router.push(`/auth/signin?redirect=/room/${code}/control`);
         return;
       }
 

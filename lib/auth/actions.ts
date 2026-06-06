@@ -38,7 +38,7 @@ export async function signInWithGoogle(redirectTo?: string) {
   });
 
   if (error) {
-    authRedirect('/sign-in?error=oauth_failed', redirectTo);
+    authRedirect('/auth/signin?error=oauth_failed', redirectTo);
   }
 
   if (data.url) {
@@ -52,7 +52,7 @@ export async function signInWithPassword(formData: FormData) {
   const redirectTo = String(formData.get('redirect') ?? '/room/new');
 
   if (!email || !password) {
-    authRedirect('/sign-in?error=missing_fields', redirectTo);
+    authRedirect('/auth/signin?error=missing_fields', redirectTo);
   }
 
   const supabase = await createClient();
@@ -62,7 +62,7 @@ export async function signInWithPassword(formData: FormData) {
     const errorCode = error.message.toLowerCase().includes('email not confirmed')
       ? 'email_not_confirmed'
       : 'invalid_credentials';
-    authRedirect(`/sign-in?error=${errorCode}`, redirectTo);
+    authRedirect(`/auth/signin?error=${errorCode}`, redirectTo);
   }
 
   await bootstrapFromSession();
@@ -77,11 +77,11 @@ export async function signUpWithPassword(formData: FormData) {
   const redirectTo = String(formData.get('redirect') ?? '/room/new');
 
   if (!email || !password || !confirmPassword) {
-    authRedirect('/sign-up?error=missing_fields', redirectTo);
+    authRedirect('/auth/signup?error=missing_fields', redirectTo);
   }
 
   if (password !== confirmPassword) {
-    authRedirect('/sign-up?error=password_mismatch', redirectTo);
+    authRedirect('/auth/signup?error=password_mismatch', redirectTo);
   }
 
   const supabase = await createClient();
@@ -94,7 +94,7 @@ export async function signUpWithPassword(formData: FormData) {
   });
 
   if (error) {
-    authRedirect('/sign-up?error=signup_failed', redirectTo);
+    authRedirect('/auth/signup?error=signup_failed', redirectTo);
   }
 
   if (data.session) {
@@ -102,7 +102,7 @@ export async function signUpWithPassword(formData: FormData) {
     redirect(redirectTo.startsWith('/') ? redirectTo : '/room/new');
   }
 
-  authRedirect('/sign-in?notice=confirm_email', redirectTo);
+  authRedirect('/auth/signin?notice=confirm_email', redirectTo);
 }
 
 export async function signOut() {

@@ -39,7 +39,7 @@ export default function CreateRoomPage() {
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
-        router.push('/sign-in?redirect=/room/new');
+        router.push('/auth/signin?redirect=/room/new');
         return;
       }
 
