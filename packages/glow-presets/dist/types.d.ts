@@ -15,9 +15,13 @@ export type PresetContext = {
     matrixRows: number;
     matrixCols: number;
     audio?: AudioFeatures;
+    /** Active palette colours — presets should use these instead of hard-coded values. */
+    palette?: string[];
 };
 export type PresetParams = {
     audioSource?: AudioSource;
+    /** 1–12 hex colours from the active palette. Presets cycle through these per device. */
+    palette?: string[];
 };
 export type VisualPresetEvent = {
     presetId: string;

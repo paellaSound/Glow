@@ -110,6 +110,8 @@ export const roomSessions = pgTable(
     peakDevices: integer('peak_devices').notNull().default(0),
     totalJoinedDevices: integer('total_joined_devices').notNull().default(0),
     adsEnabledSnapshot: boolean('ads_enabled_snapshot').notNull().default(true),
+    rigId: uuid('rig_id').references(() => rigs.id, { onDelete: 'set null' }),
+    paletteSnapshot: jsonb('palette_snapshot'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -132,6 +134,70 @@ export const adImpressions = pgTable('ad_impressions', {
   metadata: jsonb('metadata').notNull().default({}),
 });
 
+export const rigs = pgTable(
+  'rigs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerUserId: uuid('owner_user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    defaultVisualArtId: text('default_visual_art_id').notNull(),
+    palette: jsonb('palette').notNull(), // string[] of 1-4 hex colors
+    logoAssetPath: text('logo_asset_path'),
+    logoEnabled: boolean('logo_enabled').notNull().default(false),
+    consoleConfig: jsonb('console_config').notNull().default({}),
+    metadata: jsonb('metadata').notNull().default({}),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('rigs_owner_user_id_idx').on(table.ownerUserId),
+    index('rigs_team_id_idx').on(table.teamId),
+  ]
+);
+
+export const rigCues = pgTable(
+  'rig_cues',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    rigId: uuid('rig_id')
+      .notNull()
+      .references(() => rigs.id, { onDelete: 'cascade' }),
+    visualArtId: text('visual_art_id').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+    params: jsonb('params'),
+    transition: jsonb('transition'),
+    label: text('label'),
+  },
+  (table) => [
+    index('rig_cues_rig_id_idx').on(table.rigId),
+  ]
+);
+
+export const rigSocials = pgTable(
+  'rig_socials',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    rigId: uuid('rig_id')
+      .notNull()
+      .references(() => rigs.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    label: text('label'),
+    url: text('url').notNull(),
+    enabled: boolean('enabled').notNull().default(true),
+    sortOrder: integer('sort_order').notNull(),
+  },
+  (table) => [
+    index('rig_socials_rig_id_idx').on(table.rigId),
+  ]
+);
+
 export const plansRelations = relations(plans, ({ many }) => ({
   entitlements: many(planEntitlements),
   teams: many(teams),
@@ -147,6 +213,7 @@ export const planEntitlementsRelations = relations(planEntitlements, ({ one }) =
 export const profilesRelations = relations(profiles, ({ many }) => ({
   ownedTeams: many(teams),
   teamMembers: many(teamMembers),
+  rigs: many(rigs),
 }));
 
 export const teamsRelations = relations(teams, ({ one, many }) => ({
@@ -160,6 +227,7 @@ export const teamsRelations = relations(teams, ({ one, many }) => ({
   }),
   teamMembers: many(teamMembers),
   roomSessions: many(roomSessions),
+  rigs: many(rigs),
 }));
 
 export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
@@ -186,7 +254,38 @@ export const roomSessionsRelations = relations(roomSessions, ({ one, many }) => 
     fields: [roomSessions.planId],
     references: [plans.id],
   }),
+  rig: one(rigs, {
+    fields: [roomSessions.rigId],
+    references: [rigs.id],
+  }),
   adImpressions: many(adImpressions),
+}));
+
+export const rigsRelations = relations(rigs, ({ one, many }) => ({
+  owner: one(profiles, {
+    fields: [rigs.ownerUserId],
+    references: [profiles.id],
+  }),
+  team: one(teams, {
+    fields: [rigs.teamId],
+    references: [teams.id],
+  }),
+  cues: many(rigCues),
+  socials: many(rigSocials),
+}));
+
+export const rigCuesRelations = relations(rigCues, ({ one }) => ({
+  rig: one(rigs, {
+    fields: [rigCues.rigId],
+    references: [rigs.id],
+  }),
+}));
+
+export const rigSocialsRelations = relations(rigSocials, ({ one }) => ({
+  rig: one(rigs, {
+    fields: [rigSocials.rigId],
+    references: [rigs.id],
+  }),
 }));
 
 export type Profile = typeof profiles.$inferSelect;
@@ -196,6 +295,9 @@ export type Team = typeof teams.$inferSelect;
 export type TeamMember = typeof teamMembers.$inferSelect;
 export type RoomSession = typeof roomSessions.$inferSelect;
 export type AdImpression = typeof adImpressions.$inferSelect;
+export type Rig = typeof rigs.$inferSelect;
+export type RigCue = typeof rigCues.$inferSelect;
+export type RigSocial = typeof rigSocials.$inferSelect;
 
 export type TeamWithPlan = Team & {
   plan: Plan;

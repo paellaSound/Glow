@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
+import Link from 'next/link';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,22 +14,40 @@ import type { PlanEntitlements } from '@/lib/glow/types';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+type Rig = {
+  id: string;
+  name: string;
+  palette: string[];
+  isDefault: boolean;
+};
+
 export default function CreateRoomPage() {
   const router = useRouter();
   const { data } = useSWR<{ team: { id: string }; entitlements: PlanEntitlements }>(
     '/api/team',
     fetcher
   );
-  const { emitWithCallback } = useGlowSocket();
+  const { data: rigsList } = useSWR<Rig[]>('/api/rigs', fetcher);
+  
+  const { emitWithCallback, connected } = useGlowSocket();
   const [positionRequired, setPositionRequired] = useState(false);
   const [rows, setRows] = useState(3);
   const [cols, setCols] = useState(3);
+  const [selectedRigId, setSelectedRigId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showAd, setShowAd] = useState(false);
   const [pendingCreate, setPendingCreate] = useState(false);
 
   const entitlements = data?.entitlements;
   const adsEnabled = entitlements?.adsEnabled ?? true;
+
+  // Auto-select default rig on load
+  useEffect(() => {
+    if (rigsList && rigsList.length > 0 && !selectedRigId) {
+      const defaultRig = rigsList.find((r) => r.isDefault) || rigsList[0];
+      setSelectedRigId(defaultRig.id);
+    }
+  }, [rigsList, selectedRigId]);
 
   async function createRoom() {
     setCreating(true);
@@ -43,13 +62,27 @@ export default function CreateRoomPage() {
         return;
       }
 
+      const selectedRig = rigsList?.find((r) => r.id === selectedRigId);
+
       const response = await emitWithCallback<{
         roomCode?: string;
         error?: string;
       }>('orchestrator:create_room', {
         accessToken: session.access_token,
         matrix: positionRequired ? { rows, cols } : { rows: 1, cols: 1 },
+        rigId: selectedRigId,
+        paletteSnapshot: selectedRig ? selectedRig.palette : undefined,
       });
+
+      if (response.error === 'ACTIVE_SESSION' && response.roomCode) {
+        const resume = window.confirm(
+          `You already have an active session (${response.roomCode}). Open the control desk?`
+        );
+        if (resume) {
+          router.push(`/room/${response.roomCode}/control`);
+        }
+        return;
+      }
 
       if (response.error || !response.roomCode) {
         alert(response.error ?? 'Failed to create room');
@@ -58,6 +91,9 @@ export default function CreateRoomPage() {
 
       const matrixQuery = positionRequired ? 'matrix=1' : 'matrix=0';
       router.push(`/room/${response.roomCode}/control?${matrixQuery}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create room';
+      alert(message);
     } finally {
       setCreating(false);
       setPendingCreate(false);
@@ -154,6 +190,33 @@ export default function CreateRoomPage() {
               </div>
             ) : null}
 
+            {/* Rig Selector */}
+            <div className="space-y-2">
+              <Label htmlFor="rig-select" className="font-cyber text-xs uppercase tracking-wider text-zinc-300">
+                Load Performance Rig
+              </Label>
+              <select
+                id="rig-select"
+                value={selectedRigId || ''}
+                onChange={(e) => setSelectedRigId(e.target.value || null)}
+                className="w-full h-10 bg-black/30 border border-white/10 rounded-lg text-white font-cyber px-3 focus:ring-1 focus:ring-neon-magenta focus:border-neon-magenta focus:outline-none text-xs uppercase tracking-wider"
+              >
+                <option value="" className="bg-zinc-900 text-white">Default / Branded Rig</option>
+                {rigsList?.map((rig) => (
+                  <option key={rig.id} value={rig.id} className="bg-zinc-900 text-white">
+                    {rig.name} {rig.isDefault ? '(DEFAULT)' : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground font-sans leading-normal">
+                Rigs load your preset cue lists, custom color palettes, and social links. Manage them under{' '}
+                <Link href="/rigs" className="text-neon-magenta hover:underline font-cyber tracking-wide text-[9px] uppercase">
+                  Rigs Manager
+                </Link>
+                .
+              </p>
+            </div>
+
             <p className="text-xs font-cyber tracking-wide text-muted-foreground text-center">
               Rave Limit: Up to {entitlements?.maxDevices ?? 10} synced screens
               {positionRequired
@@ -161,9 +224,24 @@ export default function CreateRoomPage() {
                 : ''}
             </p>
             
-            <NeonButton onClick={handleCreateClick} color="magenta" variant="solid" className="w-full text-xs uppercase tracking-widest h-11" disabled={creating}>
-              {creating ? 'DEPLOYING RIG...' : 'LAUNCH RAVE LIGHTSHOW'}
+            <NeonButton
+              onClick={handleCreateClick}
+              color="magenta"
+              variant="solid"
+              className="w-full text-xs uppercase tracking-widest h-11"
+              disabled={creating || !connected}
+            >
+              {creating
+                ? 'DEPLOYING RIG...'
+                : !connected
+                  ? 'CONNECTING TO REALTIME…'
+                  : 'LAUNCH RAVE LIGHTSHOW'}
             </NeonButton>
+            {!connected ? (
+              <p className="text-[10px] font-cyber tracking-wide text-muted-foreground text-center">
+                Waiting for the realtime service on port 4000…
+              </p>
+            ) : null}
           </div>
         </NeonCard>
       </PageTransitionWrapper>

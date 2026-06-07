@@ -4,6 +4,7 @@ import Link from 'next/link';
 import useSWR from 'swr';
 import { User } from 'lucide-react';
 import { GlowBrandLockup } from '@/components/glow/glow-brand-lockup';
+import { OngoingSessionIndicator } from '@/components/glow/ongoing-session-banner';
 import { ThemeToggle } from '@/components/glow/theme-toggle';
 import { UserAccountMenu } from '@/components/glow/user-account-menu';
 
@@ -26,6 +27,7 @@ export function MarketingHeader() {
         <GlowBrandLockup />
 
         <div className="flex items-center gap-2">
+          <OngoingSessionIndicator />
           <ThemeToggle />
           {data?.user ? (
             <UserAccountMenu variant="inline" />

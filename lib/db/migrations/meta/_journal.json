@@ -15,6 +15,13 @@
       "when": 1749135600000,
       "tag": "0001_glow_mvp_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780852997200,
+      "tag": "0002_add_rigs",
+      "breakpoints": true
     }
   ]
 }

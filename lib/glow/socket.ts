@@ -29,14 +29,25 @@ export function useGlowSocket() {
   }, []);
 
   const emitWithCallback = useCallback(
-    <T,>(event: string, payload: unknown): Promise<T> =>
+    <T,>(event: string, payload: unknown, timeoutMs = 10_000): Promise<T> =>
       new Promise((resolve, reject) => {
         const socket = socketRef.current;
         if (!socket) {
           reject(new Error('Socket not connected'));
           return;
         }
-        socket.emit(event, payload, (response: T) => resolve(response));
+        if (!socket.connected) {
+          reject(new Error('Realtime service is not connected'));
+          return;
+        }
+
+        socket.timeout(timeoutMs).emit(event, payload, (err: Error | null, response: T) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(response);
+        });
       }),
     []
   );

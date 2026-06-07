@@ -1,7 +1,14 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { getPreset, type AudioSource, type PresetId, type PresetParams } from 'glow-presets';
+import {
+  getPreset,
+  listPresets,
+  type AudioSource,
+  type PresetId,
+  type PresetParams,
+} from 'glow-presets';
+import { cn } from '@/lib/utils';
 
 type PresetPickerProps = {
   availablePresetIds: string[];
@@ -12,6 +19,7 @@ type PresetPickerProps = {
   onAudioSourceChange?: (source: AudioSource) => void;
   showAudioSource?: boolean;
   activePresetId?: string | null;
+  showLockedPresets?: boolean;
 };
 
 export function PresetPicker({
@@ -23,15 +31,29 @@ export function PresetPicker({
   onAudioSourceChange,
   showAudioSource = false,
   activePresetId,
+  showLockedPresets = true,
 }: PresetPickerProps) {
-  const visiblePresets = availablePresetIds.filter((id) => {
-    if (id === 'audio') {
-      return audioReactive;
+  const availableSet = new Set(availablePresetIds);
+
+  const presets = showLockedPresets
+    ? listPresets()
+    : listPresets().filter((preset) => {
+        if (preset.id === 'audio') {
+          return audioReactive && availableSet.has(preset.id);
+        }
+        return availableSet.has(preset.id);
+      });
+
+  function isPresetAvailable(presetId: PresetId): boolean {
+    if (presetId === 'audio') {
+      return audioReactive && availableSet.has(presetId);
     }
-    return true;
-  });
+    return availableSet.has(presetId);
+  }
 
   function handleRun(presetId: PresetId) {
+    if (!isPresetAvailable(presetId)) return;
+
     if (presetId === 'audio') {
       onRun(presetId, { audioSource });
       return;
@@ -42,25 +64,26 @@ export function PresetPicker({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-2">
-        {visiblePresets.map((presetId) => {
-          const preset = getPreset(presetId);
-          const label = preset?.label ?? presetId;
-          const isActive = activePresetId === presetId;
+        {presets.map((preset) => {
+          const isActive = activePresetId === preset.id;
+          const isAvailable = isPresetAvailable(preset.id);
 
           return (
             <Button
-              key={presetId}
+              key={preset.id}
               variant={isActive ? 'default' : 'outline'}
-              disabled={disabled}
-              onClick={() => handleRun(presetId as PresetId)}
+              disabled={disabled || !isAvailable}
+              title={!isAvailable ? 'Upgrade your plan to unlock this effect' : undefined}
+              className={cn(!isAvailable && 'opacity-45')}
+              onClick={() => handleRun(preset.id)}
             >
-              {label}
+              {preset.label}
             </Button>
           );
         })}
       </div>
 
-      {showAudioSource && audioReactive && availablePresetIds.includes('audio') ? (
+      {showAudioSource && audioReactive && availableSet.has('audio') ? (
         <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-300">
           <span>Audio source:</span>
           <Button

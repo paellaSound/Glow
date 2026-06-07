@@ -20,3 +20,9 @@ export type {
   VisualAudioFeaturesEvent,
   VisualPresetEvent,
 } from './types.js';
+export { isValidHexColor } from './utils/color.js';
+export {
+  paletteColorAt,
+  paletteColorForCell,
+  resolvePalette,
+} from './utils/palette.js';

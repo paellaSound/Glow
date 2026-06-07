@@ -3,7 +3,7 @@
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "dev": "next dev --turbopack --hostname 0.0.0.0",
-    "build": "pnpm --filter glow-presets build && next build",
+    "build": "pnpm --filter glow-presets build && pnpm --filter glow-visuals build && next build",
     "start": "next start",
     "db:setup": "npx tsx lib/db/setup.ts",
     "db:seed": "npx tsx lib/db/seed.ts",
@@ -15,7 +15,6 @@
     "generate-assets": "python3 scripts/generate-assets.py"
   },
   "dependencies": {
-    "glow-presets": "workspace:*",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.107.0",
     "@tailwindcss/postcss": "4.1.7",
@@ -28,6 +27,9 @@
     "dotenv": "^16.5.0",
     "drizzle-kit": "^0.31.1",
     "drizzle-orm": "^0.43.1",
+    "glow-presets": "workspace:*",
+    "glow-visuals": "workspace:*",
+    "jose": "^6.2.3",
     "lucide-react": "^0.511.0",
     "next": "15.6.0-canary.59",
     "next-themes": "^0.4.6",
@@ -49,6 +51,7 @@
     "zod": "^3.24.4"
   },
   "devDependencies": {
-    "@types/qrcode": "^1.5.6"
+    "@types/qrcode": "^1.5.6",
+    "tsx": "^4.19.4"
   }
 }

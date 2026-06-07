@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import useSWR from 'swr';
-import { CreditCard, Home, LogOut, PlusCircle, User } from 'lucide-react';
+import { CreditCard, Home, LogOut, PlusCircle, Radio, Sliders, User, XCircle } from 'lucide-react';
 import { signOut } from '@/lib/auth/actions';
 import { ThemeMenuItems } from '@/components/glow/theme-menu-items';
+import { useActiveRoom, useEndActiveRoom } from '@/components/glow/ongoing-session-banner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -47,10 +48,12 @@ function MenuTrigger({
   children,
   label,
   variant,
+  showLiveDot,
 }: {
   children: React.ReactNode;
   label: string;
   variant: 'floating' | 'inline';
+  showLiveDot?: boolean;
 }) {
   return (
     <DropdownMenuTrigger asChild>
@@ -59,11 +62,17 @@ function MenuTrigger({
         aria-label={label}
         className={
           variant === 'inline'
-            ? 'flex size-9 items-center justify-center rounded-full border border-border/60 bg-background/60 transition hover:border-neon-cyan/40 hover:bg-accent/50'
-            : 'flex size-12 items-center justify-center rounded-full border border-border bg-card shadow-lg ring-2 ring-orange-500/30 transition hover:ring-orange-500/60'
+            ? 'relative flex size-9 items-center justify-center rounded-full border border-border/60 bg-background/60 transition hover:border-neon-cyan/40 hover:bg-accent/50'
+            : 'relative flex size-12 items-center justify-center rounded-full border border-border bg-card shadow-lg ring-2 ring-orange-500/30 transition hover:ring-orange-500/60'
         }
       >
         {children}
+        {showLiveDot ? (
+          <span
+            className="absolute bottom-6 left-6 size-2.5 rounded-full bg-green-500 ring-2 ring-background"
+            aria-hidden
+          />
+        ) : null}
       </button>
     </DropdownMenuTrigger>
   );
@@ -75,7 +84,10 @@ type UserAccountMenuProps = {
 
 export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) {
   const { data } = useSWR<UserApiResponse>('/api/user', fetcher);
+  const { data: activeRoom } = useActiveRoom();
+  const { endSession, ending } = useEndActiveRoom(activeRoom?.roomCode);
   const isInline = variant === 'inline';
+  const hasLiveSession = Boolean(activeRoom?.roomCode);
 
   if (isInline && !data?.user) {
     return null;
@@ -88,7 +100,7 @@ export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) 
           <User className="size-5 text-muted-foreground" />
         </MenuTrigger>
       ) : (
-        <MenuTrigger label="Account menu" variant={variant}>
+        <MenuTrigger label="Account menu" variant={variant} showLiveDot={hasLiveSession}>
           <Avatar className={isInline ? 'size-8' : 'size-11'}>
             <AvatarImage
               src={data.user.avatarUrl ?? undefined}
@@ -116,11 +128,42 @@ export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) 
                 </span>
               </div>
             </DropdownMenuLabel>
+            {hasLiveSession && activeRoom?.roomCode ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-[10px] font-cyber uppercase tracking-widest text-green-500">
+                  Live · {activeRoom.roomCode}
+                </DropdownMenuLabel>
+                <DropdownMenuItem asChild>
+                  <Link href={`/room/${activeRoom.roomCode}/control`} className="cursor-pointer">
+                    <Radio />
+                    Resume session
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={ending}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    void endSession();
+                  }}
+                >
+                  <XCircle />
+                  {ending ? 'Ending session…' : 'End session'}
+                </DropdownMenuItem>
+              </>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/billing" className="cursor-pointer">
                 <CreditCard />
                 Billing & plan
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/rigs" className="cursor-pointer">
+                <Sliders />
+                My Rigs
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>

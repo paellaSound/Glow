@@ -29,6 +29,9 @@ export function createPostgresClient(url: string): Sql {
     idle_timeout: 20,
     connect_timeout: 10,
     prepare: !useTransactionPooler,
+    connection: {
+      statement_timeout: 10_000,
+    },
   });
 }
 

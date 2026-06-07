@@ -20,6 +20,10 @@ export type PlanEntitlements = {
   maxRoomDurationMinutes: number;
   manualFallbackMode: boolean;
   priorityReconnectWindowSeconds: number;
+  // v2 — Visuals surface
+  visualsSurface: boolean;
+  availableVisualArts: string[];
+  maxRigs: number;
 };
 
 export type RoomStatePayload = {

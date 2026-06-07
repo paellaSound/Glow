@@ -302,7 +302,7 @@ function PlayerContent({
       {connectionLost && !reconnecting ? (
         <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-3 p-4">
           <div className="w-full max-w-sm rounded-xl border border-white/20 bg-black/70 p-4 text-center text-white backdrop-blur">
-            <p className="text-sm">Connection lost. Rejoin with your saved player ID.</p>
+            <p className="text-sm">Connection lost. Rejoin!</p>
             {reconnectError ? (
               <p className="mt-2 text-xs text-amber-300">{reconnectError}</p>
             ) : null}

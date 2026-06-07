@@ -71,6 +71,7 @@ export function useVisualEngine(options: VisualEngineOptions) {
               matrixRows: preset.matrix.rows,
               matrixCols: preset.matrix.cols,
               audio,
+              palette: preset.params?.palette,
             })
           );
         }

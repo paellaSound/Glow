@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, and, isNull, desc } from 'drizzle-orm';
 import { db } from './drizzle';
 import {
   profiles,
@@ -196,6 +196,17 @@ export async function closeRoomSession(
       totalJoinedDevices: data.totalJoinedDevices,
     })
     .where(eq(roomSessions.id, sessionId));
+}
+
+export async function getActiveRoomForUser(userId: string) {
+  const result = await db
+    .select({ roomCode: roomSessions.roomCode })
+    .from(roomSessions)
+    .where(and(eq(roomSessions.orchestratorUserId, userId), isNull(roomSessions.endedAt)))
+    .orderBy(desc(roomSessions.startedAt))
+    .limit(1);
+
+  return result[0] ?? null;
 }
 
 export { getTeamEntitlements };

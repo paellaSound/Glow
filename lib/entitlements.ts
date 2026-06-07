@@ -16,6 +16,10 @@ export type PlanEntitlements = {
   maxRoomDurationMinutes: number;
   manualFallbackMode: boolean;
   priorityReconnectWindowSeconds: number;
+  // v2 — Visuals surface
+  visualsSurface: boolean;
+  availableVisualArts: string[];
+  maxRigs: number;
 };
 
 export { DEFAULT_ENTITLEMENTS };
@@ -33,6 +37,10 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   max_room_duration_minutes: 'maxRoomDurationMinutes',
   manual_fallback_mode: 'manualFallbackMode',
   priority_reconnect_window_seconds: 'priorityReconnectWindowSeconds',
+  // v2
+  visuals_surface: 'visualsSurface',
+  available_visual_arts: 'availableVisualArts',
+  max_rigs: 'maxRigs',
 };
 
 export function buildEntitlementsFromRows(
@@ -108,6 +116,10 @@ export const PLAN_SEED_DATA = [
       max_room_duration_minutes: 60,
       manual_fallback_mode: true,
       priority_reconnect_window_seconds: 60,
+      // v2
+      visuals_surface: true,
+      available_visual_arts: ['glow-branded'],
+      max_rigs: 1,
     },
   },
   {
@@ -129,6 +141,10 @@ export const PLAN_SEED_DATA = [
       max_room_duration_minutes: 180,
       manual_fallback_mode: true,
       priority_reconnect_window_seconds: 120,
+      // v2
+      visuals_surface: true,
+      available_visual_arts: ['glow-branded', 'pulse-grid', 'audio-shader'],
+      max_rigs: 3,
     },
   },
   {
@@ -150,6 +166,10 @@ export const PLAN_SEED_DATA = [
       max_room_duration_minutes: 360,
       manual_fallback_mode: true,
       priority_reconnect_window_seconds: 180,
+      // v2
+      visuals_surface: true,
+      available_visual_arts: ['glow-branded', 'pulse-grid', 'audio-shader'],
+      max_rigs: 10,
     },
   },
   {
@@ -171,6 +191,10 @@ export const PLAN_SEED_DATA = [
       max_room_duration_minutes: 720,
       manual_fallback_mode: true,
       priority_reconnect_window_seconds: 300,
+      // v2
+      visuals_surface: true,
+      available_visual_arts: ['glow-branded', 'pulse-grid', 'audio-shader'],
+      max_rigs: 50,
     },
   },
 ] as const;

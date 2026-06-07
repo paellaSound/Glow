@@ -23,3 +23,20 @@ const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
 export function isValidHexColor(color) {
     return HEX_COLOR_RE.test(color);
 }
+export function lerpHex(from, to, amount) {
+    const clamped = Math.max(0, Math.min(1, amount));
+    const parse = (hex) => {
+        const clean = hex.replace('#', '');
+        return [
+            parseInt(clean.slice(0, 2), 16),
+            parseInt(clean.slice(2, 4), 16),
+            parseInt(clean.slice(4, 6), 16),
+        ];
+    };
+    const [r1, g1, b1] = parse(from);
+    const [r2, g2, b2] = parse(to);
+    const mix = (a, b) => Math.round(a + (b - a) * clamped);
+    return `#${mix(r1, r2).toString(16).padStart(2, '0')}${mix(g1, g2)
+        .toString(16)
+        .padStart(2, '0')}${mix(b1, b2).toString(16).padStart(2, '0')}`;
+}

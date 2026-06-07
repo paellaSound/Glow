@@ -1,2 +1,2 @@
 import type { PresetContext } from '../types.js';
-export declare function renderSolid(_ctx: PresetContext): string;
+export declare function renderSolid(ctx: PresetContext): string;
