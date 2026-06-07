@@ -46,16 +46,22 @@ function getInitials(name: string | null, email: string) {
 function MenuTrigger({
   children,
   label,
+  variant,
 }: {
   children: React.ReactNode;
   label: string;
+  variant: 'floating' | 'inline';
 }) {
   return (
     <DropdownMenuTrigger asChild>
       <button
         type="button"
         aria-label={label}
-        className="flex size-12 items-center justify-center rounded-full border border-border bg-card shadow-lg ring-2 ring-orange-500/30 transition hover:ring-orange-500/60"
+        className={
+          variant === 'inline'
+            ? 'flex size-9 items-center justify-center rounded-full border border-border/60 bg-background/60 transition hover:border-neon-cyan/40 hover:bg-accent/50'
+            : 'flex size-12 items-center justify-center rounded-full border border-border bg-card shadow-lg ring-2 ring-orange-500/30 transition hover:ring-orange-500/60'
+        }
       >
         {children}
       </button>
@@ -63,97 +69,118 @@ function MenuTrigger({
   );
 }
 
-export function UserAccountMenu() {
+type UserAccountMenuProps = {
+  variant?: 'floating' | 'inline';
+};
+
+export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) {
   const { data } = useSWR<UserApiResponse>('/api/user', fetcher);
+  const isInline = variant === 'inline';
+
+  if (isInline && !data?.user) {
+    return null;
+  }
+
+  const menu = (
+    <DropdownMenu>
+      {!data?.user ? (
+        <MenuTrigger label="Account menu" variant={variant}>
+          <User className="size-5 text-muted-foreground" />
+        </MenuTrigger>
+      ) : (
+        <MenuTrigger label="Account menu" variant={variant}>
+          <Avatar className={isInline ? 'size-8' : 'size-11'}>
+            <AvatarImage
+              src={data.user.avatarUrl ?? undefined}
+              alt={data.user.fullName ?? data.user.email}
+            />
+            <AvatarFallback className="bg-orange-500/20 text-sm font-medium text-orange-600 dark:text-orange-200">
+              {getInitials(data.user.fullName, data.user.email)}
+            </AvatarFallback>
+          </Avatar>
+        </MenuTrigger>
+      )}
+
+      <DropdownMenuContent
+        side={isInline ? 'bottom' : 'top'}
+        align="end"
+        className="w-56"
+      >
+        {data?.user ? (
+          <>
+            <DropdownMenuLabel className="font-normal">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-medium">{data.user.fullName ?? data.user.email}</span>
+                <span className="text-xs text-muted-foreground">
+                  {data.team?.plan?.name ?? 'Free'} plan
+                </span>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/billing" className="cursor-pointer">
+                <CreditCard />
+                Billing & plan
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/room/new" className="cursor-pointer">
+                <PlusCircle />
+                Create room
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/" className="cursor-pointer">
+                <Home />
+                Home
+              </Link>
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <>
+            <DropdownMenuLabel>Account</DropdownMenuLabel>
+            <DropdownMenuItem asChild>
+              <Link href="/auth/signin" className="cursor-pointer">
+                <User />
+                Sign in
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
+
+        {!isInline ? <ThemeMenuItems /> : null}
+
+        {data?.user ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              className="p-0"
+              onSelect={(event) => event.preventDefault()}
+            >
+              <form action={signOut} className="w-full">
+                <button
+                  type="submit"
+                  className="flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-sm"
+                >
+                  <LogOut />
+                  Sign out
+                </button>
+              </form>
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  if (isInline) {
+    return menu;
+  }
 
   return (
     <div className="fixed right-4 z-50 bottom-[max(1rem,env(safe-area-inset-bottom))]">
-      <DropdownMenu>
-        {!data?.user ? (
-          <MenuTrigger label="Account menu">
-            <User className="size-5 text-muted-foreground" />
-          </MenuTrigger>
-        ) : (
-          <MenuTrigger label="Account menu">
-            <Avatar className="size-11">
-              <AvatarImage
-                src={data.user.avatarUrl ?? undefined}
-                alt={data.user.fullName ?? data.user.email}
-              />
-              <AvatarFallback className="bg-orange-500/20 text-sm font-medium text-orange-600 dark:text-orange-200">
-                {getInitials(data.user.fullName, data.user.email)}
-              </AvatarFallback>
-            </Avatar>
-          </MenuTrigger>
-        )}
-
-        <DropdownMenuContent side="top" align="end" className="w-56">
-          {data?.user ? (
-            <>
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">{data.user.fullName ?? data.user.email}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {data.team?.plan?.name ?? 'Free'} plan
-                  </span>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/billing" className="cursor-pointer">
-                  <CreditCard />
-                  Billing & plan
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/room/new" className="cursor-pointer">
-                  <PlusCircle />
-                  Create room
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/" className="cursor-pointer">
-                  <Home />
-                  Home
-                </Link>
-              </DropdownMenuItem>
-            </>
-          ) : (
-            <>
-              <DropdownMenuLabel>Account</DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <Link href="/sign-in" className="cursor-pointer">
-                  <User />
-                  Sign in
-                </Link>
-              </DropdownMenuItem>
-            </>
-          )}
-
-          <ThemeMenuItems />
-
-          {data?.user ? (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                className="p-0"
-                onSelect={(event) => event.preventDefault()}
-              >
-                <form action={signOut} className="w-full">
-                  <button
-                    type="submit"
-                    className="flex w-full cursor-pointer items-center gap-2 px-2 py-1.5 text-sm"
-                  >
-                    <LogOut />
-                    Sign out
-                  </button>
-                </form>
-              </DropdownMenuItem>
-            </>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {menu}
     </div>
   );
 }

@@ -24,16 +24,16 @@ export function MockAd({ placement, onComplete, onTrack }: MockAdProps) {
   }, [secondsLeft]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-      <Card className="w-full max-w-md border-orange-500/30 bg-zinc-950 text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+      <Card className="w-full max-w-md border-orange-500/30">
         <CardHeader>
           <CardTitle>Sponsored</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex h-40 items-center justify-center rounded-lg border border-dashed border-orange-500/40 bg-orange-500/10">
             <div className="text-center">
-              <p className="text-lg font-semibold text-orange-400">Glow Mock Ad</p>
-              <p className="text-sm text-zinc-400">
+              <p className="text-lg font-semibold text-orange-500 dark:text-orange-400">Glow Mock Ad</p>
+              <p className="text-sm text-muted-foreground">
                 {placement === 'room_create' ? 'Before creating your room' : 'Before joining the room'}
               </p>
             </div>

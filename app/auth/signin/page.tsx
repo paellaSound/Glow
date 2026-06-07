@@ -33,8 +33,8 @@ function SignInForm() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4">
-      <h1 className="text-3xl font-bold text-white">Sign in to Glow</h1>
-      <p className="mt-2 text-zinc-400">
+      <h1 className="text-3xl font-bold text-foreground">Sign in to Glow</h1>
+      <p className="mt-2 text-muted-foreground">
         Email and password for local testing. Google OAuth when configured.
       </p>
 
@@ -64,7 +64,7 @@ function SignInForm() {
             name="email"
             type="email"
             autoComplete="email"
-            placeholder="test@test.com"
+            placeholder="Your email"
             required
           />
         </div>
@@ -84,26 +84,26 @@ function SignInForm() {
       </form>
 
       <div className="my-6 flex items-center gap-3">
-        <div className="h-px flex-1 bg-white/10" />
-        <span className="text-xs uppercase tracking-wide text-zinc-500">or</span>
-        <div className="h-px flex-1 bg-white/10" />
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">or</span>
+        <div className="h-px flex-1 bg-border" />
       </div>
 
       <Button
         size="lg"
         variant="outline"
-        className="w-full border-white/20 bg-transparent text-white hover:bg-white/5"
+        className="w-full"
         disabled={pendingGoogle}
         onClick={() => startGoogleTransition(() => signInWithGoogle(redirect))}
       >
         {pendingGoogle ? 'Redirecting...' : 'Continue with Google'}
       </Button>
 
-      <p className="mt-6 text-center text-sm text-zinc-500">
+      <p className="mt-6 text-center text-sm text-muted-foreground">
         No account yet?{' '}
         <Link
           href={`/auth/signup${redirect !== '/room/new' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-          className="text-orange-400 hover:underline"
+          className="text-primary hover:underline"
         >
           Create one
         </Link>
@@ -114,7 +114,7 @@ function SignInForm() {
 
 export default function SignInPage() {
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-background text-foreground">
       <Suspense>
         <SignInForm />
       </Suspense>

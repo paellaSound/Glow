@@ -24,8 +24,8 @@ function SignUpForm() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4">
-      <h1 className="text-3xl font-bold text-white">Create your account</h1>
-      <p className="mt-2 text-zinc-400">
+      <h1 className="text-3xl font-bold text-foreground">Create your account</h1>
+      <p className="mt-2 text-muted-foreground">
         Temporary email signup for local testing. OAuth will replace this later.
       </p>
 
@@ -95,11 +95,11 @@ function SignUpForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-zinc-500">
+      <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{' '}
         <Link
           href={`/auth/signin${redirect !== '/room/new' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
-          className="text-orange-400 hover:underline"
+          className="text-primary hover:underline"
         >
           Sign in
         </Link>
@@ -110,7 +110,7 @@ function SignUpForm() {
 
 export default function SignUpPage() {
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-background text-foreground">
       <Suspense>
         <SignUpForm />
       </Suspense>
