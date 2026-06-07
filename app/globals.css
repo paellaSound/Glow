@@ -198,6 +198,10 @@
   --neon-magenta: #ff00c8;
   --neon-violet: #7a00ff;
   --neon-green: #39ff14;
+
+  --logo-cyan: #009fb8;
+  --logo-cyan-light: #00dfff;
+  --logo-magenta: #d915c4;
 }
 
 /*
@@ -205,24 +209,24 @@
 */
 
 .dark {
-  --background: hsl(260 35% 3%);
+  --background: hsl(260 50% 7%); /* rgba(15, 9, 27, 1) - Dark violet background */
   --foreground: hsl(240 10% 98%);
-  --card: hsl(260 25% 6.5%);
+  --card: hsl(260 35% 11%);
   --card-foreground: hsl(240 10% 98%);
-  --popover: hsl(260 25% 5%);
+  --popover: hsl(260 35% 9%);
   --popover-foreground: hsl(240 10% 98%);
   --primary: hsl(313 100% 50%);
   --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(260 20% 10%);
+  --secondary: hsl(260 25% 13%);
   --secondary-foreground: hsl(240 10% 98%);
-  --muted: hsl(260 20% 8%);
+  --muted: hsl(260 20% 12%);
   --muted-foreground: hsl(260 10% 65%);
-  --accent: hsl(260 20% 10%);
+  --accent: hsl(260 25% 13%);
   --accent-foreground: hsl(240 10% 98%);
   --destructive: hsl(0 62.8% 30.6%);
   --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(260 20% 11%);
-  --input: hsl(260 20% 11%);
+  --border: hsl(260 20% 15%);
+  --input: hsl(260 20% 15%);
   --ring: hsl(185 100% 50%);
   --chart-1: hsl(220 70% 50%);
   --chart-2: hsl(160 60% 45%);
@@ -305,6 +309,29 @@
 
   .neon-flicker {
     animation: neon-flicker-anim 4s infinite alternate;
+  }
+
+  .glow-logo [data-logo-layer='cyan'] {
+    fill: var(--logo-cyan);
+  }
+
+  .glow-logo [data-logo-layer='cyan-light'] {
+    fill: var(--logo-cyan-light);
+  }
+
+  .glow-logo [data-logo-layer='magenta'] {
+    fill: var(--logo-magenta);
+  }
+
+  .glow-logo {
+    filter: drop-shadow(0 0 1px color-mix(in srgb, var(--logo-cyan-light) 50%, transparent));
+  }
+
+  .dark .glow-logo {
+    --logo-cyan: rgb(123, 253, 252);
+    --logo-cyan-light: rgb(172, 250, 250);
+    --logo-magenta: rgb(237, 49, 223);
+    filter: drop-shadow(0 0 2px color-mix(in srgb, var(--logo-cyan-light) 35%, transparent));
   }
 }
 

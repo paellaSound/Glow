@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { GlowLogo } from '@/components/glow/glow-logo';
 import { UserAccountMenu } from '@/components/glow/user-account-menu';
-import { Sparkles } from 'lucide-react';
 import { PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 
 export default function MarketingLayout({
@@ -15,8 +15,8 @@ export default function MarketingLayout({
       
       <header className="border-b border-border/40 bg-background/40 backdrop-blur-md sticky top-0 z-40 transition-all duration-300">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-2 group">
-            <Sparkles className="size-5 text-neon-cyan transition-transform group-hover:rotate-12 duration-500" />
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <GlowLogo className="h-[19px] w-5 shrink-0 rounded-md transition-transform group-hover:rotate-12 duration-500" />
             <span className="text-xl font-display font-extrabold uppercase tracking-widest text-neon-cyan neon-text-cyan neon-flicker">
               GLOW
             </span>

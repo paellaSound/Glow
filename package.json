@@ -11,7 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "stripe:listen": "stripe listen --forward-to localhost:3000/api/stripe/webhook",
-    "supabase:link": "supabase link --project-ref eakiuxrwhptmzcirkiry"
+    "supabase:link": "supabase link --project-ref eakiuxrwhptmzcirkiry",
+    "generate-assets": "python3 scripts/generate-assets.py"
   },
   "dependencies": {
     "glow-presets": "workspace:*",
