@@ -211,6 +211,7 @@ export const patternSequences = pgTable(
     name: text('name').notNull(),
     palette: jsonb('palette').notNull(),
     effects: jsonb('effects').notNull(),
+    media: jsonb('media'),
     isDefault: boolean('is_default').notNull().default(false),
     schemaVersion: integer('schema_version').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -325,6 +326,37 @@ export const patternSequencesRelations = relations(patternSequences, ({ one }) =
   }),
 }));
 
+export const roomMediaAssets = pgTable(
+  'room_media_assets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    roomSessionId: uuid('room_session_id')
+      .notNull()
+      .references(() => roomSessions.id, { onDelete: 'cascade' }),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    storagePath: text('storage_path').notNull(),
+    mime: text('mime').notNull(),
+    bytes: integer('bytes').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('room_media_assets_session_idx').on(table.roomSessionId),
+  ]
+);
+
+export const roomMediaAssetsRelations = relations(roomMediaAssets, ({ one }) => ({
+  roomSession: one(roomSessions, {
+    fields: [roomMediaAssets.roomSessionId],
+    references: [roomSessions.id],
+  }),
+  team: one(teams, {
+    fields: [roomMediaAssets.teamId],
+    references: [teams.id],
+  }),
+}));
+
 export type Profile = typeof profiles.$inferSelect;
 export type Plan = typeof plans.$inferSelect;
 export type PlanEntitlement = typeof planEntitlements.$inferSelect;
@@ -336,7 +368,9 @@ export type Rig = typeof rigs.$inferSelect;
 export type RigCue = typeof rigCues.$inferSelect;
 export type RigSocial = typeof rigSocials.$inferSelect;
 export type PatternSequence = typeof patternSequences.$inferSelect;
+export type RoomMediaAsset = typeof roomMediaAssets.$inferSelect;
 
 export type TeamWithPlan = Team & {
   plan: Plan;
 };
+

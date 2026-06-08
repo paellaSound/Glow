@@ -8,11 +8,28 @@ export type PatternSequenceEffect = {
   weight: number;
 };
 
+export type PatternSequenceMedia = {
+  kind: 'text' | 'gif';
+  text?: string;
+  mode?: 'marquee' | 'word_by_word' | 'spread_grid';
+  speed?: number;
+  colorHex?: string;
+  loop?: boolean;
+  fontSize?: number;
+  gifSlug?: string;
+  gifUrl?: string;
+  gifWidth?: number;
+  gifHeight?: number;
+  target?: any; // DeviceTarget
+  active: boolean;
+};
+
 export type PatternSequenceRecord = {
   id: string;
   name: string;
   palette: string[];
   effects: PatternSequenceEffect[];
+  media?: PatternSequenceMedia | null;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
@@ -22,6 +39,7 @@ export type PatternSequenceDraft = {
   name: string;
   palette: string[];
   effects: PatternSequenceEffect[];
+  media?: PatternSequenceMedia | null;
   isDefault?: boolean;
 };
 

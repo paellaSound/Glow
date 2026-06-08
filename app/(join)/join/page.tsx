@@ -7,12 +7,22 @@ import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MockAd } from '@/components/glow/mock-ad';
+import { getStoredNickname } from '@/lib/glow/player-session';
 
 export default function JoinPage() {
   const router = useRouter();
   const [roomCode, setRoomCode] = useState('');
   const [nickname, setNickname] = useState('');
   const [showAd, setShowAd] = useState(false);
+
+  function handleRoomCodeChange(val: string) {
+    const upper = val.toUpperCase();
+    setRoomCode(upper);
+    const stored = getStoredNickname(upper);
+    if (stored) {
+      setNickname(stored);
+    }
+  }
 
   function handleJoin() {
     if (!roomCode.trim()) return;
@@ -63,7 +73,7 @@ export default function JoinPage() {
               <Input
                 id="roomCode"
                 value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                onChange={(e) => handleRoomCodeChange(e.target.value)}
                 placeholder="A7B9"
                 className="uppercase font-cyber tracking-widest text-center"
                 maxLength={6}
@@ -75,7 +85,7 @@ export default function JoinPage() {
                 id="nickname"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="Phone 1"
+                placeholder="Paquito el chocolatero"
                 className="font-cyber tracking-wide text-center"
               />
             </div>

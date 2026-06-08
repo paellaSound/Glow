@@ -19,4 +19,8 @@ export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   maxRigs: 1,
   effectLayering: false,
   maxPatternSequences: 1,
+  audienceReactions: true,
+  customMediaUpload: false,
+  gifBroadcast: false,
+  sequencedText: false,
 };

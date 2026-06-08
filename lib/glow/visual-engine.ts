@@ -14,6 +14,7 @@ import type {
   VisualAudioFeaturesEvent,
   VisualColorEvent,
   VisualPresetEvent,
+  VisualMediaEvent,
 } from './types';
 
 type VisualEngineOptions = {
@@ -94,8 +95,26 @@ export function useVisualEngine(options: VisualEngineOptions) {
   const directColorRef = useRef<string | null>(null);
   /** Future hook: visual:media active payload [feature 06] */
   const mediaActiveRef = useRef<boolean>(false);
+  const [activeMedia, setActiveMedia] = useState<VisualMediaEvent | null>(null);
   const orchestratorAudioRef = useRef<VisualAudioFeaturesEvent['features'] | null>(null);
   const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (activeMedia && activeMedia.durationMs && activeMedia.durationMs > 0) {
+      const elapsed = Date.now() - activeMedia.timestamp;
+      const remaining = activeMedia.durationMs - elapsed;
+      if (remaining <= 0) {
+        setActiveMedia(null);
+        mediaActiveRef.current = false;
+      } else {
+        const timer = setTimeout(() => {
+          setActiveMedia(null);
+          mediaActiveRef.current = false;
+        }, remaining);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [activeMedia]);
 
   const audioAnalyzer = useAudioAnalyzer({ enabled: micEnabled });
 
@@ -107,8 +126,8 @@ export function useVisualEngine(options: VisualEngineOptions) {
     };
 
     function resolveScreenColor(now: number): string {
-      if (mediaActiveRef.current) {
-        // Future media layer hook
+      if (activeMedia && (activeMedia.kind === 'image' || activeMedia.kind === 'gif')) {
+        return '#000000';
       }
 
       const distribution = effectDistributionRef.current;
@@ -187,6 +206,7 @@ export function useVisualEngine(options: VisualEngineOptions) {
     options.matrixRows,
     options.matrixCols,
     audioAnalyzer.featuresRef,
+    activeMedia,
   ]);
 
   function scheduleColor(event: VisualColorEvent) {
@@ -255,9 +275,23 @@ export function useVisualEngine(options: VisualEngineOptions) {
     scheduleColor,
     schedulePreset,
     scheduleEffectDistribution,
+    scheduleMedia(event: VisualMediaEvent) {
+      if (event.kind === 'clear') {
+        setActiveMedia(null);
+        mediaActiveRef.current = false;
+      } else {
+        setActiveMedia(event);
+        mediaActiveRef.current = true;
+      }
+    },
+    clearMedia() {
+      setActiveMedia(null);
+      mediaActiveRef.current = false;
+    },
     setFallbackMode,
     setAudioFeatures,
     triggerIdentify,
     setColor,
+    activeMedia,
   };
 }

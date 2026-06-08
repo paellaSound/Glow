@@ -1,0 +1,10 @@
+export type ReactionEmoji = 'heart' | 'fire' | 'star' | 'clap' | 'raised_hands' | 'party' | 'sparkles' | 'mind_blown' | 'rocket' | 'sun' | 'lightning';
+export declare const EMOJI_GLYPHS: Record<ReactionEmoji, string>;
+export declare const REACTION_ALLOWLIST_FREE: ReactionEmoji[];
+export declare const REACTION_ALLOWLIST_PAID: ReactionEmoji[];
+export declare const MAX_BOOST_FREE = 1;
+export declare const MAX_BOOST_PAID = 3;
+export declare const BOOST_WINDOW_MS = 1000;
+export declare const RATE_LIMIT_WINDOW_MS = 10000;
+export declare const RATE_LIMIT_FREE = 5;
+export declare const RATE_LIMIT_PAID = 15;

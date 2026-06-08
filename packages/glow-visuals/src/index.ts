@@ -14,3 +14,15 @@ export type {
   VisualArtId,
   VisualArtInput,
 } from './types.js';
+export {
+  EMOJI_GLYPHS,
+  REACTION_ALLOWLIST_FREE,
+  REACTION_ALLOWLIST_PAID,
+  MAX_BOOST_FREE,
+  MAX_BOOST_PAID,
+  BOOST_WINDOW_MS,
+  RATE_LIMIT_WINDOW_MS,
+  RATE_LIMIT_FREE,
+  RATE_LIMIT_PAID,
+} from './reactions.js';
+export type { ReactionEmoji } from './reactions.js';

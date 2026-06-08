@@ -22,6 +22,10 @@ export type PlanEntitlements = {
   maxRigs: number;
   effectLayering: boolean;
   maxPatternSequences: number;
+  audienceReactions: boolean;
+  customMediaUpload: boolean;
+  gifBroadcast: boolean;
+  sequencedText: boolean;
 };
 
 export { DEFAULT_ENTITLEMENTS };
@@ -45,6 +49,10 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   max_rigs: 'maxRigs',
   effect_layering: 'effectLayering',
   max_pattern_sequences: 'maxPatternSequences',
+  audience_reactions: 'audienceReactions',
+  custom_media_upload: 'customMediaUpload',
+  gif_broadcast: 'gifBroadcast',
+  sequenced_text: 'sequencedText',
 };
 
 export function buildEntitlementsFromRows(
@@ -126,6 +134,10 @@ export const PLAN_SEED_DATA = [
       max_rigs: 1,
       effect_layering: false,
       max_pattern_sequences: 1,
+      audience_reactions: true,
+      custom_media_upload: false,
+      gif_broadcast: false,
+      sequenced_text: false,
     },
   },
   {
@@ -153,6 +165,10 @@ export const PLAN_SEED_DATA = [
       max_rigs: 3,
       effect_layering: false,
       max_pattern_sequences: 3,
+      audience_reactions: true,
+      custom_media_upload: false,
+      gif_broadcast: false,
+      sequenced_text: true,
     },
   },
   {
@@ -180,6 +196,10 @@ export const PLAN_SEED_DATA = [
       max_rigs: 10,
       effect_layering: true,
       max_pattern_sequences: 10,
+      audience_reactions: true,
+      custom_media_upload: true,
+      gif_broadcast: true,
+      sequenced_text: true,
     },
   },
   {
@@ -207,6 +227,10 @@ export const PLAN_SEED_DATA = [
       max_rigs: 50,
       effect_layering: true,
       max_pattern_sequences: 50,
+      audience_reactions: true,
+      custom_media_upload: true,
+      gif_broadcast: true,
+      sequenced_text: true,
     },
   },
 ] as const;

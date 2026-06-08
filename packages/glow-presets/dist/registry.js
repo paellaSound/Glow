@@ -9,7 +9,7 @@ import { renderWave } from './render/wave.js';
 export const PRESET_REGISTRY = {
     solid: {
         id: 'solid',
-        label: 'Solid Red',
+        label: 'Solid',
         category: 'basic',
         minTier: 'free',
         render: renderSolid,

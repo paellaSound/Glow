@@ -13,6 +13,7 @@ import {
   toDistributionEffects,
 } from '@/components/glow/pattern-sequence-editor';
 import { VisualsTab, type VisualsWorkingState, type RigWithCues } from '@/components/glow/visuals-tab';
+import { MediaPanel } from '@/components/glow/media-panel';
 import { useAudioAnalyzer } from '@/lib/glow/audio-analyzer';
 import { useGlowSocket } from '@/lib/glow/socket';
 import {
@@ -34,7 +35,9 @@ function getConsoleConfig(rig: RigWithCues | null): { visibleTabs: ActiveTab[]; 
   const config = (rig?.console_config ?? {}) as RigConsoleConfig;
   return {
     visibleTabs: config.visibleTabs?.length
-      ? config.visibleTabs.map((tab) => (tab === 'devices' ? 'patterns' : tab))
+      ? (config.visibleTabs
+          .map((tab) => (tab === 'devices' ? 'patterns' : tab))
+          .filter((tab) => tab === 'patterns' || tab === 'visuals') as ActiveTab[])
       : ['patterns', 'visuals'],
     hiddenButtons: config.hiddenButtons ?? [],
   };
@@ -217,6 +220,38 @@ function ControlContent({ code }: { code: string }) {
         seedTimestamp,
         targetTimestamp: seedTimestamp + 100,
       });
+
+      // Broadcast media overlays if present and active
+      if (draft.media && draft.media.active) {
+        const target = draft.media.target || { kind: 'all' };
+        if (draft.media.kind === 'text') {
+          socket.current?.emit('orchestrator:media_text', {
+            roomCode: code.toUpperCase(),
+            text: draft.media.text,
+            mode: draft.media.mode,
+            speed: draft.media.speed,
+            colorHex: draft.media.colorHex,
+            loop: draft.media.loop,
+            fontSize: draft.media.fontSize,
+            target,
+          });
+        } else if (draft.media.kind === 'gif') {
+          socket.current?.emit('orchestrator:media_gif', {
+            roomCode: code.toUpperCase(),
+            slug: draft.media.gifSlug,
+            url: draft.media.gifUrl,
+            width: draft.media.gifWidth,
+            height: draft.media.gifHeight,
+            target,
+          });
+        }
+      } else {
+        // Send clear if no media is active
+        socket.current?.emit('orchestrator:media_clear', {
+          roomCode: code.toUpperCase(),
+          target: { kind: 'all' },
+        });
+      }
     },
     [code, socket]
   );
@@ -316,7 +351,14 @@ function ControlContent({ code }: { code: string }) {
               <div
                 role="tablist"
                 aria-label="Control desk sections"
-                className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-black/30 p-1 sm:max-w-md"
+                className={cn(
+                  'grid gap-2 rounded-xl border border-white/10 bg-black/30 p-1 sm:max-w-md',
+                  visibleTabs.length === 3
+                    ? 'grid-cols-3'
+                    : visibleTabs.length === 2
+                    ? 'grid-cols-2'
+                    : 'grid-cols-1'
+                )}
               >
                 {visibleTabs.map((tab) => (
                   <button
@@ -333,7 +375,7 @@ function ControlContent({ code }: { code: string }) {
                         : 'text-zinc-500 hover:text-zinc-200'
                     )}
                   >
-                    {tab === 'patterns' ? 'Patterns' : 'Visuals'}
+                    {tab === 'patterns' ? 'Play Devices' : 'Visuals'}
                   </button>
                 ))}
               </div>
@@ -370,6 +412,7 @@ function ControlContent({ code }: { code: string }) {
                     presetSeed={presetSeed}
                     fallbackEnabled={fallbackEnabled}
                     fallbackSeed={fallbackSeed}
+                    roomState={roomState || undefined}
                   />
                 </NeonCard>
               ) : null}
@@ -434,6 +477,8 @@ function ControlContent({ code }: { code: string }) {
               loadedRig={loadedRig}
             />
           ) : null}
+
+
         </PageTransitionWrapper>
       </main>
     </>

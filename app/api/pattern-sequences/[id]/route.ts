@@ -17,6 +17,7 @@ function serializeSequence(row: typeof patternSequences.$inferSelect) {
     name: row.name,
     palette: row.palette as string[],
     effects: row.effects,
+    media: row.media,
     isDefault: row.isDefault,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -115,6 +116,7 @@ export async function PATCH(
         name: body.name !== undefined ? body.name : undefined,
         palette: body.palette !== undefined ? body.palette : undefined,
         effects: body.effects !== undefined ? body.effects : undefined,
+        media: body.media !== undefined ? body.media : undefined,
         isDefault: body.isDefault !== undefined ? body.isDefault : undefined,
         updatedAt: new Date(),
       })

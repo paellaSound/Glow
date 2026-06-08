@@ -31,6 +31,10 @@ export type PlanEntitlements = {
   maxRigs: number;
   effectLayering: boolean;
   maxPatternSequences: number;
+  audienceReactions: boolean;
+  customMediaUpload: boolean;
+  gifBroadcast: boolean;
+  sequencedText: boolean;
 };
 
 export type RoomStatePayload = {
@@ -78,4 +82,39 @@ export type FallbackModeEvent = {
   enabled: boolean;
   seedTimestamp: number;
   roomCode: string;
+};
+
+export type DeviceTarget =
+  | { kind: 'all' }
+  | { kind: 'devices'; publicIds: string[] }
+  | { kind: 'matrix_range'; fromRow: number; toRow: number; fromCol: number; toCol: number }
+  | { kind: 'fraction'; from: number; to: number };
+
+export type SequencedTextPayload = {
+  text: string;
+  mode: 'marquee' | 'word_by_word' | 'spread_grid';
+  speed: number;        // chars/sec or words/sec
+  colorHex?: string;    // defaults to palette
+  loop: boolean;
+};
+
+export type GifBroadcastPayload = {
+  slug: string;
+  url: string;
+  width: number;
+  height: number;
+};
+
+export type VisualMediaEvent = {
+  kind: 'image' | 'gif' | 'text' | 'clear';
+  url?: string;
+  text?: string;
+  mode?: 'marquee' | 'word_by_word' | 'spread_grid';
+  speed?: number;
+  colorHex?: string;
+  loop?: boolean;
+  fontSize?: number;
+  fit?: 'cover' | 'contain';
+  durationMs?: number;
+  timestamp: number;
 };

@@ -17,6 +17,7 @@ function serializeSequence(row: typeof patternSequences.$inferSelect) {
     name: row.name,
     palette: row.palette as string[],
     effects: row.effects,
+    media: row.media,
     isDefault: row.isDefault,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as PatternSequenceDraft;
-    const { name, palette, effects, isDefault } = body;
+    const { name, palette, effects, media, isDefault } = body;
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest) {
         name,
         palette,
         effects,
+        media,
         isDefault: isDefault ?? false,
       })
       .returning();

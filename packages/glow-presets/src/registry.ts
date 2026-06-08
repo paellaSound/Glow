@@ -11,7 +11,7 @@ import type { PlanTier, PresetDefinition, PresetId } from './types.js';
 export const PRESET_REGISTRY: Record<PresetId, PresetDefinition> = {
   solid: {
     id: 'solid',
-    label: 'Solid Red',
+    label: 'Solid',
     category: 'basic',
     minTier: 'free',
     render: renderSolid,

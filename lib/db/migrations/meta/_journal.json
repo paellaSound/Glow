@@ -29,6 +29,20 @@
       "when": 1780854000000,
       "tag": "0003_add_pattern_sequences",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780911000000,
+      "tag": "0004_add_room_media_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780920000000,
+      "tag": "0005_add_pattern_sequences_media",
+      "breakpoints": true
     }
   ]
 }

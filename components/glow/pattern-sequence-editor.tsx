@@ -3,13 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
-import { Eye, Layers, Save } from 'lucide-react';
+import { Eye, Layers, Save, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { AllocationBar } from '@/components/glow/allocation-bar';
 import { ColorPaletteField } from '@/components/glow/color-palette-field';
 import { PatternSequencePreview } from '@/components/glow/pattern-sequence-preview';
 import { PresetPicker } from '@/components/glow/preset-picker';
+import { GifSearch } from './gif-search';
+import { DEFAULT_ENTITLEMENTS } from '@/lib/entitlements-defaults';
+import type { RoomStatePayload } from '@/lib/glow/types';
 import {
   createDefaultDraft,
   fetchPatternSequences,
@@ -20,6 +25,7 @@ import {
   type PatternSequenceDraft,
   type PatternSequenceEffect,
   type PatternSequenceRecord,
+  type PatternSequenceMedia,
 } from '@/lib/glow/pattern-sequences';
 import { getPreset, type AudioSource, type PresetId } from 'glow-presets';
 import { cn } from '@/lib/utils';
@@ -43,6 +49,7 @@ type PatternSequenceEditorProps = {
   fallbackEnabled?: boolean;
   fallbackSeed?: number;
   presetSeed?: number;
+  roomState?: RoomStatePayload;
 };
 
 export function PatternSequenceEditor({
@@ -62,7 +69,21 @@ export function PatternSequenceEditor({
   fallbackEnabled = false,
   fallbackSeed = 0,
   presetSeed,
+  roomState,
 }: PatternSequenceEditorProps) {
+  const entitlements = roomState?.entitlements ?? DEFAULT_ENTITLEMENTS;
+
+  const renderGatedOverlay = (minTierName: string) => (
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-xl bg-black/85 p-6 text-center backdrop-blur-xs">
+      <span className="text-2xl">🔒</span>
+      <h4 className="mt-2 font-display font-black text-sm text-white uppercase tracking-widest">
+        Feature Gated
+      </h4>
+      <p className="mt-1 text-xs text-zinc-400 max-w-[240px]">
+        This feature requires a <span className="text-neon-magenta font-bold">{minTierName}</span> plan upgrade.
+      </p>
+    </div>
+  );
   const { data: savedSequences = [], mutate } = useSWR<PatternSequenceRecord[]>(
     '/api/pattern-sequences',
     fetchPatternSequences
@@ -79,6 +100,7 @@ export function PatternSequenceEditor({
   const [showAddPicker, setShowAddPicker] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [isMediaExpanded, setIsMediaExpanded] = useState(false);
   const hasAutoSelectedRef = useRef(false);
 
   const activeEffects = useMemo(() => getActiveEffects(draft.effects), [draft.effects]);
@@ -159,6 +181,7 @@ export function PatternSequenceEditor({
       name: sequence.name,
       palette: sequence.palette,
       effects: sequence.effects as PatternSequenceEffect[],
+      media: sequence.media,
       isDefault: sequence.isDefault,
     };
     setSelectedId(sequence.id);
@@ -228,6 +251,7 @@ export function PatternSequenceEditor({
         name: trimmedName || 'Untitled Sequence',
         palette: draft.palette,
         effects: draft.effects,
+        media: draft.media,
         isDefault: saveAsNew ? false : (draft.isDefault ?? false),
       };
 
@@ -256,6 +280,7 @@ export function PatternSequenceEditor({
           name: data.name,
           palette: payload.palette,
           effects: payload.effects,
+          media: payload.media,
           isDefault: payload.isDefault,
         });
       }
@@ -539,13 +564,14 @@ export function PatternSequenceEditor({
               <div
                 key={effect.id}
                 className={cn(
-                  'flex flex-wrap items-center gap-2 rounded-lg border bg-black/20 p-3 transition-colors',
-                  isPreviewing
-                    ? 'border-neon-violet/40 bg-neon-violet/5 ring-1 ring-neon-violet/20'
-                    : 'border-white/10',
-                  !isInMix && !isPreviewing && 'opacity-60'
+                  'grid grid-cols-[140px_1fr] rounded-lg border overflow-hidden transition-all duration-300',
+                  isInMix
+                    ? 'border-neon-cyan/60 bg-neon-cyan/5 shadow-[0_0_15px_rgba(0,229,255,0.25)] animate-pulse'
+                    : 'border-white/10 opacity-75',
+                  isPreviewing && 'ring-1 ring-neon-violet/30'
                 )}
               >
+                {/* Column 1: IN MIX / OUT OF MIX button */}
                 <button
                   type="button"
                   disabled={disabled || !effectLayering}
@@ -556,53 +582,56 @@ export function PatternSequenceEditor({
                       : 'Upgrade to include multiple effects in the live mix'
                   }
                   className={cn(
-                    'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-cyber uppercase tracking-wider transition-colors',
+                    'h-full w-full flex flex-col items-center justify-center gap-1.5 border-r border-white/10 px-3 py-4 text-[10px] font-cyber uppercase tracking-widest transition-all cursor-pointer select-none',
                     isInMix
-                      ? 'border-neon-cyan/40 bg-neon-cyan/10 text-neon-cyan'
-                      : 'border-white/10 text-muted-foreground hover:border-neon-cyan/20 hover:text-neon-cyan/80'
+                      ? 'bg-neon-cyan/20 text-neon-cyan border-r-neon-cyan/30 shadow-[inset_0_0_8px_rgba(0,229,255,0.1)]'
+                      : 'bg-black/40 text-zinc-500 hover:text-zinc-300'
                   )}
                 >
                   <span
                     className={cn(
-                      'size-1.5 rounded-full',
-                      isInMix ? 'bg-neon-cyan' : 'bg-zinc-600'
+                      'size-2 rounded-full transition-transform duration-300',
+                      isInMix ? 'bg-neon-cyan scale-110 shadow-[0_0_8px_#00e5ff]' : 'bg-zinc-600'
                     )}
                   />
-                  {isInMix ? 'In mix' : 'Out of mix'}
+                  <span>{isInMix ? 'In mix' : 'Out of mix'}</span>
                 </button>
 
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setPreviewEffectId(effect.id)}
-                  title="Show this effect in the preview canvas"
-                  className={cn(
-                    'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-cyber uppercase tracking-wider transition-colors',
-                    isPreviewing
-                      ? 'border-neon-violet/40 bg-neon-violet/15 text-neon-violet'
-                      : 'border-white/10 text-muted-foreground hover:border-neon-violet/30 hover:text-neon-violet/80'
-                  )}
-                >
-                  <Eye className="size-3" />
-                  {isPreviewing ? 'Previewing' : 'Preview'}
-                </button>
+                {/* Column 2: REST OF CONTENT */}
+                <div className="flex flex-wrap items-center gap-3 p-3 pl-4">
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setPreviewEffectId(effect.id)}
+                    title="Show this effect in the preview canvas"
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-cyber uppercase tracking-wider transition-colors cursor-pointer',
+                      isPreviewing
+                        ? 'border-neon-violet/40 bg-neon-violet/15 text-neon-violet shadow-[0_0_8px_rgba(124,58,237,0.15)]'
+                        : 'border-white/10 text-muted-foreground hover:border-neon-violet/30 hover:text-neon-violet/80'
+                    )}
+                  >
+                    <Eye className="size-3" />
+                    {isPreviewing ? 'Previewing' : 'Preview'}
+                  </button>
 
-                <span className="text-sm font-medium text-foreground">{label}</span>
-                {isInMix ? (
-                  <span className="text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">
-                    {effect.weight}%
-                  </span>
-                ) : null}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={disabled || draft.effects.length <= 1}
-                  className="ml-auto h-7 px-2 text-[10px] uppercase"
-                  onClick={() => removeEffect(effect.id)}
-                >
-                  Remove
-                </Button>
+                  <span className="text-sm font-medium text-foreground">{label}</span>
+                  {isInMix ? (
+                    <span className="text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">
+                      {effect.weight}%
+                    </span>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={disabled || draft.effects.length <= 1}
+                    className="ml-auto h-7 px-2 text-[10px] uppercase"
+                    onClick={() => removeEffect(effect.id)}
+                  >
+                    Remove
+                  </Button>
+                </div>
               </div>
             );
           })}
@@ -620,6 +649,364 @@ export function PatternSequenceEditor({
             onRun={(presetId, params) => addEffect(presetId, params)}
           />
         ) : null}
+      </div>
+
+      {/* Media Overlay Section */}
+      <div
+        className={cn(
+          'grid grid-cols-[140px_1fr] rounded-xl border overflow-hidden transition-all duration-300',
+          draft.media?.active
+            ? 'border-neon-magenta/60 bg-neon-magenta/5 shadow-[0_0_15px_rgba(255,0,229,0.25)] animate-pulse'
+            : 'border-white/10 bg-black/30'
+        )}
+      >
+        {/* Column 1: IN MIX / OUT OF MIX button */}
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            const currentMedia = draft.media;
+            if (currentMedia) {
+              const updatedMedia = { ...currentMedia, active: !currentMedia.active };
+              patchDraft({ media: updatedMedia });
+              if (isControlVariant) {
+                onSendLive({ ...draft, media: updatedMedia });
+              }
+            } else {
+              const initialMedia: PatternSequenceMedia = {
+                kind: 'text',
+                text: 'GLOW THE RAVE',
+                mode: 'marquee',
+                speed: 5,
+                colorHex: '#ffffff',
+                loop: true,
+                fontSize: 48,
+                active: true,
+                target: { kind: 'all' }
+              };
+              patchDraft({ media: initialMedia });
+              if (isControlVariant) {
+                onSendLive({ ...draft, media: initialMedia });
+              }
+            }
+          }}
+          className={cn(
+            'h-full w-full flex flex-col items-center justify-center gap-1.5 border-r border-white/10 px-3 py-6 text-[10px] font-cyber uppercase tracking-widest transition-all cursor-pointer select-none',
+            draft.media?.active
+              ? 'bg-neon-magenta/20 text-neon-magenta border-r-neon-magenta/30 shadow-[inset_0_0_8px_rgba(255,0,229,0.1)]'
+              : 'bg-black/40 text-zinc-500 hover:text-zinc-300'
+          )}
+        >
+          <span
+            className={cn(
+              'size-2 rounded-full transition-transform duration-300',
+              draft.media?.active ? 'bg-neon-magenta scale-110 shadow-[0_0_8px_#ff00e5]' : 'bg-zinc-600'
+            )}
+          />
+          <span>{draft.media?.active ? 'In mix' : 'Out of mix'}</span>
+        </button>
+
+        {/* Column 2: REST OF CONTENT */}
+        <div className="p-4 sm:p-5 flex flex-col gap-4">
+          <div
+            className="flex items-start justify-between gap-3 cursor-pointer select-none"
+            onClick={() => setIsMediaExpanded(!isMediaExpanded)}
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h4 className="font-cyber text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Media Overlay
+                </h4>
+                {draft.media?.active && (
+                  <span className="inline-flex items-center rounded-full bg-neon-magenta/10 px-2 py-0.5 text-[8px] font-cyber uppercase tracking-widest text-neon-magenta animate-pulse">
+                    Live
+                  </span>
+                )}
+              </div>
+              
+              {/* COLLAPSED TEXT IN HORIZONTAL LAYOUT */}
+              {!isMediaExpanded && (
+                <div className="mt-1 flex items-center gap-2 text-xs text-zinc-300 flex-wrap">
+                  {draft.media ? (
+                    <>
+                      <span className="font-semibold text-neon-magenta uppercase tracking-wider text-[10px]">
+                        {draft.media.kind === 'text' ? 'TEXT OVERLAY:' : 'GIF OVERLAY:'}
+                      </span>
+                      {draft.media.kind === 'text' ? (
+                        <span className="truncate max-w-[200px] border border-white/5 bg-black/40 px-2 py-0.5 rounded font-cyber text-[10px] uppercase text-white">
+                          "{draft.media.text || 'NONE'}"
+                        </span>
+                      ) : (
+                        <span className="truncate max-w-[200px] border border-white/5 bg-black/40 px-2 py-0.5 rounded font-cyber text-[10px] uppercase text-white">
+                          {draft.media.gifSlug || 'No GIF selected'}
+                        </span>
+                      )}
+                      {draft.media.kind === 'text' && (
+                        <span className="text-[10px] text-zinc-400">
+                          ({draft.media.mode}, Speed: {draft.media.speed}, {draft.media.fontSize}px, {draft.media.colorHex})
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-zinc-500 italic">No media settings defined</span>
+                  )}
+                </div>
+              )}
+
+              {isMediaExpanded && (
+                <p className="mt-1 text-xs text-zinc-400">
+                  Superimpose animated text or GIFs over the active background sequence.
+                </p>
+              )}
+            </div>
+            
+            <button
+              type="button"
+              className="text-zinc-400 hover:text-white p-1 rounded transition-colors"
+              aria-label={isMediaExpanded ? "Collapse" : "Expand"}
+            >
+              {isMediaExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            </button>
+          </div>
+
+          {/* Form details when expanded */}
+          {isMediaExpanded && draft.media && (
+            <div className="relative space-y-4 pt-3 border-t border-white/5 animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <div className="flex rounded-lg border border-white/10 bg-black/40 p-1">
+                  {/* TODO: Implement custom image uploads in the future
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-md px-3 py-1.5 text-[10px] font-cyber uppercase tracking-widest text-zinc-600 cursor-not-allowed"
+                  >
+                    Image
+                  </button>
+                  */}
+                  {(['text', 'gif'] as const).map((subTab) => (
+                    <button
+                      key={subTab}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => {
+                        const updatedMedia: PatternSequenceMedia = {
+                          ...draft.media!,
+                          kind: subTab,
+                          ...(subTab === 'text' && !draft.media?.text ? { text: 'GLOW THE RAVE', mode: 'marquee' as const, speed: 5, loop: true, fontSize: 48 } : {}),
+                          ...(subTab === 'gif' && !draft.media?.gifUrl ? { gifSlug: '', gifUrl: '', gifWidth: 200, gifHeight: 200 } : {}),
+                        } as PatternSequenceMedia;
+                        patchDraft({ media: updatedMedia });
+                        if (isControlVariant && draft.media?.active) {
+                          onSendLive({ ...draft, media: updatedMedia });
+                        }
+                      }}
+                      className={cn(
+                        'rounded-md px-3 py-1.5 text-[10px] font-cyber uppercase tracking-widest transition-all cursor-pointer',
+                        draft.media?.kind === subTab
+                          ? 'bg-neon-magenta/20 text-neon-magenta'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      )}
+                    >
+                      {subTab === 'text' ? 'Text' : 'GIF'}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[10px] font-cyber text-zinc-500 italic uppercase">
+                  (Images: TODO)
+                </span>
+              </div>
+
+              {draft.media.kind === 'text' && (
+                <div className="relative space-y-4">
+                  {!entitlements.sequencedText && renderGatedOverlay('Plus 25')}
+                  
+                  {/* EXPANDED FORM: PLOTTED VERTICALLY FOR PLENTY OF SPACE */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="media-text" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                      Overlay text
+                    </Label>
+                    <Input
+                      id="media-text"
+                      value={draft.media.text || ''}
+                      disabled={disabled}
+                      onChange={(e) => {
+                        const updatedMedia = { ...draft.media!, text: e.target.value };
+                        patchDraft({ media: updatedMedia });
+                        if (isControlVariant && draft.media?.active) {
+                          onSendLive({ ...draft, media: updatedMedia });
+                        }
+                      }}
+                      placeholder="TYPE OVERLAY TEXT..."
+                      className="font-cyber h-8 text-xs uppercase"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                      Mode
+                    </Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['marquee', 'word_by_word', 'spread_grid'] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => {
+                            const updatedMedia = {
+                              ...draft.media!,
+                              mode,
+                              speed: mode === 'word_by_word' ? 3 : mode === 'marquee' ? 12 : 4,
+                            };
+                            patchDraft({ media: updatedMedia });
+                            if (isControlVariant && draft.media?.active) {
+                              onSendLive({ ...draft, media: updatedMedia });
+                            }
+                          }}
+                          className={cn(
+                            'rounded-lg border px-2 py-1.5 text-[9px] font-cyber uppercase tracking-wider text-center transition-all cursor-pointer',
+                            draft.media?.mode === mode
+                              ? 'border-neon-magenta bg-neon-magenta/10 text-neon-magenta'
+                              : 'border-white/5 bg-black/20 text-zinc-400 hover:border-white/10'
+                          )}
+                        >
+                          {mode === 'marquee' ? 'Marquee' : mode === 'word_by_word' ? 'Word' : 'Grid'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="media-speed" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                      Speed
+                    </Label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="media-speed"
+                        type="range"
+                        min="1"
+                        max="30"
+                        disabled={disabled}
+                        value={draft.media.speed || 5}
+                        onChange={(e) => {
+                          const updatedMedia = { ...draft.media!, speed: parseInt(e.target.value) };
+                          patchDraft({ media: updatedMedia });
+                          if (isControlVariant && draft.media?.active) {
+                            onSendLive({ ...draft, media: updatedMedia });
+                          }
+                        }}
+                        className="w-full accent-neon-magenta cursor-pointer"
+                      />
+                      <span className="font-cyber text-xs text-white min-w-[20px]">{draft.media.speed || 5}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="media-fontsize" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                      Font Size
+                    </Label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        id="media-fontsize"
+                        type="range"
+                        min="12"
+                        max="120"
+                        disabled={disabled}
+                        value={draft.media.fontSize || 48}
+                        onChange={(e) => {
+                          const updatedMedia = { ...draft.media!, fontSize: parseInt(e.target.value) };
+                          patchDraft({ media: updatedMedia });
+                          if (isControlVariant && draft.media?.active) {
+                            onSendLive({ ...draft, media: updatedMedia });
+                          }
+                        }}
+                        className="w-full accent-neon-magenta cursor-pointer"
+                      />
+                      <span className="font-cyber text-xs text-white min-w-[30px]">{draft.media.fontSize || 48}px</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="media-color" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                      Color
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="media-color"
+                        value={draft.media.colorHex || '#ffffff'}
+                        disabled={disabled}
+                        onChange={(e) => {
+                          const updatedMedia = { ...draft.media!, colorHex: e.target.value };
+                          patchDraft({ media: updatedMedia });
+                          if (isControlVariant && draft.media?.active) {
+                            onSendLive({ ...draft, media: updatedMedia });
+                          }
+                        }}
+                        placeholder="#FFFFFF"
+                        className="font-cyber h-8 text-xs text-white border-white/10"
+                        maxLength={7}
+                      />
+                      <input
+                        type="color"
+                        disabled={disabled}
+                        value={draft.media.colorHex?.startsWith('#') ? draft.media.colorHex : '#ffffff'}
+                        onChange={(e) => {
+                          const updatedMedia = { ...draft.media!, colorHex: e.target.value };
+                          patchDraft({ media: updatedMedia });
+                          if (isControlVariant && draft.media?.active) {
+                            onSendLive({ ...draft, media: updatedMedia });
+                          }
+                        }}
+                        className="size-8 p-0 rounded bg-transparent border border-white/10 overflow-hidden cursor-pointer shrink-0"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 py-1">
+                    <input
+                      id="media-loop"
+                      type="checkbox"
+                      disabled={disabled}
+                      checked={draft.media.loop !== false}
+                      onChange={(e) => {
+                        const updatedMedia = { ...draft.media!, loop: e.target.checked };
+                        patchDraft({ media: updatedMedia });
+                        if (isControlVariant && draft.media?.active) {
+                          onSendLive({ ...draft, media: updatedMedia });
+                        }
+                      }}
+                      className="accent-neon-magenta size-4 rounded cursor-pointer"
+                    />
+                    <Label htmlFor="media-loop" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400 select-none cursor-pointer">
+                      Loop message
+                    </Label>
+                  </div>
+                </div>
+              )}
+
+              {draft.media.kind === 'gif' && (
+                <div className="relative space-y-3 min-h-[150px]">
+                  {!entitlements.gifBroadcast && renderGatedOverlay('Plus 50')}
+                  <GifSearch
+                    onSelect={(gif) => {
+                      const updatedMedia = {
+                        ...draft.media!,
+                        gifSlug: gif.slug,
+                        gifUrl: gif.url,
+                        gifWidth: gif.width,
+                        gifHeight: gif.height,
+                      };
+                      patchDraft({ media: updatedMedia });
+                      if (isControlVariant && draft.media?.active) {
+                        onSendLive({ ...draft, media: updatedMedia });
+                      }
+                    }}
+                    selectedSlug={draft.media.gifSlug}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {effectLayering && activeEffects.length > 1 ? (
