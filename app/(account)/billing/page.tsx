@@ -1,5 +1,5 @@
 import { getAllPlans, getTeamForUser } from '@/lib/db/queries';
-import { getTeamEntitlements } from '@/lib/entitlements';
+import { getTeamEntitlements, buildEntitlementsFromRows } from '@/lib/entitlements';
 import { checkoutAction, customerPortalAction } from '@/lib/payments/actions';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import Link from 'next/link';
@@ -70,9 +70,10 @@ export default async function BillingPage() {
               team &&
               (team.subscriptionStatus === 'active' ||
                 team.subscriptionStatus === 'trialing');
+            const planEnts = buildEntitlementsFromRows(plan.entitlements);
 
             return (
-              <NeonCard key={plan.id} glowColor={isFree ? 'none' : 'magenta'} borderVariant={isFree ? 'default' : 'magenta'} className="flex flex-col justify-between p-6 min-h-[250px]">
+              <NeonCard key={plan.id} glowColor={isFree ? 'none' : 'magenta'} borderVariant={isFree ? 'default' : 'magenta'} className="flex flex-col justify-between p-6 min-h-[420px]">
                 <div>
                   <NeonTitle as="h3" color={isFree ? 'white' : 'magenta'} className="text-xl font-black tracking-widest mb-2">
                     {plan.name.toUpperCase()}
@@ -80,6 +81,44 @@ export default async function BillingPage() {
                   <p className="text-xs text-muted-foreground leading-relaxed font-sans mb-4">
                     {plan.description}
                   </p>
+
+                  <ul className="mt-4 mb-6 space-y-2 text-[10px] font-cyber text-muted-foreground uppercase tracking-wide border-t border-white/5 pt-4">
+                    <li className="flex items-center justify-between">
+                      <span>Max Devices:</span>
+                      <span className="text-foreground font-bold">{planEnts.maxDevices === 999 ? 'UNLIMITED' : planEnts.maxDevices}</span>
+                    </li>
+                    <li className="flex items-center justify-between">
+                      <span>Matrix size:</span>
+                      <span className="text-foreground font-bold">{planEnts.maxGridRows}x{planEnts.maxGridCols}</span>
+                    </li>
+                    <li className="flex items-center justify-between">
+                      <span>Ads:</span>
+                      <span className={planEnts.adsEnabled ? 'text-muted-foreground' : 'text-neon-cyan neon-text-cyan font-bold'}>
+                        {planEnts.adsEnabled ? 'ENABLED' : 'AD-FREE'}
+                      </span>
+                    </li>
+                    <li className="flex items-center justify-between">
+                      <span>Rigs:</span>
+                      <span className="text-foreground font-bold">{planEnts.maxRigs} {planEnts.maxRigs === 1 ? 'RIG' : 'RIGS'}</span>
+                    </li>
+                    <li className="flex items-center justify-between">
+                      <span>Pattern Sequences:</span>
+                      <span className="text-foreground font-bold">{planEnts.maxPatternSequences}</span>
+                    </li>
+                    {(planEnts.customMediaUpload || planEnts.gifBroadcast || planEnts.webrtcLiveCall) && (
+                      <li className="border-t border-white/5 pt-2 mt-2 space-y-1">
+                        {planEnts.customMediaUpload && (
+                          <div className="text-[9px] text-neon-magenta neon-text-magenta font-semibold">✓ CUSTOM MEDIA UPLOAD</div>
+                        )}
+                        {planEnts.gifBroadcast && (
+                          <div className="text-[9px] text-neon-magenta neon-text-magenta font-semibold">✓ GIF BROADCAST</div>
+                        )}
+                        {planEnts.webrtcLiveCall && (
+                          <div className="text-[9px] text-neon-magenta neon-text-magenta font-semibold">✓ LIVE CAMERA ON SET</div>
+                        )}
+                      </li>
+                    )}
+                  </ul>
                 </div>
                 
                 <div className="space-y-4 mt-auto">

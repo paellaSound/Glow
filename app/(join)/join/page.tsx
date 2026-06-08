@@ -14,6 +14,7 @@ export default function JoinPage() {
   const [roomCode, setRoomCode] = useState('');
   const [nickname, setNickname] = useState('');
   const [showAd, setShowAd] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   function handleRoomCodeChange(val: string) {
     const upper = val.toUpperCase();
@@ -24,8 +25,25 @@ export default function JoinPage() {
     }
   }
 
-  function handleJoin() {
-    if (!roomCode.trim()) return;
+  async function handleJoin() {
+    if (!roomCode.trim() || joining) return;
+    setJoining(true);
+
+    try {
+      const res = await fetch(`/api/rooms/${roomCode.toUpperCase()}/share-info`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.adsEnabled === false) {
+          continueToPlayer();
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to verify ads status, falling back to showing ads:', err);
+    } finally {
+      setJoining(false);
+    }
+
     setShowAd(true);
   }
 
@@ -90,8 +108,8 @@ export default function JoinPage() {
               />
             </div>
             
-            <NeonButton onClick={handleJoin} color="cyan" variant="solid" className="w-full text-xs uppercase tracking-widest h-11 mt-2" disabled={!roomCode.trim()}>
-              Connect Device
+            <NeonButton onClick={handleJoin} color="cyan" variant="solid" className="w-full text-xs uppercase tracking-widest h-11 mt-2" disabled={!roomCode.trim() || joining}>
+              {joining ? 'Connecting...' : 'Connect Device'}
             </NeonButton>
             
             <Link href="/" className="text-center text-xs font-cyber uppercase tracking-widest text-zinc-500 hover:text-white transition-colors pt-2">

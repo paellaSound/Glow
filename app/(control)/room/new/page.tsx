@@ -23,7 +23,7 @@ type Rig = {
 
 export default function CreateRoomPage() {
   const router = useRouter();
-  const { data } = useSWR<{ team: { id: string }; entitlements: PlanEntitlements }>(
+  const { data, isLoading } = useSWR<{ team: { id: string }; entitlements: PlanEntitlements }>(
     '/api/team',
     fetcher
   );
@@ -229,13 +229,15 @@ export default function CreateRoomPage() {
               color="magenta"
               variant="solid"
               className="w-full text-xs uppercase tracking-widest h-11"
-              disabled={creating || !connected}
+              disabled={creating || !connected || isLoading}
             >
               {creating
                 ? 'DEPLOYING RIG...'
-                : !connected
-                  ? 'CONNECTING TO REALTIME…'
-                  : 'LAUNCH RAVE LIGHTSHOW'}
+                : isLoading
+                  ? 'LOADING DETAILS...'
+                  : !connected
+                    ? 'CONNECTING TO REALTIME…'
+                    : 'LAUNCH RAVE LIGHTSHOW'}
             </NeonButton>
             {!connected ? (
               <p className="text-[10px] font-cyber tracking-wide text-muted-foreground text-center">

@@ -31,19 +31,20 @@ export async function GET(
       orderBy: (session, { desc }) => [desc(session.startedAt)],
     });
 
-    if (!session?.rig) {
-      return NextResponse.json({ rigName: null, socials: [] });
+    if (!session) {
+      return NextResponse.json({ rigName: null, socials: [], adsEnabled: true });
     }
 
     return NextResponse.json({
-      rigName: session.rig.name,
-      socials: session.rig.socials.map((social) => ({
+      rigName: session.rig?.name ?? null,
+      socials: session.rig?.socials.map((social) => ({
         kind: social.kind,
         label: social.label,
         url: social.url,
         enabled: social.enabled,
         sortOrder: social.sortOrder,
-      })),
+      })) ?? [],
+      adsEnabled: session.adsEnabledSnapshot,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to load share info';
