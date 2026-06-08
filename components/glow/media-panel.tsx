@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { NeonButton, NeonTitle } from '@/components/ui/neon';
 import { cn } from '@/lib/utils';
+import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
+import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import type { DeviceTarget, RoomStatePayload } from '@/lib/glow/types';
 
 type MediaPanelProps = {
@@ -23,7 +25,8 @@ type ActiveSubTab = 'image' | 'text' | 'gif';
 export function MediaPanel({ roomCode, roomState, socket, disabled = false }: MediaPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<ActiveSubTab>('image');
   const [target, setTarget] = useState<DeviceTarget>({ kind: 'all' });
-  const entitlements = roomState.entitlements;
+  const { teamEntitlements } = useTeamEntitlements();
+  const entitlements = mergeEntitlementsForUi(roomState.entitlements, teamEntitlements);
 
   // Image states
   const [imageFile, setImageFile] = useState<File | null>(null);

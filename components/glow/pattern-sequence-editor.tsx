@@ -13,7 +13,8 @@ import { ColorPaletteField } from '@/components/glow/color-palette-field';
 import { PatternSequencePreview } from '@/components/glow/pattern-sequence-preview';
 import { PresetPicker } from '@/components/glow/preset-picker';
 import { GifSearch } from './gif-search';
-import { DEFAULT_ENTITLEMENTS } from '@/lib/entitlements-defaults';
+import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
+import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import type { RoomStatePayload } from '@/lib/glow/types';
 import {
   createDefaultDraft,
@@ -71,7 +72,8 @@ export function PatternSequenceEditor({
   presetSeed,
   roomState,
 }: PatternSequenceEditorProps) {
-  const entitlements = roomState?.entitlements ?? DEFAULT_ENTITLEMENTS;
+  const { teamEntitlements } = useTeamEntitlements();
+  const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
 
   const renderGatedOverlay = (minTierName: string) => (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-xl bg-black/85 p-6 text-center backdrop-blur-xs">

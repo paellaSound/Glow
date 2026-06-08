@@ -2,6 +2,8 @@
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
+import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import type { RoomStatePayload } from '@/lib/glow/types';
 
 type DeviceListProps = {
@@ -10,11 +12,14 @@ type DeviceListProps = {
 };
 
 export function DeviceList({ roomState, onIdentify }: DeviceListProps) {
+  const { teamEntitlements } = useTeamEntitlements();
+  const maxDevices = mergeEntitlementsForUi(roomState.entitlements, teamEntitlements).maxDevices;
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">
-          Devices ({roomState.devices.length}/{roomState.entitlements.maxDevices})
+          Devices ({roomState.devices.length}/{maxDevices})
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">

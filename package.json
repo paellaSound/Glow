@@ -31,7 +31,7 @@
     "glow-visuals": "workspace:*",
     "jose": "^6.2.3",
     "lucide-react": "^0.511.0",
-    "next": "15.6.0-canary.59",
+    "next": "15.6.0-canary.60",
     "next-themes": "^0.4.6",
     "postcss": "^8.5.3",
     "postgres": "^3.4.5",

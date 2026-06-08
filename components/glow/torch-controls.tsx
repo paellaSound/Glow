@@ -8,6 +8,8 @@ import { NeonButton, NeonTitle } from '@/components/ui/neon';
 import { cn } from '@/lib/utils';
 import { ORCHESTRATOR_SCHEDULE_MS } from '@/lib/glow/orchestrator-delay';
 import { TORCH_MAX_INTERVAL_MS } from '@/lib/glow/torch';
+import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
+import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import type { DeviceTarget, RoomStatePayload, TorchCommand } from '@/lib/glow/types';
 
 type TorchControlsProps = {
@@ -33,7 +35,8 @@ export function TorchControls({
   const holdingRef = useRef(false);
   const activeHoldRef = useRef<HoldMode | null>(null);
 
-  const entitlements = roomState.entitlements;
+  const { teamEntitlements } = useTeamEntitlements();
+  const entitlements = mergeEntitlementsForUi(roomState.entitlements, teamEntitlements);
   const gated = !entitlements.deviceFlashControl;
 
   const flashCapableCount = useMemo(

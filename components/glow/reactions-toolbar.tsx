@@ -8,6 +8,8 @@ import {
   REACTION_ALLOWLIST_PAID,
   ReactionEmoji,
 } from 'glow-visuals';
+import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
+import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import type { RoomStatePayload } from '@/lib/glow/types';
 
 interface ReactionsToolbarProps {
@@ -19,13 +21,15 @@ interface ReactionsToolbarProps {
 export function ReactionsToolbar({ roomCode, roomState, onEmit }: ReactionsToolbarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [clickCounts, setClickCounts] = useState<Record<string, number>>({});
+  const { teamEntitlements } = useTeamEntitlements();
+  const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
 
-  if (roomState?.entitlements?.audienceReactions === false) {
+  if (!entitlements.audienceReactions) {
     return null;
   }
 
-  const maxDevices = roomState?.entitlements?.maxDevices ?? 10;
-  const advancedMatrix = roomState?.entitlements?.advancedMatrix ?? false;
+  const maxDevices = entitlements.maxDevices;
+  const advancedMatrix = entitlements.advancedMatrix;
   const isFree = maxDevices <= 10 && !advancedMatrix;
   const allowedEmojis = isFree ? REACTION_ALLOWLIST_FREE : REACTION_ALLOWLIST_PAID;
 
