@@ -1,4 +1,5 @@
 import { isValidPresetId, type PresetId, type PresetParams } from 'glow-presets';
+import { randomId } from '@/lib/utils';
 
 export type PatternSequenceEffect = {
   id: string;
@@ -111,7 +112,7 @@ export function toDistributionEffects(
 
 export function createEmptyEffect(presetId: PresetId = 'pulse'): PatternSequenceEffect {
   return {
-    id: crypto.randomUUID(),
+    id: randomId(),
     presetId,
     active: true,
     weight: 100,

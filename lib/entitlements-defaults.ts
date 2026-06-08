@@ -24,4 +24,6 @@ export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   gifBroadcast: false,
   sequencedText: false,
   deviceFlashControl: false,
+  webrtcLiveCall: false,
+  maxLiveCallDevices: 0,
 };

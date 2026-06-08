@@ -36,6 +36,33 @@ export type PlanEntitlements = {
   gifBroadcast: boolean;
   sequencedText: boolean;
   deviceFlashControl: boolean;
+  webrtcLiveCall: boolean;
+  maxLiveCallDevices: number;
+};
+
+// ── WebRTC live-call ─────────────────────────────────────────────────────────
+
+export type WebrtcSignal =
+  | { type: 'offer'; sdp: string }
+  | { type: 'answer'; sdp: string }
+  | { type: 'ice'; candidate: RTCIceCandidateInit };
+
+export type LiveTile = {
+  publicId: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  z: number;
+};
+
+export type LiveCallPublisherStatus = 'requested' | 'live' | 'declined';
+
+export type LiveCallStatePayload = {
+  callId: string;
+  active: boolean;
+  publishers: Array<{ publicId: string; status: LiveCallPublisherStatus }>;
+  tiles: LiveTile[];
 };
 
 export type RoomStatePayload = {

@@ -19,6 +19,7 @@ import { CueList, type RigCue } from '@/components/glow/cue-list';
 import type { Socket } from 'socket.io-client';
 import type { RoomStatePayload } from '@/lib/glow/types';
 import { VISUAL_ART_REGISTRY } from 'glow-visuals';
+import { LiveCallControls } from '@/components/glow/live-call-controls';
 import { cn } from '@/lib/utils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -375,7 +376,17 @@ export function VisualsTab({
         )}
       </NeonCard>
 
-      {/* ── 2. Cue list ───────────────────────────────────────────────── */}
+      {/* ── 2. Live call mosaic ───────────────────────────────────────── */}
+      {roomState ? (
+        <LiveCallControls
+          roomCode={roomCode}
+          roomState={roomState}
+          socket={socket}
+          connected={connected}
+        />
+      ) : null}
+
+      {/* ── 3. Cue list ───────────────────────────────────────────────── */}
       <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-5">
         <SectionHeader title="CUE LIST" color="violet" />
         <CueList

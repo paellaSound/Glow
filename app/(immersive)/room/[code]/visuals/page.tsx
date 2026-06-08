@@ -10,6 +10,7 @@ import { buildPlayerJoinUrl } from '@/lib/glow/join-url';
 import { FullscreenButton } from '@/components/glow/fullscreen-button';
 import { WakeLock } from '@/components/glow/wake-lock';
 import { getRealtimeUrl } from '@/lib/glow/matrix';
+import { useLiveCallViewer } from '@/lib/glow/use-live-call-viewer';
 import { cn } from '@/lib/utils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -110,6 +111,11 @@ function VisualsContent({ code }: { code: string }) {
   const [showInfo, setShowInfo] = useState(false);
   const [activeMedia, setActiveMedia] = useState<any | null>(null);
   const [matrixSize, setMatrixSize] = useState({ rows: 3, cols: 3 });
+
+  const liveCall = useLiveCallViewer({
+    socketRef,
+    subscribed: connectionState === 'subscribed',
+  });
 
   useEffect(() => {
     if (activeMedia && activeMedia.durationMs && activeMedia.durationMs > 0) {
@@ -485,6 +491,27 @@ function VisualsContent({ code }: { code: string }) {
         style={{ display: 'block' }}
       />
 
+      {/* ── Live-call mosaic tiles ── */}
+      {liveCall.tiles.length > 0 ? (
+        <div className="pointer-events-none absolute inset-0 z-[15] overflow-hidden">
+          {liveCall.tiles.map((tile) => {
+            const stream = liveCall.streams[tile.publicId];
+            if (!stream) return null;
+            return (
+              <LiveVideoTile
+                key={tile.publicId}
+                stream={stream}
+                x={tile.x}
+                y={tile.y}
+                w={tile.w}
+                h={tile.h}
+                z={tile.z}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+
       {/* ── Reaction overlay ── */}
       <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
         {reactions.map((reaction) => (
@@ -630,6 +657,53 @@ function VisualsContent({ code }: { code: string }) {
 }
 
 // ─── Page export ─────────────────────────────────────────────────────────────
+
+function LiveVideoTile({
+  stream,
+  x,
+  y,
+  w,
+  h,
+  z,
+}: {
+  stream: MediaStream;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  z: number;
+}) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.srcObject = stream;
+    void el.play().catch(() => {
+      // Autoplay may be blocked until user gesture; surface is typically fullscreen
+    });
+    return () => {
+      el.srcObject = null;
+    };
+  }, [stream]);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      muted
+      className="absolute rounded-xl border-2 border-white/25 object-cover shadow-[0_8px_32px_rgba(0,0,0,0.55)] backdrop-blur-[2px]"
+      style={{
+        left: `${x * 100}%`,
+        top: `${y * 100}%`,
+        width: `${w * 100}%`,
+        height: `${h * 100}%`,
+        zIndex: z,
+      }}
+    />
+  );
+}
 
 export default function VisualsPage({
   params,

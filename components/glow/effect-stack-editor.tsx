@@ -11,7 +11,7 @@ import {
   type PresetId,
   type PresetParams,
 } from 'glow-presets';
-import { cn } from '@/lib/utils';
+import { cn, randomId } from '@/lib/utils';
 
 const BLEND_MODES: EffectBlendMode[] = ['normal', 'add', 'screen', 'multiply'];
 
@@ -38,7 +38,7 @@ type EffectStackEditorProps = {
 
 function createLayer(presetId: PresetId, params?: PresetParams): StackLayerDraft {
   return {
-    id: crypto.randomUUID(),
+    id: randomId(),
     presetId,
     params,
     blend: 'normal',

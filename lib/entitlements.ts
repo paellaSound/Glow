@@ -27,6 +27,8 @@ export type PlanEntitlements = {
   gifBroadcast: boolean;
   sequencedText: boolean;
   deviceFlashControl: boolean;
+  webrtcLiveCall: boolean;
+  maxLiveCallDevices: number;
 };
 
 export { DEFAULT_ENTITLEMENTS };
@@ -55,6 +57,8 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   gif_broadcast: 'gifBroadcast',
   sequenced_text: 'sequencedText',
   device_flash_control: 'deviceFlashControl',
+  webrtc_live_call: 'webrtcLiveCall',
+  max_live_call_devices: 'maxLiveCallDevices',
 };
 
 export function buildEntitlementsFromRows(
@@ -141,6 +145,8 @@ export const PLAN_SEED_DATA = [
       gif_broadcast: false,
       sequenced_text: false,
       device_flash_control: false,
+      webrtc_live_call: false,
+      max_live_call_devices: 0,
     },
   },
   {
@@ -173,6 +179,8 @@ export const PLAN_SEED_DATA = [
       gif_broadcast: false,
       sequenced_text: true,
       device_flash_control: true,
+      webrtc_live_call: false,
+      max_live_call_devices: 0,
     },
   },
   {
@@ -205,6 +213,8 @@ export const PLAN_SEED_DATA = [
       gif_broadcast: true,
       sequenced_text: true,
       device_flash_control: true,
+      webrtc_live_call: false,
+      max_live_call_devices: 0,
     },
   },
   {
@@ -237,6 +247,8 @@ export const PLAN_SEED_DATA = [
       gif_broadcast: true,
       sequenced_text: true,
       device_flash_control: true,
+      webrtc_live_call: true,
+      max_live_call_devices: 6,
     },
   },
 ] as const;

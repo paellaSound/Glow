@@ -23,6 +23,7 @@ import {
 } from '@/lib/glow/player-session';
 import { useOrchestratorDelay } from '@/lib/glow/use-orchestrator-delay';
 import { useTorch } from '@/lib/glow/torch';
+import { useLiveCallPublisher } from '@/lib/glow/use-live-call-publisher';
 import { PlayerMenu } from '@/components/glow/player-menu';
 import { PlayerFlashButton } from '@/components/glow/player-flash-button';
 import { ReactionsToolbar } from '@/components/glow/reactions-toolbar';
@@ -237,6 +238,14 @@ function PlayerContent({
     col: position?.col ?? 0,
     matrixRows: matrixSize.rows,
     matrixCols: matrixSize.cols,
+  });
+
+  const liveCall = useLiveCallPublisher({
+    roomCode,
+    devicePublicId,
+    joined,
+    emit,
+    on,
   });
 
   const {
@@ -652,6 +661,73 @@ function PlayerContent({
           </div>
         </div>
       ) : null}
+      {liveCall.publishRequest ? (
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <NeonCard glowColor="magenta" borderVariant="magenta" className="w-full max-w-sm p-6">
+            <NeonTitle as="h3" color="magenta" className="text-lg font-black tracking-widest text-center">
+              GO LIVE?
+            </NeonTitle>
+            <p className="mt-3 text-sm text-zinc-300 text-center leading-relaxed">
+              The DJ wants to show your camera on the big screen.
+            </p>
+            <label className="mt-4 flex items-center justify-center gap-2 text-xs font-cyber text-zinc-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={liveCall.withAudio}
+                onChange={(e) => liveCall.setWithAudio(e.target.checked)}
+                className="rounded border-white/20"
+              />
+              Include microphone
+            </label>
+            {liveCall.publishError ? (
+              <p className="mt-3 text-[10px] text-red-400 font-cyber uppercase text-center">
+                {liveCall.publishError}
+              </p>
+            ) : null}
+            <div className="mt-5 flex gap-3">
+              <NeonButton
+                type="button"
+                color="magenta"
+                variant="outline"
+                className="flex-1 text-xs uppercase tracking-widest h-10"
+                onClick={liveCall.handleDecline}
+                disabled={liveCall.publishing}
+              >
+                Decline
+              </NeonButton>
+              <NeonButton
+                type="button"
+                color="magenta"
+                variant="solid"
+                className="flex-1 text-xs uppercase tracking-widest h-10"
+                onClick={liveCall.handleAllow}
+                disabled={liveCall.publishing}
+              >
+                {liveCall.publishing ? 'Starting…' : 'Allow'}
+              </NeonButton>
+            </div>
+          </NeonCard>
+        </div>
+      ) : null}
+
+      {liveCall.isLive ? (
+        <div className="absolute inset-x-0 top-14 z-20 flex justify-center px-4">
+          <div className="flex items-center gap-3 rounded-full border border-red-500/40 bg-black/70 px-4 py-2 backdrop-blur-sm">
+            <span className="size-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-[10px] font-cyber uppercase tracking-widest text-red-400">
+              You are live
+            </span>
+            <button
+              type="button"
+              onClick={liveCall.handleStop}
+              className="text-[10px] font-cyber uppercase tracking-widest text-white/80 hover:text-white underline"
+            >
+              Stop
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {joined && activeNickname && (
         <>
           <PlayerMenu
