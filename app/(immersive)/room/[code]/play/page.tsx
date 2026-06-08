@@ -16,6 +16,7 @@ import {
 } from '@/lib/glow/player-session';
 import { useOrchestratorDelay } from '@/lib/glow/use-orchestrator-delay';
 import type {
+  EffectDistribution,
   FallbackModeEvent,
   VisualAudioFeaturesEvent,
   VisualColorEvent,
@@ -64,6 +65,7 @@ function PlayerContent({
 
   const visual = useVisualEngine({
     roomCode,
+    devicePublicId: devicePublicId ?? undefined,
     row: position?.row ?? 0,
     col: position?.col ?? 0,
     matrixRows: matrixSize.rows,
@@ -178,6 +180,11 @@ function PlayerContent({
         const payload = event as VisualPresetEvent;
         trackOrchestratorMessage(payload.targetTimestamp, payload.seedTimestamp);
         visual.schedulePreset(payload);
+      }),
+      on('visual:effect_distribution', (event) => {
+        const payload = event as EffectDistribution;
+        trackOrchestratorMessage(payload.targetTimestamp, payload.seedTimestamp);
+        visual.scheduleEffectDistribution(payload);
       }),
       on('visual:audio_features', (event) => {
         visual.setAudioFeatures(event as VisualAudioFeaturesEvent);

@@ -52,6 +52,22 @@ export type PresetId =
   | 'strobe'
   | 'audio';
 
+export type EffectBlendMode = 'normal' | 'add' | 'screen' | 'multiply';
+
+export type EffectLayer = {
+  presetId: PresetId;
+  params?: PresetParams;
+  blend: EffectBlendMode;
+  opacity: number;
+};
+
+export type EffectStack = {
+  layers: EffectLayer[];
+  seedTimestamp: number;
+  targetTimestamp: number;
+  matrix: { rows: number; cols: number };
+};
+
 export type PresetDefinition = {
   id: PresetId;
   label: string;

@@ -1,9 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { computeFallbackColor, computePresetColor } from './presets';
+import {
+  computeDistributionColor,
+  computeFallbackColor,
+  computePresetColor,
+  previewDeviceKey,
+} from './presets';
 import { useAudioAnalyzer } from './audio-analyzer';
 import type {
+  EffectDistribution,
   FallbackModeEvent,
   VisualAudioFeaturesEvent,
   VisualColorEvent,
@@ -12,6 +18,7 @@ import type {
 
 type VisualEngineOptions = {
   roomCode?: string;
+  devicePublicId?: string;
   row?: number;
   col?: number;
   matrixRows?: number;
@@ -19,18 +26,74 @@ type VisualEngineOptions = {
   onIdentify?: (label: string) => void;
 };
 
-function usesLocalAudio(preset: VisualPresetEvent | null): boolean {
+/**
+ * Device render priority (highest wins):
+ * 1. identify flash (device:identify) — play page forces #ffffff while identifying
+ * 2. media layer (visual:media) — hook via mediaActiveRef [future, feature 06]
+ * 3. torch override (device:torch) — physical LED only, parallel to screen [future, feature 08]
+ * 4. effect distribution / preset (visual:effect_distribution or visual:preset)
+ * 5. direct color (visual:color)
+ * 6. fallback mode (fallback:mode_changed)
+ * 7. black / idle (#111111)
+ */
+const IDLE_COLOR = '#111111';
+
+function usesLocalAudioFromPreset(preset: VisualPresetEvent | null): boolean {
   return preset?.presetId === 'audio' && preset.params?.audioSource !== 'orchestrator';
 }
 
+function usesLocalAudioFromDistribution(distribution: EffectDistribution | null): boolean {
+  return (
+    distribution?.effects.some(
+      (effect) => effect.presetId === 'audio' && effect.params?.audioSource !== 'orchestrator'
+    ) ?? false
+  );
+}
+
+function resolveAudioFeatures(
+  preset: VisualPresetEvent | null,
+  distribution: EffectDistribution | null,
+  orchestratorAudio: VisualAudioFeaturesEvent['features'] | null,
+  localAudio: VisualAudioFeaturesEvent['features'] | undefined
+): VisualAudioFeaturesEvent['features'] | undefined {
+  const needsAudio =
+    preset?.presetId === 'audio' ||
+    distribution?.effects.some((effect) => effect.presetId === 'audio');
+
+  if (!needsAudio) return undefined;
+
+  const usesOrchestrator =
+    preset?.params?.audioSource === 'orchestrator' ||
+    distribution?.effects.some(
+      (effect) =>
+        effect.presetId === 'audio' && effect.params?.audioSource === 'orchestrator'
+    );
+
+  return usesOrchestrator ? (orchestratorAudio ?? undefined) : localAudio;
+}
+
+function resolveDeviceKey(options: VisualEngineOptions): string {
+  if (options.devicePublicId) {
+    return options.devicePublicId;
+  }
+  return previewDeviceKey(
+    options.row ?? 0,
+    options.col ?? 0,
+    options.matrixCols ?? 1
+  );
+}
+
 export function useVisualEngine(options: VisualEngineOptions) {
-  const [color, setColor] = useState('#111111');
+  const [color, setColor] = useState(IDLE_COLOR);
   const [identifying, setIdentifying] = useState(false);
   const [identifyLabel, setIdentifyLabel] = useState<string | null>(null);
   const [micEnabled, setMicEnabled] = useState(false);
   const fallbackRef = useRef<FallbackModeEvent | null>(null);
   const presetRef = useRef<VisualPresetEvent | null>(null);
+  const effectDistributionRef = useRef<EffectDistribution | null>(null);
   const directColorRef = useRef<string | null>(null);
+  /** Future hook: visual:media active payload [feature 06] */
+  const mediaActiveRef = useRef<boolean>(false);
   const orchestratorAudioRef = useRef<VisualAudioFeaturesEvent['features'] | null>(null);
   const rafRef = useRef<number | null>(null);
 
@@ -39,46 +102,78 @@ export function useVisualEngine(options: VisualEngineOptions) {
   useEffect(() => {
     const tick = () => {
       const now = Date.now();
+      setColor(resolveScreenColor(now));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    function resolveScreenColor(now: number): string {
+      if (mediaActiveRef.current) {
+        // Future media layer hook
+      }
+
+      const distribution = effectDistributionRef.current;
+      if (distribution) {
+        const elapsed = now - distribution.targetTimestamp;
+        if (elapsed >= 0) {
+          const audio = resolveAudioFeatures(
+            null,
+            distribution,
+            orchestratorAudioRef.current,
+            audioAnalyzer.featuresRef.current
+          );
+          return computeDistributionColor(
+            distribution,
+            {
+              row: options.row ?? 0,
+              col: options.col ?? 0,
+              timeMs: elapsed,
+              audio,
+            },
+            resolveDeviceKey(options)
+          );
+        }
+      }
+
+      const preset = presetRef.current;
+      if (preset) {
+        const elapsed = now - preset.targetTimestamp;
+        if (elapsed >= 0) {
+          const audio = resolveAudioFeatures(
+            preset,
+            null,
+            orchestratorAudioRef.current,
+            audioAnalyzer.featuresRef.current
+          );
+
+          return computePresetColor(preset.presetId, {
+            row: options.row ?? 0,
+            col: options.col ?? 0,
+            timeMs: elapsed,
+            seed: preset.seedTimestamp,
+            matrixRows: preset.matrix.rows,
+            matrixCols: preset.matrix.cols,
+            audio,
+            palette: preset.params?.palette,
+          });
+        }
+      }
+
+      if (directColorRef.current) {
+        return directColorRef.current;
+      }
 
       if (fallbackRef.current?.enabled && options.roomCode) {
-        const c = computeFallbackColor(
+        return computeFallbackColor(
           fallbackRef.current.roomCode,
           fallbackRef.current.seedTimestamp,
           options.row ?? 0,
           options.col ?? 0,
           now
         );
-        setColor(c);
-      } else if (directColorRef.current) {
-        setColor(directColorRef.current);
-      } else if (presetRef.current) {
-        const preset = presetRef.current;
-        const elapsed = now - preset.targetTimestamp;
-        if (elapsed >= 0) {
-          const audio =
-            preset.presetId === 'audio'
-              ? preset.params?.audioSource === 'orchestrator'
-                ? (orchestratorAudioRef.current ?? undefined)
-                : audioAnalyzer.featuresRef.current
-              : undefined;
-
-          setColor(
-            computePresetColor(preset.presetId, {
-              row: options.row ?? 0,
-              col: options.col ?? 0,
-              timeMs: elapsed,
-              seed: preset.seedTimestamp,
-              matrixRows: preset.matrix.rows,
-              matrixCols: preset.matrix.cols,
-              audio,
-              palette: preset.params?.palette,
-            })
-          );
-        }
       }
 
-      rafRef.current = requestAnimationFrame(tick);
-    };
+      return IDLE_COLOR;
+    }
 
     rafRef.current = requestAnimationFrame(tick);
     return () => {
@@ -86,6 +181,7 @@ export function useVisualEngine(options: VisualEngineOptions) {
     };
   }, [
     options.roomCode,
+    options.devicePublicId,
     options.row,
     options.col,
     options.matrixRows,
@@ -94,6 +190,7 @@ export function useVisualEngine(options: VisualEngineOptions) {
   ]);
 
   function scheduleColor(event: VisualColorEvent) {
+    effectDistributionRef.current = null;
     presetRef.current = null;
     setMicEnabled(false);
     orchestratorAudioRef.current = null;
@@ -105,19 +202,31 @@ export function useVisualEngine(options: VisualEngineOptions) {
   }
 
   function schedulePreset(event: VisualPresetEvent) {
+    effectDistributionRef.current = null;
     directColorRef.current = null;
     presetRef.current = event;
     orchestratorAudioRef.current = null;
-    setMicEnabled(usesLocalAudio(event));
+    setMicEnabled(usesLocalAudioFromPreset(event));
+  }
+
+  function scheduleEffectDistribution(event: EffectDistribution) {
+    presetRef.current = null;
+    directColorRef.current = null;
+    effectDistributionRef.current = event;
+    orchestratorAudioRef.current = null;
+    setMicEnabled(usesLocalAudioFromDistribution(event));
   }
 
   function setFallbackMode(event: FallbackModeEvent) {
     fallbackRef.current = event;
     if (!event.enabled) {
       presetRef.current = null;
+      effectDistributionRef.current = null;
       setMicEnabled(false);
     } else {
       directColorRef.current = null;
+      presetRef.current = null;
+      effectDistributionRef.current = null;
       orchestratorAudioRef.current = null;
       setMicEnabled(false);
     }
@@ -145,6 +254,7 @@ export function useVisualEngine(options: VisualEngineOptions) {
     micError: audioAnalyzer.error,
     scheduleColor,
     schedulePreset,
+    scheduleEffectDistribution,
     setFallbackMode,
     setAudioFeatures,
     triggerIdentify,

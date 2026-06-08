@@ -198,6 +198,30 @@ export const rigSocials = pgTable(
   ]
 );
 
+export const patternSequences = pgTable(
+  'pattern_sequences',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerUserId: uuid('owner_user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    teamId: uuid('team_id')
+      .notNull()
+      .references(() => teams.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    palette: jsonb('palette').notNull(),
+    effects: jsonb('effects').notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('pattern_sequences_owner_user_id_idx').on(table.ownerUserId),
+    index('pattern_sequences_team_id_idx').on(table.teamId),
+  ]
+);
+
 export const plansRelations = relations(plans, ({ many }) => ({
   entitlements: many(planEntitlements),
   teams: many(teams),
@@ -214,6 +238,7 @@ export const profilesRelations = relations(profiles, ({ many }) => ({
   ownedTeams: many(teams),
   teamMembers: many(teamMembers),
   rigs: many(rigs),
+  patternSequences: many(patternSequences),
 }));
 
 export const teamsRelations = relations(teams, ({ one, many }) => ({
@@ -228,6 +253,7 @@ export const teamsRelations = relations(teams, ({ one, many }) => ({
   teamMembers: many(teamMembers),
   roomSessions: many(roomSessions),
   rigs: many(rigs),
+  patternSequences: many(patternSequences),
 }));
 
 export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
@@ -288,6 +314,17 @@ export const rigSocialsRelations = relations(rigSocials, ({ one }) => ({
   }),
 }));
 
+export const patternSequencesRelations = relations(patternSequences, ({ one }) => ({
+  owner: one(profiles, {
+    fields: [patternSequences.ownerUserId],
+    references: [profiles.id],
+  }),
+  team: one(teams, {
+    fields: [patternSequences.teamId],
+    references: [teams.id],
+  }),
+}));
+
 export type Profile = typeof profiles.$inferSelect;
 export type Plan = typeof plans.$inferSelect;
 export type PlanEntitlement = typeof planEntitlements.$inferSelect;
@@ -298,6 +335,7 @@ export type AdImpression = typeof adImpressions.$inferSelect;
 export type Rig = typeof rigs.$inferSelect;
 export type RigCue = typeof rigCues.$inferSelect;
 export type RigSocial = typeof rigSocials.$inferSelect;
+export type PatternSequence = typeof patternSequences.$inferSelect;
 
 export type TeamWithPlan = Team & {
   plan: Plan;

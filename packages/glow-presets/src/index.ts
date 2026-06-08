@@ -1,4 +1,11 @@
 export { computePresetColor } from './compute.js';
+export { computeEffectStackColor } from './compositor.js';
+export {
+  compositeColors,
+  computeLayerColor,
+  hexToRgb,
+  rgbToHex,
+} from './compositor.js';
 export { computeFallbackColor, FALLBACK_PRESET_ID } from './fallback.js';
 export {
   getPreset,
@@ -11,6 +18,9 @@ export {
 export type {
   AudioFeatures,
   AudioSource,
+  EffectBlendMode,
+  EffectLayer,
+  EffectStack,
   PlanTier,
   PresetCategory,
   PresetContext,
@@ -22,7 +32,10 @@ export type {
 } from './types.js';
 export { isValidHexColor } from './utils/color.js';
 export {
-  paletteColorAt,
-  paletteColorForCell,
-  resolvePalette,
-} from './utils/palette.js';
+  computeDistributionColor,
+  distributionBucket,
+  pickEffectForDevice,
+  previewDeviceKey,
+  validateDistributionWeights,
+} from './distribution.js';
+export type { DistributionEffect, EffectDistribution } from './distribution.js';

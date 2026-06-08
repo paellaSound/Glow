@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import useSWR from 'swr';
-import { CreditCard, Home, LogOut, PlusCircle, Radio, Sliders, User, XCircle } from 'lucide-react';
+import { CreditCard, Home, Layers, LogOut, PlusCircle, Radio, Sliders, User, XCircle } from 'lucide-react';
 import { signOut } from '@/lib/auth/actions';
 import { ThemeMenuItems } from '@/components/glow/theme-menu-items';
 import { useActiveRoom, useEndActiveRoom } from '@/components/glow/ongoing-session-banner';
@@ -164,6 +164,12 @@ export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) 
               <Link href="/rigs" className="cursor-pointer">
                 <Sliders />
                 My Rigs
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/pattern-sequences" className="cursor-pointer">
+                <Layers />
+                Pattern Sequences
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>

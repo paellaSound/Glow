@@ -502,6 +502,34 @@
   animation: theme-toggle-slide-in 0.28s ease-out forwards;
 }
 
+.control-live-preview-shell-enter,
+.control-live-preview-shell-exit {
+  transition-property: transform, opacity, filter;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.control-live-preview-shell-enter {
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+  filter: blur(0);
+}
+
+.control-live-preview-shell-exit {
+  transform: translate3d(0, calc(-100% - 6px), 0) scale(0.994);
+  opacity: 0;
+  filter: blur(8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control-live-preview-shell-enter,
+  .control-live-preview-shell-exit {
+    transition: none;
+    transform: none;
+    opacity: 1;
+    filter: none;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

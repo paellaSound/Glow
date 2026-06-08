@@ -1,6 +1,11 @@
 export type {
   AudioFeatures,
   AudioSource,
+  DistributionEffect,
+  EffectBlendMode,
+  EffectDistribution,
+  EffectLayer,
+  EffectStack,
   PresetId,
   PresetParams,
   VisualAudioFeaturesEvent,
@@ -24,6 +29,8 @@ export type PlanEntitlements = {
   visualsSurface: boolean;
   availableVisualArts: string[];
   maxRigs: number;
+  effectLayering: boolean;
+  maxPatternSequences: number;
 };
 
 export type RoomStatePayload = {

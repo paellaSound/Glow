@@ -102,7 +102,7 @@ function SignInForm() {
       <p className="mt-6 text-center text-sm text-muted-foreground">
         No account yet?{' '}
         <Link
-          href={`/auth/signup${redirect !== '/room/new' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+          href={`/auth/signup${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
           className="text-primary hover:underline"
         >
           Create one

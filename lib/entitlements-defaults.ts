@@ -17,4 +17,6 @@ export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   visualsSurface: true,
   availableVisualArts: ['glow-branded'],
   maxRigs: 1,
+  effectLayering: false,
+  maxPatternSequences: 1,
 };

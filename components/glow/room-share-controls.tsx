@@ -12,6 +12,7 @@ type RoomShareControlsProps = {
   roomCode: string;
   matrixEnabled: boolean;
   onMatrixEnabledChange: (enabled: boolean) => void;
+  showMatrixOption?: boolean;
   compact?: boolean;
 };
 
@@ -24,6 +25,7 @@ export function RoomShareControls({
   roomCode,
   matrixEnabled,
   onMatrixEnabledChange,
+  showMatrixOption = true,
   compact = false,
 }: RoomShareControlsProps) {
   const [copied, setCopied] = useState(false);
@@ -103,33 +105,39 @@ export function RoomShareControls({
       {compact ? (
         <div className="flex flex-col gap-2">
           {actions}
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
-            <input
-              type="checkbox"
-              checked={matrixEnabled}
-              onChange={(e) => onMatrixEnabledChange(e.target.checked)}
-              className="rounded border-white/20 bg-zinc-800"
-            />
-            <span>Require matrix position in join link</span>
-          </label>
+          {showMatrixOption ? (
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
+              <input
+                type="checkbox"
+                checked={matrixEnabled}
+                onChange={(e) => onMatrixEnabledChange(e.target.checked)}
+                className="rounded border-white/20 bg-zinc-800"
+              />
+              <span>Require matrix position in join link</span>
+            </label>
+          ) : null}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           {actions}
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
-            <input
-              type="checkbox"
-              checked={matrixEnabled}
-              onChange={(e) => onMatrixEnabledChange(e.target.checked)}
-              className="rounded border-white/20 bg-zinc-800"
-            />
-            <span>Require matrix position in join link</span>
-          </label>
-          <p className="text-xs text-zinc-500">
-            {matrixEnabled
-              ? 'Players will pick a cell when they open the link.'
-              : 'Players join directly without picking a matrix cell.'}
-          </p>
+          {showMatrixOption ? (
+            <>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={matrixEnabled}
+                  onChange={(e) => onMatrixEnabledChange(e.target.checked)}
+                  className="rounded border-white/20 bg-zinc-800"
+                />
+                <span>Require matrix position in join link</span>
+              </label>
+              <p className="text-xs text-zinc-500">
+                {matrixEnabled
+                  ? 'Players will pick a cell when they open the link.'
+                  : 'Players join directly without picking a matrix cell.'}
+              </p>
+            </>
+          ) : null}
         </div>
       )}
 

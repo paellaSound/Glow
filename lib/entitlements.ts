@@ -20,6 +20,8 @@ export type PlanEntitlements = {
   visualsSurface: boolean;
   availableVisualArts: string[];
   maxRigs: number;
+  effectLayering: boolean;
+  maxPatternSequences: number;
 };
 
 export { DEFAULT_ENTITLEMENTS };
@@ -41,6 +43,8 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   visuals_surface: 'visualsSurface',
   available_visual_arts: 'availableVisualArts',
   max_rigs: 'maxRigs',
+  effect_layering: 'effectLayering',
+  max_pattern_sequences: 'maxPatternSequences',
 };
 
 export function buildEntitlementsFromRows(
@@ -120,6 +124,8 @@ export const PLAN_SEED_DATA = [
       visuals_surface: true,
       available_visual_arts: ['glow-branded'],
       max_rigs: 1,
+      effect_layering: false,
+      max_pattern_sequences: 1,
     },
   },
   {
@@ -145,6 +151,8 @@ export const PLAN_SEED_DATA = [
       visuals_surface: true,
       available_visual_arts: ['glow-branded', 'pulse-grid', 'audio-shader'],
       max_rigs: 3,
+      effect_layering: false,
+      max_pattern_sequences: 3,
     },
   },
   {
@@ -170,6 +178,8 @@ export const PLAN_SEED_DATA = [
       visuals_surface: true,
       available_visual_arts: ['glow-branded', 'pulse-grid', 'audio-shader'],
       max_rigs: 10,
+      effect_layering: true,
+      max_pattern_sequences: 10,
     },
   },
   {
@@ -195,6 +205,8 @@ export const PLAN_SEED_DATA = [
       visuals_surface: true,
       available_visual_arts: ['glow-branded', 'pulse-grid', 'audio-shader'],
       max_rigs: 50,
+      effect_layering: true,
+      max_pattern_sequences: 50,
     },
   },
 ] as const;

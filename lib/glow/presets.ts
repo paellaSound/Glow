@@ -1,6 +1,9 @@
 export {
+  computeDistributionColor,
+  computeEffectStackColor,
   computeFallbackColor,
   computePresetColor,
+  previewDeviceKey,
   FALLBACK_PRESET_ID,
   getPreset,
   isValidPresetId,
