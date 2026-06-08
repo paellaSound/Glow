@@ -25,7 +25,7 @@ const NOTICE_MESSAGES: Record<string, string> = {
 
 function SignInForm() {
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') ?? '/room/new';
+  const redirect = searchParams.get('redirect') ?? '/';
   const error = searchParams.get('error');
   const notice = searchParams.get('notice');
   const [pendingGoogle, startGoogleTransition] = useTransition();

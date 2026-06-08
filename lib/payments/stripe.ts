@@ -56,9 +56,44 @@ export async function createCheckoutSession({
   redirect(session.url!);
 }
 
-export async function createCustomerPortalSession(team: Team) {
+export async function createCustomerPortalSession(team: Team, planCode?: string) {
   if (!team.stripeCustomerId) {
     redirect('/billing');
+  }
+
+  if (planCode && team.stripeSubscriptionId) {
+    try {
+      const targetPlan = await getPlanByCode(planCode);
+      if (targetPlan && targetPlan.stripePriceId) {
+        const subscription = await stripe.subscriptions.retrieve(team.stripeSubscriptionId);
+        const subscriptionItemId = subscription.items.data[0]?.id;
+
+        if (subscriptionItemId) {
+          // Intenta crear el portal directamente en el flujo de confirmación de actualización
+          return await stripe.billingPortal.sessions.create({
+            customer: team.stripeCustomerId,
+            return_url: `${process.env.BASE_URL}/billing`,
+            flow_data: {
+              type: 'subscription_update_confirm',
+              subscription_update_confirm: {
+                subscription: team.stripeSubscriptionId,
+                items: [
+                  {
+                    id: subscriptionItemId,
+                    price: targetPlan.stripePriceId,
+                  },
+                ],
+              },
+            },
+          });
+        }
+      }
+    } catch (error) {
+      console.error(
+        'Failed to initiate direct subscription update flow. Falling back to standard portal.',
+        error
+      );
+    }
   }
 
   return stripe.billingPortal.sessions.create({

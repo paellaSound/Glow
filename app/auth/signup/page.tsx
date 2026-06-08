@@ -17,7 +17,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 function SignUpForm() {
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') ?? '/room/new';
+  const redirect = searchParams.get('redirect') ?? '/';
   const error = searchParams.get('error');
   const [localError, setLocalError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -98,7 +98,7 @@ function SignUpForm() {
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{' '}
         <Link
-          href={`/auth/signin${redirect !== '/room/new' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
+          href={`/auth/signin${redirect !== '/' ? `?redirect=${encodeURIComponent(redirect)}` : ''}`}
           className="text-primary hover:underline"
         >
           Sign in

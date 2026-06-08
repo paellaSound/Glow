@@ -10,6 +10,10 @@ export async function checkoutAction(formData: FormData) {
   const plans = await getAllPlans();
   const plan = plans.find((p) => p.code === planCode);
 
+  if (team && (team.subscriptionStatus === 'active' || team.subscriptionStatus === 'trialing')) {
+    redirect('/billing');
+  }
+
   if (!plan || !plan.stripePriceId) {
     redirect('/billing');
   }
@@ -21,12 +25,13 @@ export async function checkoutAction(formData: FormData) {
   });
 }
 
-export async function customerPortalAction() {
+export async function customerPortalAction(formData: FormData) {
   const team = await getTeamForUser();
   if (!team) {
     redirect('/sign-in');
   }
 
-  const portalSession = await createCustomerPortalSession(team);
+  const planCode = formData.get('planCode') as string | undefined;
+  const portalSession = await createCustomerPortalSession(team, planCode);
   redirect(portalSession.url);
 }

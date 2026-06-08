@@ -3,11 +3,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = path.resolve(projectRoot, '..');
 
 const nextConfig: NextConfig = {
   transpilePackages: ['glow-presets', 'glow-visuals'],
+  outputFileTracingRoot: monorepoRoot,
   turbopack: {
-    root: projectRoot,
+    root: monorepoRoot,
   },
   experimental: {
     ppr: true,

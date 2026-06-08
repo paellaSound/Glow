@@ -65,6 +65,12 @@ export default async function BillingPage() {
         <div className="grid gap-6 md:grid-cols-2">
           {plans.map((plan) => {
             const isFree = plan.code === 'free' || !plan.stripePriceId;
+            const isCurrentPlan = team?.planId === plan.id;
+            const hasActivePaidSubscription =
+              team &&
+              (team.subscriptionStatus === 'active' ||
+                team.subscriptionStatus === 'trialing');
+
             return (
               <NeonCard key={plan.id} glowColor={isFree ? 'none' : 'magenta'} borderVariant={isFree ? 'default' : 'magenta'} className="flex flex-col justify-between p-6 min-h-[250px]">
                 <div>
@@ -84,10 +90,21 @@ export default async function BillingPage() {
                     {plan.monthlyPriceCents > 0 && <span className="text-xs text-muted-foreground font-normal tracking-wide">/mo</span>}
                   </p>
                   
-                  {isFree ? (
+                  {isCurrentPlan ? (
                     <NeonButton disabled color="cyan" variant="outline" className="w-full text-xs uppercase tracking-widest h-10 opacity-60">
-                      Current or Free
+                      Current Plan
                     </NeonButton>
+                  ) : isFree ? (
+                    <NeonButton disabled color="cyan" variant="outline" className="w-full text-xs uppercase tracking-widest h-10 opacity-60">
+                      {hasActivePaidSubscription ? 'Downgrade via Portal' : 'Free Plan'}
+                    </NeonButton>
+                  ) : hasActivePaidSubscription ? (
+                    <form action={customerPortalAction} className="w-full">
+                      <input type="hidden" name="planCode" value={plan.code} />
+                      <NeonButton type="submit" color="cyan" variant="solid" className="w-full text-xs uppercase tracking-widest h-10">
+                        Change Plan
+                      </NeonButton>
+                    </form>
                   ) : (
                     <form action={checkoutAction} className="w-full">
                       <input type="hidden" name="planCode" value={plan.code} />
