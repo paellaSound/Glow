@@ -6,40 +6,92 @@ const STUN_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
-/**
- * ICE server configuration. STUN-only for Phases 1-3.
- * Phase 4 adds TURN via env without changing call-site APIs.
- */
-export function getGlowIceServers(): RTCIceServer[] {
-  const servers: RTCIceServer[] = [...STUN_SERVERS];
+export type GlowIceConfig = {
+  iceServers: RTCIceServer[];
+  iceTransportPolicy: RTCIceTransportPolicy;
+};
 
-  const turnUrl = process.env.NEXT_PUBLIC_TURN_URL;
-  const turnUsername = process.env.NEXT_PUBLIC_TURN_USERNAME;
-  const turnCredential = process.env.NEXT_PUBLIC_TURN_CREDENTIAL;
+let cachedIceConfig: GlowIceConfig | null = null;
+let iceConfigPromise: Promise<GlowIceConfig> | null = null;
 
-  if (turnUrl && turnUsername && turnCredential) {
-    servers.push({
-      urls: turnUrl,
-      username: turnUsername,
-      credential: turnCredential,
-    });
-  }
+function stunOnlyConfig(): GlowIceConfig {
+  return { iceServers: [...STUN_SERVERS], iceTransportPolicy: 'all' };
+}
 
-  return servers;
+/** Fetch ICE config from server route (TURN credentials injected at runtime). */
+export async function fetchGlowIceConfig(): Promise<GlowIceConfig> {
+  if (cachedIceConfig) return cachedIceConfig;
+  if (iceConfigPromise) return iceConfigPromise;
+
+  iceConfigPromise = (async () => {
+    try {
+      const res = await fetch('/api/webrtc/ice-servers', { cache: 'no-store' });
+      if (!res.ok) {
+        cachedIceConfig = stunOnlyConfig();
+        return cachedIceConfig;
+      }
+      const data = (await res.json()) as GlowIceConfig;
+      cachedIceConfig = {
+        iceServers: Array.isArray(data.iceServers) ? data.iceServers : STUN_SERVERS,
+        iceTransportPolicy: data.iceTransportPolicy === 'relay' ? 'relay' : 'all',
+      };
+      return cachedIceConfig;
+    } catch {
+      cachedIceConfig = stunOnlyConfig();
+      return cachedIceConfig;
+    } finally {
+      iceConfigPromise = null;
+    }
+  })();
+
+  return iceConfigPromise;
+}
+
+/** Invalidate cached ICE config (e.g. after env change in dev). */
+export function invalidateGlowIceConfigCache(): void {
+  cachedIceConfig = null;
+  iceConfigPromise = null;
 }
 
 export const VISUALS_VIEWER_ID = 'visuals';
 
-export function createPeerConnection(
-  onIceCandidate: (candidate: RTCIceCandidateInit) => void
-): RTCPeerConnection {
-  const pc = new RTCPeerConnection({ iceServers: getGlowIceServers() });
+export type PeerConnectionHandlers = {
+  onIceCandidate: (candidate: RTCIceCandidateInit) => void;
+  onIceConnectionStateChange?: (state: RTCIceConnectionState) => void;
+  onConnectionStateChange?: (state: RTCPeerConnectionState) => void;
+  onTrack?: (event: RTCTrackEvent) => void;
+};
+
+export async function createPeerConnection(
+  handlers: PeerConnectionHandlers
+): Promise<RTCPeerConnection> {
+  const config = await fetchGlowIceConfig();
+  const pc = new RTCPeerConnection({
+    iceServers: config.iceServers,
+    iceTransportPolicy: config.iceTransportPolicy,
+  });
 
   pc.onicecandidate = (event) => {
     if (event.candidate) {
-      onIceCandidate(event.candidate.toJSON());
+      handlers.onIceCandidate(event.candidate.toJSON());
     }
   };
+
+  if (handlers.onIceConnectionStateChange) {
+    pc.oniceconnectionstatechange = () => {
+      handlers.onIceConnectionStateChange?.(pc.iceConnectionState);
+    };
+  }
+
+  if (handlers.onConnectionStateChange) {
+    pc.onconnectionstatechange = () => {
+      handlers.onConnectionStateChange?.(pc.connectionState);
+    };
+  }
+
+  if (handlers.onTrack) {
+    pc.ontrack = handlers.onTrack;
+  }
 
   return pc;
 }
@@ -50,8 +102,11 @@ export function addLocalTracks(pc: RTCPeerConnection, stream: MediaStream): void
   }
 }
 
-export async function createPublisherOffer(pc: RTCPeerConnection): Promise<string> {
-  const offer = await pc.createOffer();
+export async function createPublisherOffer(
+  pc: RTCPeerConnection,
+  options?: { iceRestart?: boolean }
+): Promise<string> {
+  const offer = await pc.createOffer({ iceRestart: options?.iceRestart ?? false });
   await pc.setLocalDescription(offer);
   return offer.sdp ?? '';
 }
@@ -64,7 +119,10 @@ export async function applyRemoteDescription(
   await pc.setRemoteDescription({ type, sdp });
 }
 
-export async function createViewerAnswer(pc: RTCPeerConnection, offerSdp: string): Promise<string> {
+export async function createViewerAnswer(
+  pc: RTCPeerConnection,
+  offerSdp: string
+): Promise<string> {
   await applyRemoteDescription(pc, 'offer', offerSdp);
   const answer = await pc.createAnswer();
   await pc.setLocalDescription(answer);
@@ -95,6 +153,7 @@ export function closePeerConnection(pc: RTCPeerConnection | null | undefined): v
   pc.onicecandidate = null;
   pc.ontrack = null;
   pc.onconnectionstatechange = null;
+  pc.oniceconnectionstatechange = null;
   pc.close();
 }
 

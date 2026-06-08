@@ -27,3 +27,15 @@ export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   webrtcLiveCall: false,
   maxLiveCallDevices: 0,
 };
+
+/** Merge room snapshot entitlements with live team entitlements (team wins). */
+export function mergeEntitlementsForUi(
+  roomEntitlements: PlanEntitlements | null | undefined,
+  teamEntitlements: PlanEntitlements | null | undefined
+): PlanEntitlements {
+  return {
+    ...DEFAULT_ENTITLEMENTS,
+    ...roomEntitlements,
+    ...teamEntitlements,
+  };
+}

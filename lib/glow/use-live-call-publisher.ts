@@ -14,6 +14,11 @@ import {
 } from './webrtc';
 import type { WebrtcSignal } from './types';
 
+const ICE_DISCONNECTED_GRACE_MS = 3000;
+const ICE_RESTART_MAX_ATTEMPTS = 3;
+const SURFACE_RECONNECT_COOLDOWN_MS = 5000;
+const RECOVERY_COOLDOWN_MS = 2000;
+
 type PublishRequest = {
   callId: string;
   withAudio: boolean;
@@ -43,17 +48,35 @@ export function useLiveCallPublisher({
   const callIdRef = useRef<string | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const iceRestartAttemptsRef = useRef(0);
+  const disconnectedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recoveryLockRef = useRef(false);
+  const lastSurfaceReconnectRef = useRef(0);
+  const lastRecoveryAtRef = useRef(0);
+  const handleIceStateChangeRef = useRef<(state: RTCIceConnectionState) => void>(() => {});
+  const handleConnectionStateChangeRef =
+    useRef<(state: RTCPeerConnectionState) => void>(() => {});
+
+  const clearDisconnectedTimer = useCallback(() => {
+    if (disconnectedTimerRef.current) {
+      clearTimeout(disconnectedTimerRef.current);
+      disconnectedTimerRef.current = null;
+    }
+  }, []);
 
   const cleanupPublisher = useCallback(() => {
+    clearDisconnectedTimer();
     stopMediaStream(streamRef.current);
     streamRef.current = null;
     closePeerConnection(pcRef.current);
     pcRef.current = null;
     callIdRef.current = null;
+    iceRestartAttemptsRef.current = 0;
+    recoveryLockRef.current = false;
     setIsLive(false);
     setPublishRequest(null);
     setPublishing(false);
-  }, []);
+  }, [clearDisconnectedTimer]);
 
   const sendSignal = useCallback(
     (callId: string, signal: WebrtcSignal) => {
@@ -68,6 +91,138 @@ export function useLiveCallPublisher({
     [devicePublicId, emit]
   );
 
+  const sendOffer = useCallback(
+    async (callId: string, options?: { iceRestart?: boolean; recreatePc?: boolean }) => {
+      const stream = streamRef.current;
+      if (!stream) return;
+
+      if (options?.recreatePc) {
+        closePeerConnection(pcRef.current);
+        pcRef.current = null;
+      }
+
+      let pc = pcRef.current;
+      if (!pc) {
+        pc = await createPeerConnection({
+          onIceCandidate: (candidate) => {
+            sendSignal(callId, { type: 'ice', candidate });
+          },
+          onIceConnectionStateChange: (state) => {
+            handleIceStateChangeRef.current(state);
+          },
+          onConnectionStateChange: (state) => {
+            handleConnectionStateChangeRef.current(state);
+          },
+        });
+        pcRef.current = pc;
+        addLocalTracks(pc, stream);
+      }
+
+      const offerSdp = await createPublisherOffer(pc, { iceRestart: options?.iceRestart });
+      sendSignal(callId, { type: 'offer', sdp: offerSdp });
+    },
+    [sendSignal]
+  );
+
+  const runRecovery = useCallback(
+    async (mode: 'ice_restart' | 'recreate') => {
+      const callId = callIdRef.current;
+      if (!callId || !streamRef.current || recoveryLockRef.current) return;
+
+      const now = Date.now();
+      if (now - lastRecoveryAtRef.current < RECOVERY_COOLDOWN_MS) return;
+      lastRecoveryAtRef.current = now;
+
+      recoveryLockRef.current = true;
+      try {
+        if (mode === 'ice_restart') {
+          iceRestartAttemptsRef.current += 1;
+          await sendOffer(callId, { iceRestart: true });
+        } else {
+          iceRestartAttemptsRef.current = 0;
+          await sendOffer(callId, { recreatePc: true });
+        }
+      } catch {
+        // Recovery failed; viewer may send a new offer path via surface_reconnect
+      } finally {
+        recoveryLockRef.current = false;
+      }
+    },
+    [sendOffer]
+  );
+
+  const handleIceStateChange = useCallback(
+    (state: RTCIceConnectionState) => {
+      const callId = callIdRef.current;
+      if (!callId) return;
+
+      if (state === 'connected' || state === 'completed') {
+        clearDisconnectedTimer();
+        iceRestartAttemptsRef.current = 0;
+        return;
+      }
+
+      if (state === 'disconnected') {
+        clearDisconnectedTimer();
+        disconnectedTimerRef.current = setTimeout(() => {
+          const pc = pcRef.current;
+          if (!pc || pc.iceConnectionState !== 'disconnected') return;
+          void runRecovery('ice_restart');
+        }, ICE_DISCONNECTED_GRACE_MS);
+        return;
+      }
+
+      if (state === 'failed') {
+        clearDisconnectedTimer();
+        if (iceRestartAttemptsRef.current < ICE_RESTART_MAX_ATTEMPTS) {
+          void runRecovery('ice_restart');
+        } else {
+          void runRecovery('recreate');
+        }
+      }
+    },
+    [clearDisconnectedTimer, runRecovery]
+  );
+
+  const handleConnectionStateChange = useCallback(
+    (state: RTCPeerConnectionState) => {
+      if (state === 'connected') {
+        iceRestartAttemptsRef.current = 0;
+      }
+      if (state === 'failed') {
+        const callId = callIdRef.current;
+        if (!callId) return;
+        if (iceRestartAttemptsRef.current < ICE_RESTART_MAX_ATTEMPTS) {
+          void runRecovery('ice_restart');
+        } else {
+          void runRecovery('recreate');
+        }
+      }
+    },
+    [runRecovery]
+  );
+
+  handleIceStateChangeRef.current = handleIceStateChange;
+  handleConnectionStateChangeRef.current = handleConnectionStateChange;
+
+  const reofferIdempotent = useCallback(() => {
+    const callId = callIdRef.current;
+    if (!callId || !pcRef.current || !streamRef.current || recoveryLockRef.current) return;
+    void sendOffer(callId, { iceRestart: false });
+  }, [sendOffer]);
+
+  const handleSurfaceReconnect = useCallback(() => {
+    const callId = callIdRef.current;
+    if (!callId || !streamRef.current) return;
+
+    const now = Date.now();
+    if (now - lastSurfaceReconnectRef.current < SURFACE_RECONNECT_COOLDOWN_MS) return;
+    lastSurfaceReconnectRef.current = now;
+
+    if (recoveryLockRef.current) return;
+    void sendOffer(callId, { recreatePc: true });
+  }, [sendOffer]);
+
   const startPublishing = useCallback(
     async (callId: string, includeAudio: boolean) => {
       if (!devicePublicId || publishing) return;
@@ -77,18 +232,12 @@ export function useLiveCallPublisher({
       try {
         const stream = await requestPublisherMedia(includeAudio);
         streamRef.current = stream;
-
-        const pc = createPeerConnection((candidate) => {
-          sendSignal(callId, { type: 'ice', candidate });
-        });
-        pcRef.current = pc;
-        addLocalTracks(pc, stream);
-
-        const offerSdp = await createPublisherOffer(pc);
-        emit('webrtc:publish_ready', { roomCode, callId });
-        sendSignal(callId, { type: 'offer', sdp: offerSdp });
-
         callIdRef.current = callId;
+        iceRestartAttemptsRef.current = 0;
+
+        await sendOffer(callId);
+        emit('webrtc:publish_ready', { roomCode, callId });
+
         setIsLive(true);
         setPublishRequest(null);
       } catch (err: unknown) {
@@ -100,7 +249,7 @@ export function useLiveCallPublisher({
         setPublishing(false);
       }
     },
-    [devicePublicId, publishing, sendSignal, emit, roomCode, cleanupPublisher]
+    [devicePublicId, publishing, sendOffer, emit, roomCode, cleanupPublisher]
   );
 
   const handleAllow = useCallback(() => {
@@ -161,28 +310,43 @@ export function useLiveCallPublisher({
       }),
       on('webrtc:surface_reconnect', (event) => {
         const payload = event as { callId: string };
-        if (payload.callId !== callIdRef.current || !pcRef.current || !streamRef.current) return;
-        void (async () => {
-          closePeerConnection(pcRef.current);
-          const pc = createPeerConnection((candidate) => {
-            sendSignal(payload.callId, { type: 'ice', candidate });
-          });
-          pcRef.current = pc;
-          addLocalTracks(pc, streamRef.current!);
-          const offerSdp = await createPublisherOffer(pc);
-          sendSignal(payload.callId, { type: 'offer', sdp: offerSdp });
-        })();
+        if (payload.callId !== callIdRef.current) return;
+        handleSurfaceReconnect();
       }),
       on('room:closed', () => {
         cleanupPublisher();
       }),
     ];
 
+    const onOnline = () => {
+      if (callIdRef.current && streamRef.current) {
+        reofferIdempotent();
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && callIdRef.current && streamRef.current) {
+        reofferIdempotent();
+      }
+    };
+
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
       unsubscribers.forEach((unsub) => unsub?.());
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onVisibility);
       cleanupPublisher();
     };
-  }, [joined, devicePublicId, on, cleanupPublisher, sendSignal]);
+  }, [
+    joined,
+    devicePublicId,
+    on,
+    cleanupPublisher,
+    handleSurfaceReconnect,
+    reofferIdempotent,
+  ]);
 
   return {
     publishRequest,

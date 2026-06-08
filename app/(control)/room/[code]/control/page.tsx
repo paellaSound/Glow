@@ -22,7 +22,8 @@ import {
   createDefaultDraft,
   type PatternSequenceDraft,
 } from '@/lib/glow/pattern-sequences';
-import { DEFAULT_ENTITLEMENTS } from '@/lib/entitlements-defaults';
+import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
+import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
@@ -88,7 +89,8 @@ function ControlContent({ code }: { code: string }) {
     return roomState.matrix.rows > 1 || roomState.matrix.cols > 1;
   }, [roomState, searchParams]);
 
-  const entitlements = roomState?.entitlements ?? DEFAULT_ENTITLEMENTS;
+  const { teamEntitlements } = useTeamEntitlements();
+  const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
 
   function switchTab(tab: ActiveTab) {
     setActiveTab(tab);

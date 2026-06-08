@@ -20,6 +20,8 @@ import type { Socket } from 'socket.io-client';
 import type { RoomStatePayload } from '@/lib/glow/types';
 import { VISUAL_ART_REGISTRY } from 'glow-visuals';
 import { LiveCallControls } from '@/components/glow/live-call-controls';
+import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
+import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import { cn } from '@/lib/utils';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -84,8 +86,9 @@ export function VisualsTab({
   loadedRig,
 }: VisualsTabProps) {
   const roomCode = code.toUpperCase();
-  const entitlements = roomState?.entitlements;
-  const hasVisualsSurface = entitlements?.visualsSurface ?? false;
+  const { teamEntitlements } = useTeamEntitlements();
+  const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
+  const hasVisualsSurface = entitlements.visualsSurface;
 
   // Output section state
   const [mintingToken, setMintingToken] = useState(false);
@@ -381,6 +384,7 @@ export function VisualsTab({
         <LiveCallControls
           roomCode={roomCode}
           roomState={roomState}
+          entitlements={entitlements}
           socket={socket}
           connected={connected}
         />

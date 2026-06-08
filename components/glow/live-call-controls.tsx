@@ -10,6 +10,7 @@ import type {
   DeviceTarget,
   LiveCallPublisherStatus,
   LiveCallStatePayload,
+  PlanEntitlements,
   RoomStatePayload,
 } from '@/lib/glow/types';
 
@@ -17,6 +18,7 @@ import type {
 type LiveCallControlsProps = {
   roomCode: string;
   roomState: RoomStatePayload;
+  entitlements: PlanEntitlements;
   socket: React.MutableRefObject<Socket | null>;
   connected: boolean;
 };
@@ -67,11 +69,11 @@ function statusColor(status: LiveCallPublisherStatus): string {
 export function LiveCallControls({
   roomCode,
   roomState,
+  entitlements,
   socket,
   connected,
 }: LiveCallControlsProps) {
   const code = roomCode.toUpperCase();
-  const entitlements = roomState.entitlements;
   const gated = !entitlements.webrtcLiveCall;
   const maxDevices = entitlements.maxLiveCallDevices;
 
