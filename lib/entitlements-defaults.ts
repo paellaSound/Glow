@@ -23,4 +23,5 @@ export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   customMediaUpload: false,
   gifBroadcast: false,
   sequencedText: false,
+  deviceFlashControl: false,
 };

@@ -31,7 +31,7 @@ type VisualEngineOptions = {
  * Device render priority (highest wins):
  * 1. identify flash (device:identify) — play page forces #ffffff while identifying
  * 2. media layer (visual:media) — hook via mediaActiveRef [future, feature 06]
- * 3. torch override (device:torch) — physical LED only, parallel to screen [future, feature 08]
+ * 3. torch override (device:torch) — physical LED in play page, parallel to screen [feature 08]
  * 4. effect distribution / preset (visual:effect_distribution or visual:preset)
  * 5. direct color (visual:color)
  * 6. fallback mode (fallback:mode_changed)

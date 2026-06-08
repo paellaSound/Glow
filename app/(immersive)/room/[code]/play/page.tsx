@@ -22,11 +22,14 @@ import {
   clearStoredNickname,
 } from '@/lib/glow/player-session';
 import { useOrchestratorDelay } from '@/lib/glow/use-orchestrator-delay';
+import { useTorch } from '@/lib/glow/torch';
 import { PlayerMenu } from '@/components/glow/player-menu';
+import { PlayerFlashButton } from '@/components/glow/player-flash-button';
 import { ReactionsToolbar } from '@/components/glow/reactions-toolbar';
 import { useTheme } from 'next-themes';
 import { getSocialLabel, SOCIAL_KINDS, type RigSocial } from '@/lib/glow/social-kinds';
 import type {
+  DeviceTorchEvent,
   EffectDistribution,
   FallbackModeEvent,
   VisualAudioFeaturesEvent,
@@ -236,6 +239,20 @@ function PlayerContent({
     matrixCols: matrixSize.cols,
   });
 
+  const {
+    capability: torchCapability,
+    torchActive,
+    screenFlash: torchScreenFlash,
+    enabling: torchEnabling,
+    error: torchError,
+    requestEnable: requestTorchEnable,
+    disableTorch,
+    scheduleCommand: scheduleTorchCommand,
+    startManualFlash,
+    stopManualFlash,
+    manualHoldActive,
+  } = useTorch();
+
   const applyJoinResponse = useCallback(
     (response: JoinResponse) => {
       if (!response.accepted) return false;
@@ -383,6 +400,11 @@ function PlayerContent({
       on('media_clear', () => {
         visual.clearMedia();
       }),
+      on('device:torch', (event) => {
+        const payload = event as DeviceTorchEvent;
+        trackOrchestratorMessage(payload.targetTimestamp);
+        scheduleTorchCommand(payload);
+      }),
       on('room:closed', (event: any) => {
         setJoined(false);
         setJoinFailedReason(
@@ -396,7 +418,16 @@ function PlayerContent({
     return () => {
       unsubscribers.forEach((unsub) => unsub?.());
     };
-  }, [on, trackOrchestratorMessage, visual]);
+  }, [on, trackOrchestratorMessage, visual, scheduleTorchCommand]);
+
+  useEffect(() => {
+    if (!connected || !joined) return;
+    emit('player:torch_capability', {
+      roomCode,
+      supported: torchCapability.supported,
+      enabled: torchCapability.enabled,
+    });
+  }, [connected, joined, roomCode, emit, torchCapability.supported, torchCapability.enabled]);
 
   async function requestPosition(row: number, col: number) {
     const response = await emitWithCallback<{
@@ -466,7 +497,8 @@ function PlayerContent({
               onClick={() => {
                 clearStoredDeviceId(roomCode);
                 clearStoredNickname(roomCode);
-                router.push('/join');
+                router.push('/');
+           
               }}
             >
               Return to Home
@@ -494,7 +526,14 @@ function PlayerContent({
   return (
     <div
       className="relative flex min-h-[100dvh] flex-col bg-background"
-      style={!pickMode ? { backgroundColor: visual.identifying ? '#ffffff' : visual.color } : undefined}
+      style={
+        !pickMode
+          ? {
+              backgroundColor:
+                visual.identifying || torchScreenFlash ? '#ffffff' : visual.color,
+            }
+          : undefined
+      }
     >
       <WakeLock />
 
@@ -620,12 +659,25 @@ function PlayerContent({
             nickname={activeNickname}
             displayLabel={displayLabel}
             onExit={handleExit}
+            torchCapability={torchCapability}
+            torchActive={torchActive}
+            torchEnabling={torchEnabling}
+            torchError={torchError}
+            onEnableTorch={requestTorchEnable}
+            onDisableTorch={disableTorch}
           />
           <ReactionsToolbar
             roomCode={roomCode}
             roomState={roomState}
             onEmit={emit}
           />
+          {!pickMode ? (
+            <PlayerFlashButton
+              onPressStart={startManualFlash}
+              onPressEnd={stopManualFlash}
+              active={manualHoldActive || torchActive || torchScreenFlash}
+            />
+          ) : null}
         </>
       )}
     </div>

@@ -35,6 +35,7 @@ export type PlanEntitlements = {
   customMediaUpload: boolean;
   gifBroadcast: boolean;
   sequencedText: boolean;
+  deviceFlashControl: boolean;
 };
 
 export type RoomStatePayload = {
@@ -65,6 +66,7 @@ export type RoomStatePayload = {
     lastSeenAt: number;
     latencyMs?: number;
     status: 'online' | 'stale' | 'reconnecting';
+    torchCapability?: TorchCapability;
   }>;
   entitlements: PlanEntitlements;
   adsEnabled: boolean;
@@ -82,6 +84,24 @@ export type FallbackModeEvent = {
   enabled: boolean;
   seedTimestamp: number;
   roomCode: string;
+};
+
+export type TorchCapability = {
+  supported: boolean;
+  enabled: boolean;
+};
+
+export type TorchCommand =
+  | { action: 'off' }
+  | { action: 'hold'; mode: 'pulse' }
+  | { action: 'hold'; mode: 'strobe'; onMs: number; offMs: number }
+  | { action: 'on' }
+  | { action: 'pulse'; durationMs: number }
+  | { action: 'pattern'; onMs: number; offMs: number; cycles: number };
+
+export type DeviceTorchEvent = {
+  command: TorchCommand;
+  targetTimestamp: number;
 };
 
 export type DeviceTarget =

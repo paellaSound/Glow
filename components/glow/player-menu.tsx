@@ -17,12 +17,19 @@ import { Button } from '@/components/ui/button';
 import { RoomQrPanel } from '@/components/glow/room-qr-panel';
 import { buildPlayerJoinUrl } from '@/lib/glow/join-url';
 import type { RigSocial } from '@/lib/glow/social-kinds';
+import type { TorchCapability } from '@/lib/glow/types';
 
 interface PlayerMenuProps {
   roomCode: string;
   nickname: string;
   displayLabel?: string;
   onExit: () => void;
+  torchCapability?: TorchCapability;
+  torchActive?: boolean;
+  torchEnabling?: boolean;
+  torchError?: string | null;
+  onEnableTorch?: () => void;
+  onDisableTorch?: () => void;
 }
 
 type ShareInfo = {
@@ -35,6 +42,12 @@ export function PlayerMenu({
   nickname,
   displayLabel,
   onExit,
+  torchCapability,
+  torchActive = false,
+  torchEnabling = false,
+  torchError = null,
+  onEnableTorch,
+  onDisableTorch,
 }: PlayerMenuProps) {
   // Collapsed defaults to false so it is open when mounted first
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -232,6 +245,56 @@ export function PlayerMenu({
             </div>
 
 
+
+            {/* Flash effects opt-in */}
+            {onEnableTorch && onDisableTorch ? (
+              <div className="mb-5 rounded-xl border border-white/10 bg-zinc-900/50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-cyber uppercase tracking-widest text-neon-cyan">
+                      Flash Effects
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-zinc-400">
+                      Enable camera access to blink your phone LED during rave effects.
+                      You can disable this anytime.
+                    </p>
+                    {torchCapability?.enabled ? (
+                      <p className="mt-2 text-[10px] font-cyber uppercase tracking-wider text-emerald-400">
+                        {torchCapability.supported
+                          ? torchActive
+                            ? 'LED flash active'
+                            : 'LED flash ready'
+                          : 'Screen flash fallback active'}
+                      </p>
+                    ) : null}
+                    {torchError ? (
+                      <p className="mt-2 text-[10px] text-amber-300">{torchError}</p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="mt-3">
+                  {torchCapability?.enabled ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full border-white/10 text-xs font-cyber uppercase tracking-widest h-9 cursor-pointer"
+                      onClick={() => void onDisableTorch()}
+                    >
+                      Disable flash effects
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      className="w-full bg-neon-cyan/20 hover:bg-neon-cyan/30 text-neon-cyan border border-neon-cyan/30 text-xs font-cyber uppercase tracking-widest h-9 cursor-pointer"
+                      disabled={torchEnabling}
+                      onClick={() => void onEnableTorch()}
+                    >
+                      {torchEnabling ? 'Enabling...' : 'Enable flash effects'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : null}
 
             {/* Actions */}
             <div className="space-y-4">

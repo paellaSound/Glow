@@ -26,6 +26,7 @@ export type PlanEntitlements = {
   customMediaUpload: boolean;
   gifBroadcast: boolean;
   sequencedText: boolean;
+  deviceFlashControl: boolean;
 };
 
 export { DEFAULT_ENTITLEMENTS };
@@ -53,6 +54,7 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   custom_media_upload: 'customMediaUpload',
   gif_broadcast: 'gifBroadcast',
   sequenced_text: 'sequencedText',
+  device_flash_control: 'deviceFlashControl',
 };
 
 export function buildEntitlementsFromRows(
@@ -138,6 +140,7 @@ export const PLAN_SEED_DATA = [
       custom_media_upload: false,
       gif_broadcast: false,
       sequenced_text: false,
+      device_flash_control: false,
     },
   },
   {
@@ -169,6 +172,7 @@ export const PLAN_SEED_DATA = [
       custom_media_upload: false,
       gif_broadcast: false,
       sequenced_text: true,
+      device_flash_control: true,
     },
   },
   {
@@ -200,6 +204,7 @@ export const PLAN_SEED_DATA = [
       custom_media_upload: true,
       gif_broadcast: true,
       sequenced_text: true,
+      device_flash_control: true,
     },
   },
   {
@@ -231,6 +236,7 @@ export const PLAN_SEED_DATA = [
       custom_media_upload: true,
       gif_broadcast: true,
       sequenced_text: true,
+      device_flash_control: true,
     },
   },
 ] as const;

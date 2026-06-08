@@ -14,6 +14,8 @@ import {
 } from '@/components/glow/pattern-sequence-editor';
 import { VisualsTab, type VisualsWorkingState, type RigWithCues } from '@/components/glow/visuals-tab';
 import { MediaPanel } from '@/components/glow/media-panel';
+import { TorchControls } from '@/components/glow/torch-controls';
+import { ORCHESTRATOR_SCHEDULE_MS } from '@/lib/glow/orchestrator-delay';
 import { useAudioAnalyzer } from '@/lib/glow/audio-analyzer';
 import { useGlowSocket } from '@/lib/glow/socket';
 import {
@@ -214,12 +216,26 @@ function ControlContent({ code }: { code: string }) {
         setLiveDraftName(draft.name);
       }
 
+      const targetTimestamp = seedTimestamp + ORCHESTRATOR_SCHEDULE_MS;
       socket.current?.emit('orchestrator:run_distribution', {
         roomCode: code.toUpperCase(),
         effects,
         seedTimestamp,
-        targetTimestamp: seedTimestamp + 100,
+        targetTimestamp,
       });
+
+      // Optional: mirror strobe screen effect with a synchronized torch pattern
+      if (
+        entitlements.deviceFlashControl &&
+        effects.some((effect) => effect.presetId === 'strobe')
+      ) {
+        socket.current?.emit('orchestrator:set_torch', {
+          roomCode: code.toUpperCase(),
+          target: { kind: 'all' },
+          command: { action: 'pattern', onMs: 125, offMs: 125, cycles: 40 },
+          targetTimestamp,
+        });
+      }
 
       // Broadcast media overlays if present and active
       if (draft.media && draft.media.active) {
@@ -253,7 +269,7 @@ function ControlContent({ code }: { code: string }) {
         });
       }
     },
-    [code, socket]
+    [code, socket, entitlements.deviceFlashControl]
   );
 
   async function handleCloseRoom() {
@@ -413,6 +429,17 @@ function ControlContent({ code }: { code: string }) {
                     fallbackEnabled={fallbackEnabled}
                     fallbackSeed={fallbackSeed}
                     roomState={roomState || undefined}
+                  />
+                </NeonCard>
+              ) : null}
+
+              {roomState ? (
+                <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5 sm:p-6">
+                  <TorchControls
+                    roomCode={code}
+                    roomState={roomState}
+                    socket={socket}
+                    disabled={!connected}
                   />
                 </NeonCard>
               ) : null}
