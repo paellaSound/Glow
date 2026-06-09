@@ -75,6 +75,7 @@ function ControlContent({ code }: { code: string }) {
     cueIndex: 0,
     dirty: false,
     loadedRigId: null,
+    displayName: 'Glow',
   });
 
   const [loadedRig, setLoadedRig] = useState<RigWithCues | null>(null);
@@ -134,6 +135,7 @@ function ControlContent({ code }: { code: string }) {
           cueIndex: 0,
           dirty: false,
           loadedRigId: rig.id,
+          displayName: (rig.console_config as any)?.displayName || rig.name || 'Glow',
         }));
       } catch {
         // ignore

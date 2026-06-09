@@ -111,6 +111,7 @@ type FormValues = {
   logoPosition: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   logoEffect: 'none' | 'pulse' | 'spin' | 'float' | 'neon';
   logoOpacity: number;
+  displayName: string;
 };
 
 const SOCIAL_KINDS = [
@@ -151,6 +152,7 @@ export default function RigsPage() {
 
   // Form states
   const [formName, setFormName] = useState('');
+  const [formDisplayName, setFormDisplayName] = useState('');
   const [formDefaultArt, setFormDefaultArt] = useState('glow-branded');
   const [formPalette, setFormPalette] = useState<string[]>(['#FF0055', '#00FFCC']);
   const [formLogoEnabled, setFormLogoEnabled] = useState(false);
@@ -228,6 +230,7 @@ export default function RigsPage() {
 
     const vals = draftData.values;
     setFormName(vals.name || '');
+    setFormDisplayName(vals.displayName || '');
     setFormDefaultArt(vals.defaultVisualArtId || 'glow-branded');
     setFormPalette(vals.palette || ['#FF0055', '#00FFCC']);
     setFormLogoEnabled(vals.logoEnabled ?? false);
@@ -247,6 +250,7 @@ export default function RigsPage() {
     if (draftData.isCreating) {
       setOriginalValues({
         name: 'New Rig Set',
+        displayName: '',
         defaultVisualArtId: 'glow-branded',
         palette: ['#FF0055', '#00FFCC'],
         logoEnabled: false,
@@ -268,6 +272,7 @@ export default function RigsPage() {
         const logoConfig = originalRig.consoleConfig?.logoConfig;
         setOriginalValues({
           name: originalRig.name,
+          displayName: originalRig.consoleConfig?.displayName || '',
           defaultVisualArtId: originalRig.defaultVisualArtId,
           palette: originalRig.palette,
           logoEnabled: originalRig.logoEnabled,
@@ -297,6 +302,7 @@ export default function RigsPage() {
       } else {
         setOriginalValues({
           name: vals.name,
+          displayName: vals.displayName || '',
           defaultVisualArtId: vals.defaultVisualArtId,
           palette: vals.palette,
           logoEnabled: vals.logoEnabled,
@@ -331,6 +337,7 @@ export default function RigsPage() {
   const isFormDirty = useMemo(() => {
     if (!originalValues) return false;
     if (formName !== originalValues.name) return true;
+    if (formDisplayName !== originalValues.displayName) return true;
     if (formDefaultArt !== originalValues.defaultVisualArtId) return true;
     if (JSON.stringify(formPalette) !== JSON.stringify(originalValues.palette)) return true;
     if (formLogoEnabled !== originalValues.logoEnabled) return true;
@@ -349,6 +356,7 @@ export default function RigsPage() {
   }, [
     originalValues,
     formName,
+    formDisplayName,
     formDefaultArt,
     formPalette,
     formLogoEnabled,
@@ -376,6 +384,7 @@ export default function RigsPage() {
       isCreating,
       values: {
         name: formName,
+        displayName: formDisplayName,
         defaultVisualArtId: formDefaultArt,
         palette: formPalette,
         logoEnabled: formLogoEnabled,
@@ -404,6 +413,7 @@ export default function RigsPage() {
     isFormDirty,
     draftKey,
     formName,
+    formDisplayName,
     formDefaultArt,
     formPalette,
     formLogoEnabled,
@@ -604,6 +614,7 @@ export default function RigsPage() {
     setEditingRig(rig);
     setIsCreating(false);
     setFormName(rig.name);
+    setFormDisplayName(rig.consoleConfig?.displayName || '');
     setFormDefaultArt(rig.defaultVisualArtId);
     setFormPalette(rig.palette);
     setFormLogoEnabled(rig.logoEnabled);
@@ -652,6 +663,7 @@ export default function RigsPage() {
     // Store original values for dirty checking comparison
     setOriginalValues({
       name: rig.name,
+      displayName: rig.consoleConfig?.displayName || '',
       defaultVisualArtId: rig.defaultVisualArtId,
       palette: rig.palette,
       logoEnabled: rig.logoEnabled,
@@ -676,6 +688,7 @@ export default function RigsPage() {
     setEditingRig(null);
     setIsCreating(true);
     setFormName('New Rig Set');
+    setFormDisplayName('');
     setFormDefaultArt('glow-branded');
     setFormPalette(['#FF0055', '#00FFCC']);
     setFormLogoEnabled(false);
@@ -698,6 +711,7 @@ export default function RigsPage() {
     // Store original values for new rig defaults
     setOriginalValues({
       name: 'New Rig Set',
+      displayName: '',
       defaultVisualArtId: 'glow-branded',
       palette: ['#FF0055', '#00FFCC'],
       logoEnabled: false,
@@ -828,6 +842,7 @@ export default function RigsPage() {
         isDefault: formIsDefault,
         consoleConfig: {
           visibleTabs: formConsoleTabs as Array<'devices' | 'visuals'>,
+          displayName: formDisplayName,
           qrConfig: {
             enabled: formQrEnabled,
             intervalSeconds: Number(formQrInterval),
@@ -1170,6 +1185,18 @@ export default function RigsPage() {
                     {formErrors.name && (
                       <p className="text-[10px] text-red-500 font-cyber uppercase tracking-wider font-bold mt-1">{formErrors.name}</p>
                     )}
+                  </div>
+
+                  {/* Display Name field */}
+                  <div className="space-y-2">
+                    <Label htmlFor="rig-display-name" className="text-xs uppercase font-cyber tracking-wider text-muted-foreground">Display Name (Show Name)</Label>
+                    <Input
+                      id="rig-display-name"
+                      value={formDisplayName}
+                      onChange={(e) => setFormDisplayName(e.target.value)}
+                      placeholder="e.g. DJ Rig1 (Fallback to rig name on surface)"
+                      className="bg-black/[0.02] dark:bg-white/[0.02] border-black/10 dark:border-white/10 text-foreground font-cyber tracking-wide"
+                    />
                   </div>
 
                   {/* Default Art field */}

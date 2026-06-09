@@ -13,6 +13,7 @@ import { getRealtimeUrl } from '@/lib/glow/matrix';
 import { useLiveCallViewer } from '@/lib/glow/use-live-call-viewer';
 import { cn } from '@/lib/utils';
 import { NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
+import { VisualsSequencedTextRenderer } from '@/components/glow/visuals-sequenced-text-renderer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,17 @@ function VisualsContent({ code }: { code: string }) {
 
   const [roomClosedReason, setRoomClosedReason] = useState<string>('The DJ has ended the session.');
 
+  const [displayName, setDisplayName] = useState<string>('Glow');
+
+  const [liveText, setLiveText] = useState<{
+    text: string;
+    mode: 'marquee' | 'word_by_word' | 'spread_grid';
+    speed: number;
+    colorHex?: string;
+    fontSize?: number;
+    loop: boolean;
+  } | null>(null);
+
   // Logo overlay state
   const [logo, setLogo] = useState<{
     url: string;
@@ -96,7 +108,13 @@ function VisualsContent({ code }: { code: string }) {
   } | null>(null);
 
   // QR periodic overlay state
-  const [qrConfig, setQrConfig] = useState<{ enabled: boolean; intervalSeconds: number; durationSeconds: number } | null>(null);
+  const [qrConfig, setQrConfig] = useState<{
+    enabled: boolean;
+    intervalSeconds: number;
+    durationSeconds: number;
+    position?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    size?: 'small' | 'medium' | 'large';
+  } | null>(null);
   const [showQrOverlay, setShowQrOverlay] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
@@ -256,6 +274,12 @@ function VisualsContent({ code }: { code: string }) {
       setLogo(state.logo);
       nextInput.logo = state.logo;
     }
+    if (state.displayName !== undefined) {
+      setDisplayName(state.displayName || 'Glow');
+    }
+    if (state.text !== undefined) {
+      setLiveText(state.text || null);
+    }
     inputRef.current = nextInput;
     controllerRef.current?.setInput(nextInput);
 
@@ -365,6 +389,20 @@ function VisualsContent({ code }: { code: string }) {
         controllerRef.current?.setInput(nextInput);
       },
     );
+
+    // ── visuals:text overlay ──────────────────────────────────────────────
+    socket.on('visuals:text', (payload: any) => {
+      setLiveText(payload);
+    });
+
+    socket.on('visuals:text_clear', () => {
+      setLiveText(null);
+    });
+
+    // ── visuals:qr overlay ────────────────────────────────────────────────
+    socket.on('visuals:qr', (payload: { qrConfig: any }) => {
+      setQrConfig(payload.qrConfig);
+    });
 
     // ── visuals:audio_features ─────────────────────────────────────────────
     socket.on('visuals:audio_features', (payload: { features: AudioFeatures }) => {
@@ -522,6 +560,23 @@ function VisualsContent({ code }: { code: string }) {
         </div>
       )}
 
+      {/* ── Custom Live Text Overlay ── */}
+      {liveText && liveText.text && (
+        <div className="absolute inset-0 z-[8] pointer-events-none flex items-center justify-center overflow-hidden bg-black/30 animate-in fade-in duration-300">
+          <div className="w-full h-full flex items-center justify-center p-4">
+            <VisualsSequencedTextRenderer
+              text={liveText.text}
+              mode={liveText.mode || 'marquee'}
+              speed={liveText.speed || 5}
+              colorHex={liveText.colorHex}
+              loop={liveText.loop ?? true}
+              matrix={matrixSize}
+              fontSize={liveText.fontSize}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Art canvas ── */}
       <canvas
         ref={canvasCallbackRef}
@@ -581,58 +636,99 @@ function VisualsContent({ code }: { code: string }) {
         ))}
       </div>
 
-      {/* ── Branding Logo Overlay ── */}
-      {logo && logo.url && (
+      {/* ── Branding / Show Name Overlay ── */}
+      {((logo && logo.url) || displayName) && (
         <div
-          className={`absolute pointer-events-none z-10 transition-all duration-500 ${
-            logo.position === 'center' ? 'inset-0 flex items-center justify-center' :
-            logo.position === 'top-left' ? 'top-8 left-8 max-w-[12%] max-h-[12%]' :
-            logo.position === 'top-right' ? 'top-8 right-8 max-w-[12%] max-h-[12%]' :
-            logo.position === 'bottom-left' ? 'bottom-8 left-8 max-w-[12%] max-h-[12%]' :
-            'bottom-8 right-8 max-w-[12%] max-h-[12%]'
+          className={`absolute pointer-events-none z-10 transition-all duration-500 flex flex-col items-center gap-2 ${
+            logo?.position === 'center' || (!logo && displayName) ? 'inset-0 flex items-center justify-center' :
+            logo?.position === 'top-left' ? 'top-8 left-8 items-start max-w-[20%] max-h-[20%]' :
+            logo?.position === 'top-right' ? 'top-8 right-8 items-end max-w-[20%] max-h-[20%]' :
+            logo?.position === 'bottom-left' ? 'bottom-8 left-8 items-start max-w-[20%] max-h-[20%]' :
+            'bottom-8 right-8 items-end max-w-[20%] max-h-[20%]'
           }`}
-          style={{ opacity: logo.opacity }}
+          style={{ opacity: logo ? logo.opacity : 0.8 }}
         >
-          <img
-            src={logo.url}
-            alt="Branding Logo"
-            className={`object-contain ${
-              logo.position === 'center' ? 'max-w-[30%] max-h-[30%]' : 'w-full h-full'
-            } ${
-              logo.effect === 'pulse' ? 'animate-[pulse_2s_ease-in-out_infinite]' :
-              logo.effect === 'spin' ? 'animate-[spin_8s_linear_infinite]' :
-              logo.effect === 'float' ? 'animate-[float_4s_ease-in-out_infinite]' :
-              logo.effect === 'neon' ? 'animate-[neon-glow_3s_ease-in-out_infinite]' :
-              ''
-            }`}
-          />
+          {logo && logo.url && (
+            <img
+              src={logo.url}
+              alt="Branding Logo"
+              className={`object-contain ${
+                logo.position === 'center' ? 'max-w-[30%] max-h-[30%]' : 'w-24 h-24'
+              } ${
+                logo.effect === 'pulse' ? 'animate-[pulse_2s_ease-in-out_infinite]' :
+                logo.effect === 'spin' ? 'animate-[spin_8s_linear_infinite]' :
+                logo.effect === 'float' ? 'animate-[float_4s_ease-in-out_infinite]' :
+                logo.effect === 'neon' ? 'animate-[neon-glow_3s_ease-in-out_infinite]' :
+                ''
+              }`}
+            />
+          )}
+          {displayName && (
+            <span className={cn(
+              "font-cyber font-black tracking-widest uppercase text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] text-center",
+              logo?.position === 'center' || (!logo && displayName) ? "text-3xl md:text-5xl neon-text-magenta" : "text-sm md:text-base neon-text-cyan"
+            )}>
+              {displayName}
+            </span>
+          )}
         </div>
       )}
 
-      {/* ── Periodic QR Code Overlay ── */}
+      {/* ── QR Code Overlay ── */}
       {showQrOverlay && qrDataUrl && (
-        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md animate-in fade-in zoom-in duration-300">
-          <div className="relative p-8 rounded-3xl border border-neon-magenta/30 bg-black/85 shadow-[0_0_50px_rgba(255,0,229,0.25)] flex flex-col items-center gap-4 max-w-sm">
-            <div className="absolute -top-5 left-1/2 -translate-x-1/2 rounded-full border border-neon-cyan/40 bg-black px-6 py-1.5 shadow-[0_0_15px_rgba(0,229,255,0.2)]">
-              <span className="font-cyber font-black tracking-widest text-xs text-neon-cyan neon-text-cyan uppercase">
-                JOIN THE RAVE
-              </span>
-            </div>
+        qrConfig?.position && qrConfig.position !== 'center' ? (
+          <div
+            className={cn(
+              "absolute z-20 p-4 rounded-2xl border border-neon-magenta/25 bg-black/80 shadow-[0_0_20px_rgba(255,0,229,0.15)] flex flex-col items-center gap-2",
+              qrConfig.position === 'top-left' && 'top-8 left-8',
+              qrConfig.position === 'top-right' && 'top-8 right-8',
+              qrConfig.position === 'bottom-left' && 'bottom-8 left-8',
+              qrConfig.position === 'bottom-right' && 'bottom-8 right-8'
+            )}
+          >
             <img
               src={qrDataUrl}
               alt={`QR code for room ${roomCode}`}
-              className="w-64 h-64 rounded-2xl border-4 border-white shadow-2xl"
+              className={cn(
+                "rounded-lg border-2 border-white bg-white",
+                qrConfig.size === 'small' ? 'w-20 h-20' :
+                qrConfig.size === 'large' ? 'w-48 h-48' :
+                'w-32 h-32' // medium
+              )}
             />
-            <div className="text-center mt-2 space-y-1">
-              <h4 className="font-display font-black tracking-widest text-lg text-white">
-                ROOM: {roomCode}
-              </h4>
-              <p className="text-[10px] font-cyber tracking-wider text-muted-foreground uppercase leading-none">
-                Scan to sync your screen
-              </p>
+            <span className="font-cyber font-black tracking-widest text-[9px] text-neon-cyan neon-text-cyan">
+              ROOM: {roomCode}
+            </span>
+          </div>
+        ) : (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/75 backdrop-blur-md animate-in fade-in zoom-in duration-300">
+            <div className="relative p-8 rounded-3xl border border-neon-magenta/30 bg-black/85 shadow-[0_0_50px_rgba(255,0,229,0.25)] flex flex-col items-center gap-4 max-w-sm">
+              <div className="absolute -top-5 left-1/2 -translate-x-1/2 rounded-full border border-neon-cyan/40 bg-black px-6 py-1.5 shadow-[0_0_15px_rgba(0,229,255,0.2)]">
+                <span className="font-cyber font-black tracking-widest text-xs text-neon-cyan neon-text-cyan uppercase">
+                  JOIN THE RAVE
+                </span>
+              </div>
+              <img
+                src={qrDataUrl}
+                alt={`QR code for room ${roomCode}`}
+                className={cn(
+                  "rounded-2xl border-4 border-white shadow-2xl",
+                  qrConfig?.size === 'small' ? 'w-48 h-48' :
+                  qrConfig?.size === 'large' ? 'w-80 h-80' :
+                  'w-64 h-64' // medium
+                )}
+              />
+              <div className="text-center mt-2 space-y-1">
+                <h4 className="font-display font-black tracking-widest text-lg text-white">
+                  ROOM: {roomCode}
+                </h4>
+                <p className="text-[10px] font-cyber tracking-wider text-muted-foreground uppercase leading-none">
+                  Scan to sync your screen
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )
       )}
 
       {/* ── Error overlay ── */}
@@ -771,151 +867,3 @@ export default function VisualsPage({
   return <VisualsContent code={code} />;
 }
 
-function VisualsSequencedTextRenderer({
-  text,
-  mode,
-  speed,
-  colorHex = '#ffffff',
-  loop,
-  matrix,
-  fontSize,
-}: {
-  text: string;
-  mode: 'marquee' | 'word_by_word' | 'spread_grid';
-  speed: number;
-  colorHex?: string;
-  loop: boolean;
-  matrix: { rows: number; cols: number };
-  fontSize?: number;
-}) {
-  const [wordIdx, setWordIdx] = useState(0);
-  const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
-
-  useEffect(() => {
-    if (mode !== 'word_by_word' || words.length === 0) return;
-    setWordIdx(0);
-    const interval = setInterval(() => {
-      setWordIdx((prev) => {
-        if (prev + 1 >= words.length) {
-          if (loop) return 0;
-          clearInterval(interval);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 1000 / Math.max(0.1, speed));
-    return () => clearInterval(interval);
-  }, [words, speed, loop, mode]);
-
-  const gridWord = useMemo(() => {
-    if (mode !== 'spread_grid' || words.length === 0) return null;
-    const pageSize = matrix.rows * matrix.cols;
-    const numPages = Math.ceil(words.length / pageSize);
-    const pageDurationMs = (pageSize / Math.max(0.1, speed)) * 1000;
-    return { pageSize, numPages, pageDurationMs };
-  }, [mode, words.length, matrix.rows, matrix.cols, speed]);
-
-  const [gridPage, setGridPage] = useState(0);
-
-  useEffect(() => {
-    if (!gridWord) return;
-    setGridPage(0);
-    const interval = setInterval(() => {
-      setGridPage((prev) => {
-        if (prev + 1 >= gridWord.numPages) {
-          if (loop) return 0;
-          clearInterval(interval);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, gridWord.pageDurationMs);
-    return () => clearInterval(interval);
-  }, [gridWord, loop]);
-
-  if (mode === 'marquee') {
-    const duration = Math.max(3, text.length / Math.max(1, speed));
-    return (
-      <div className="w-full whitespace-nowrap overflow-hidden">
-        <span
-          className={cn(
-            "inline-block font-cyber font-black tracking-widest uppercase",
-            !fontSize && "text-6xl md:text-8xl"
-          )}
-          style={{
-            color: colorHex,
-            fontSize: fontSize ? `${fontSize}px` : undefined,
-            animation: `marquee ${duration}s linear ${loop ? 'infinite' : '1'}`,
-          }}
-        >
-          {text}
-        </span>
-        <style>{`
-          @keyframes marquee {
-            0% { transform: translateX(100vw); }
-            100% { transform: translateX(-100%); }
-          }
-        `}</style>
-      </div>
-    );
-  }
-
-  if (mode === 'word_by_word') {
-    const currentWord = words[wordIdx] || '';
-    return (
-      <span
-        className={cn(
-          "font-cyber font-black tracking-widest uppercase",
-          !fontSize && "text-7xl md:text-9xl"
-        )}
-        style={{
-          color: colorHex,
-          fontSize: fontSize ? `${fontSize}px` : undefined,
-        }}
-        key={wordIdx}
-      >
-        {currentWord}
-      </span>
-    );
-  }
-
-  if (mode === 'spread_grid') {
-    if (!gridWord) return null;
-    return (
-      <div
-        className="grid w-full h-full gap-4 p-8 animate-in fade-in duration-300"
-        style={{
-          gridTemplateColumns: `repeat(${matrix.cols}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${matrix.rows}, minmax(0, 1fr))`,
-        }}
-      >
-        {Array.from({ length: matrix.rows * matrix.cols }).map((_, idx) => {
-          const wordIndex = gridPage * gridWord.pageSize + idx;
-          const currentWord = words[wordIndex] || '';
-          return (
-            <div
-              key={idx}
-              className="flex items-center justify-center border border-white/5 rounded-2xl bg-black/40 p-4 min-h-24"
-            >
-              <span
-                className={cn(
-                  "font-cyber font-black tracking-widest uppercase text-center",
-                  !fontSize && "text-2xl md:text-4xl"
-                )}
-                style={{
-                  color: colorHex,
-                  fontSize: fontSize ? `${fontSize}px` : undefined,
-                }}
-                key={wordIndex}
-              >
-                {currentWord}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return null;
-}

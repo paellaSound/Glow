@@ -23,6 +23,7 @@ import { LiveCallControls } from '@/components/glow/live-call-controls';
 import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
 import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import { cn } from '@/lib/utils';
+import { VisualsPreview } from '@/components/glow/visuals-preview';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,7 @@ export type VisualsWorkingState = {
   cueIndex: number;
   dirty: boolean;
   loadedRigId: string | null;
+  displayName?: string;
 };
 
 export type RigWithCues = {
@@ -101,13 +103,116 @@ export function VisualsTab({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Live Text Overlay state
+  const [textInput, setTextInput] = useState('');
+  const [textMode, setTextMode] = useState<'marquee' | 'word_by_word' | 'spread_grid'>('marquee');
+  const [textSpeed, setTextSpeed] = useState(5);
+  const [textColorHex, setTextColorHex] = useState('#ffffff');
+  const [textFontSize, setTextFontSize] = useState(72);
+  const [textLoop, setTextLoop] = useState(true);
+  const [activeTextOverlay, setActiveTextOverlay] = useState<{
+    text: string;
+    mode: 'marquee' | 'word_by_word' | 'spread_grid';
+    speed: number;
+    colorHex?: string;
+    fontSize?: number;
+    loop: boolean;
+  } | null>(null);
+
+  // Live QR Overlay state
+  const [qrEnabled, setQrEnabled] = useState(false);
+  const [qrInterval, setQrInterval] = useState(30);
+  const [qrDuration, setQrDuration] = useState(10);
+  const [qrPosition, setQrPosition] = useState<'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('center');
+  const [qrSize, setQrSize] = useState<'small' | 'medium' | 'large'>('medium');
+  const [activeQrConfig, setActiveQrConfig] = useState<{
+    enabled: boolean;
+    intervalSeconds: number;
+    durationSeconds: number;
+    position?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    size?: 'small' | 'medium' | 'large';
+  } | null>(null);
+
+  // Load QR settings from loaded rig console_config
+  useEffect(() => {
+    if (loadedRig) {
+      const cfg = (loadedRig.console_config as any)?.qrConfig;
+      if (cfg) {
+        setQrEnabled(cfg.enabled ?? false);
+        setQrInterval(cfg.intervalSeconds ?? 30);
+        setQrDuration(cfg.durationSeconds ?? 10);
+        setQrPosition(cfg.position ?? 'center');
+        setQrSize(cfg.size ?? 'medium');
+
+        setActiveQrConfig({
+          enabled: cfg.enabled ?? false,
+          intervalSeconds: cfg.intervalSeconds ?? 30,
+          durationSeconds: cfg.durationSeconds ?? 10,
+          position: cfg.position ?? 'center',
+          size: cfg.size ?? 'medium',
+        });
+      }
+    }
+  }, [loadedRig]);
+
+  // Handle display name change
+  function handleDisplayNameChange(name: string) {
+    onWorkingStateChange({ displayName: name, dirty: true });
+    socket.current?.emit('orchestrator:visuals_set_display', {
+      roomCode,
+      displayName: name,
+    });
+  }
+
+  // Handle QR code overlay updates
+  function handleQrUpdate(
+    enabled: boolean,
+    nextPos = qrPosition,
+    nextSize = qrSize,
+    nextInt = qrInterval,
+    nextDur = qrDuration
+  ) {
+    const config = {
+      enabled,
+      position: nextPos,
+      size: nextSize,
+      intervalSeconds: nextPos === 'center' ? 0 : nextInt,
+      durationSeconds: nextPos === 'center' ? 0 : nextDur,
+    };
+    socket.current?.emit('orchestrator:visuals_set_qr', {
+      roomCode,
+      qrConfig: config,
+    });
+    setActiveQrConfig(config);
+  }
+
+  // Handle sending custom live text
+  function handleSendText() {
+    if (!textInput.trim()) return;
+    const payload = {
+      roomCode,
+      text: textInput,
+      mode: textMode,
+      speed: Number(textSpeed),
+      colorHex: textColorHex,
+      fontSize: Number(textFontSize),
+      loop: textLoop,
+    };
+    socket.current?.emit('orchestrator:visuals_set_text', payload);
+    setActiveTextOverlay(payload);
+  }
+
+  // Handle clearing live text
+  function handleClearText() {
+    socket.current?.emit('orchestrator:visuals_clear_text', { roomCode });
+    setTextInput('');
+    setActiveTextOverlay(null);
+  }
+
   // Detect visuals:subscribed events via a socket listener
   useEffect(() => {
     const s = socket.current;
     if (!s) return;
-    // We use a flag to know a surface is connected — the server doesn't send
-    // "subscribed" to the orchestrator, but we can infer from emitting + getting a scene ack.
-    // For now, show as connected if we have a surface token/url
     if (shareUrl) setSurfaceConnected(true);
   }, [shareUrl, socket]);
 
@@ -122,8 +227,6 @@ export function VisualsTab({
         throw new Error((json as any).error ?? `HTTP ${res.status}`);
       }
       const { url } = await res.json() as { url: string; token: string; expiresAt: string };
-      // The API may return an absolute URL (when BASE_URL is set) or a relative path.
-      // Avoid double-prepending: only add origin when the url is relative.
       return url.startsWith('http') ? url : `${window.location.origin}${url}`;
     } catch (err: any) {
       alert(`Could not mint visuals token: ${err.message}`);
@@ -190,14 +293,14 @@ export function VisualsTab({
     if (cues.length === 0) return;
     const nextIndex = (workingState.cueIndex + 1) % cues.length;
     onWorkingStateChange({ cueIndex: nextIndex, dirty: true });
-    // Emit convenience event — server tracks index for replay
     socket.current?.emit('orchestrator:visuals_next_cue', { roomCode });
   }
 
+  // Explicit type signature matching parent
   function handlePrev() {
     if (cues.length === 0) return;
     const prevIndex = (workingState.cueIndex - 1 + cues.length) % cues.length;
-    const cue = cues[prevIndex];
+    const cue = cues[prevIndex]!;
     onWorkingStateChange({ cueIndex: prevIndex, artId: cue.visualArtId, dirty: true });
     socket.current?.emit('orchestrator:visuals_set_scene', {
       roomCode,
@@ -208,9 +311,10 @@ export function VisualsTab({
     });
   }
 
+  // Explicit type signature matching parent
   function handleJump(index: number) {
     if (cues.length === 0) return;
-    const cue = cues[index];
+    const cue = cues[index]!;
     onWorkingStateChange({ cueIndex: index, artId: cue.visualArtId, dirty: true });
     socket.current?.emit('orchestrator:visuals_set_scene', {
       roomCode,
@@ -305,7 +409,7 @@ export function VisualsTab({
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 animate-in fade-in duration-300">
       {/* ── 1. Output ──────────────────────────────────────────────────── */}
       <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5">
         <div className="flex items-center justify-between mb-4">
@@ -403,7 +507,7 @@ export function VisualsTab({
         />
       </NeonCard>
 
-      {/* ── 3. Visual Art ─────────────────────────────────────────────── */}
+      {/* ── 4. Visual Art ─────────────────────────────────────────────── */}
       <NeonCard glowColor="magenta" borderVariant="magenta" hoverEffect={false} className="p-5">
         <SectionHeader title="VISUAL ART" color="magenta" />
         <div className="grid grid-cols-1 gap-2">
@@ -441,7 +545,7 @@ export function VisualsTab({
         </div>
       </NeonCard>
 
-      {/* ── 4. Palette ────────────────────────────────────────────────── */}
+      {/* ── 5. Palette ────────────────────────────────────────────────── */}
       <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5">
         <SectionHeader title="LIVE PALETTE" color="cyan" />
         <PaletteEditor
@@ -451,11 +555,32 @@ export function VisualsTab({
         />
       </NeonCard>
 
-      {/* ── 5. Logo ───────────────────────────────────────────────────── */}
+      {/* ── 6. Show Name & Logo ────────────────────────────────────────── */}
       <NeonCard glowColor="none" borderVariant="default" hoverEffect={false} className="p-5">
-        <SectionHeader title="LOGO" color="cyan" />
+        <SectionHeader title="SHOW NAME & LOGO" color="cyan" />
+        
+        {/* Show Name input */}
+        <div className="mb-4">
+          <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+            Show Name (Display Name)
+          </label>
+          <input
+            type="text"
+            value={workingState.displayName || ''}
+            onChange={(e) => onWorkingStateChange({ displayName: e.target.value, dirty: true })}
+            onBlur={(e) => handleDisplayNameChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleDisplayNameChange((e.target as HTMLInputElement).value);
+              }
+            }}
+            placeholder="Glow"
+            className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-neon-cyan/50 focus:outline-none focus:ring-1 focus:ring-neon-cyan/50 font-cyber"
+          />
+        </div>
+
         {loadedRig?.logo_asset_path ? (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 border-t border-white/5 pt-4">
             {/* Preview */}
             <div className="w-14 h-14 rounded-xl border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center flex-none">
               <img
@@ -502,7 +627,286 @@ export function VisualsTab({
         )}
       </NeonCard>
 
-      {/* ── 6. Rig ────────────────────────────────────────────────────── */}
+      {/* ── 7. Live Custom Text Overlay ────────────────────────────────── */}
+      <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-5">
+        <SectionHeader title="LIVE CUSTOM TEXT OVERLAY" color="violet" />
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+              Overlay Text
+            </label>
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="E.g. GET READY TO BOUNCE!"
+              className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-neon-violet/50 focus:outline-none focus:ring-1 focus:ring-neon-violet/50 font-cyber"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                Animation Mode
+              </label>
+              <select
+                value={textMode}
+                onChange={(e) => setTextMode(e.target.value as any)}
+                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-neon-violet/50 focus:outline-none focus:ring-1 focus:ring-neon-violet/50 font-cyber"
+              >
+                <option value="marquee">Marquee (Scrolling)</option>
+                <option value="word_by_word">Word by Word</option>
+                <option value="spread_grid">Spread Grid</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                Speed (Hz / Ratio)
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="20"
+                value={textSpeed}
+                onChange={(e) => setTextSpeed(Number(e.target.value))}
+                className="w-full accent-neon-violet mt-2"
+              />
+              <div className="text-[10px] font-cyber text-zinc-500 text-right mt-1">
+                {textSpeed} Hz
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                Font Size (px)
+              </label>
+              <input
+                type="range"
+                min="24"
+                max="120"
+                value={textFontSize}
+                onChange={(e) => setTextFontSize(Number(e.target.value))}
+                className="w-full accent-neon-violet mt-2"
+              />
+              <div className="text-[10px] font-cyber text-zinc-500 text-right mt-1">
+                {textFontSize} px
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                Color Presets / Custom Hex
+              </label>
+              <div className="flex gap-1.5 mb-2">
+                {['#ffffff', '#ff00c8', '#00e3ff', '#b026ff', '#eab308'].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setTextColorHex(c)}
+                    className={cn(
+                      "w-6 h-6 rounded-full border transition",
+                      textColorHex === c ? "border-white scale-110 shadow-lg" : "border-transparent hover:scale-105"
+                    )}
+                    style={{ backgroundColor: c }}
+                  />
+                ))}
+              </div>
+              <input
+                type="text"
+                value={textColorHex}
+                onChange={(e) => setTextColorHex(e.target.value)}
+                placeholder="#ffffff"
+                className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-1 text-xs text-white focus:border-neon-violet/50 focus:outline-none focus:ring-1 focus:ring-neon-violet/50 font-cyber"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-cyber text-zinc-400 uppercase tracking-wider">
+              Loop Animation
+            </span>
+            <button
+              type="button"
+              onClick={() => setTextLoop(!textLoop)}
+              className="focus:outline-none"
+            >
+              {textLoop ? (
+                <ToggleRight className="w-8 h-8 text-neon-violet" />
+              ) : (
+                <ToggleLeft className="w-8 h-8 text-zinc-500" />
+              )}
+            </button>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <NeonButton
+              color="violet"
+              variant="solid"
+              onClick={handleSendText}
+              disabled={!connected || !textInput.trim()}
+              className="flex-1 gap-2 text-xs uppercase tracking-widest h-9 px-4"
+            >
+              Send Overlay
+            </NeonButton>
+            <NeonButton
+              color="violet"
+              variant="outline"
+              onClick={handleClearText}
+              disabled={!connected}
+              className="gap-2 text-xs uppercase tracking-widest h-9 px-4 text-zinc-400 hover:text-white"
+            >
+              Clear
+            </NeonButton>
+          </div>
+        </div>
+      </NeonCard>
+
+      {/* ── 8. Live QR Overlay ─────────────────────────────────────────── */}
+      <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <SectionHeader title="LIVE QR OVERLAY" color="cyan" />
+          <button
+            type="button"
+            onClick={() => {
+              const next = !qrEnabled;
+              setQrEnabled(next);
+              handleQrUpdate(next);
+            }}
+            disabled={!connected}
+            className="focus:outline-none"
+          >
+            {qrEnabled ? (
+              <ToggleRight className="w-8 h-8 text-neon-cyan" />
+            ) : (
+              <ToggleLeft className="w-8 h-8 text-zinc-500" />
+            )}
+          </button>
+        </div>
+
+        {qrEnabled && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                  Screen Position
+                </label>
+                <select
+                  value={qrPosition}
+                  onChange={(e) => {
+                    const pos = e.target.value as any;
+                    setQrPosition(pos);
+                    handleQrUpdate(true, pos);
+                  }}
+                  className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-neon-cyan/50 focus:outline-none focus:ring-1 focus:ring-neon-cyan/50 font-cyber"
+                >
+                  <option value="center">Center (Fullscreen Banner)</option>
+                  <option value="top-left">Top-Left corner</option>
+                  <option value="top-right">Top-Right corner</option>
+                  <option value="bottom-left">Bottom-Left corner</option>
+                  <option value="bottom-right">Bottom-Right corner</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                  Watermark Size
+                </label>
+                <select
+                  value={qrSize}
+                  onChange={(e) => {
+                    const size = e.target.value as any;
+                    setQrSize(size);
+                    handleQrUpdate(true, qrPosition, size);
+                  }}
+                  className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-neon-cyan/50 focus:outline-none focus:ring-1 focus:ring-neon-cyan/50 font-cyber"
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium</option>
+                  <option value="large">Large</option>
+                </select>
+              </div>
+            </div>
+
+            {qrPosition !== 'center' && (
+              <div className="rounded-xl border border-white/5 bg-white/3 p-3 space-y-3">
+                <p className="text-[10px] font-cyber text-zinc-400 uppercase tracking-widest border-b border-white/5 pb-1">
+                  Periodic Visibility Timer
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[9px] font-cyber text-zinc-500 uppercase tracking-widest mb-1">
+                      Interval (sec)
+                    </label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="300"
+                      value={qrInterval}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setQrInterval(val);
+                        handleQrUpdate(true, qrPosition, qrSize, val);
+                      }}
+                      className="w-full rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-xs text-white focus:border-neon-cyan/50 focus:outline-none focus:ring-1 focus:ring-neon-cyan/50 font-cyber"
+                    />
+                    <span className="text-[9px] text-zinc-600 block mt-0.5">
+                      0 = Always visible
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-cyber text-zinc-500 uppercase tracking-widest mb-1">
+                      Duration (sec)
+                    </label>
+                    <input
+                      type="number"
+                      min="5"
+                      max="120"
+                      value={qrDuration}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setQrDuration(val);
+                        handleQrUpdate(true, qrPosition, qrSize, qrInterval, val);
+                      }}
+                      className="w-full rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 text-xs text-white focus:border-neon-cyan/50 focus:outline-none focus:ring-1 focus:ring-neon-cyan/50 font-cyber"
+                    />
+                    <span className="text-[9px] text-zinc-600 block mt-0.5">
+                      Show time during loop
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </NeonCard>
+
+      {/* ── 9. Visuals Preview ────────────────────────────────────────── */}
+      <VisualsPreview
+        artId={workingState.artId}
+        palette={workingState.palette}
+        displayName={workingState.displayName || 'Glow'}
+        logo={
+          workingState.logoEnabled && loadedRig?.logo_asset_path
+            ? {
+                url: rigLogoUrl(loadedRig.logo_asset_path),
+                opacity:
+                  typeof (loadedRig.console_config as any)?.logoConfig?.opacity === 'number'
+                    ? (loadedRig.console_config as any).logoConfig.opacity
+                    : 0.8,
+                position: (loadedRig.console_config as any)?.logoConfig?.position ?? 'center',
+                effect: (loadedRig.console_config as any)?.logoConfig?.effect ?? 'none',
+              }
+            : null
+        }
+        text={activeTextOverlay}
+        qrConfig={activeQrConfig}
+        roomCode={roomCode}
+      />
+
+      {/* ── 10. Rig ───────────────────────────────────────────────────── */}
       <NeonCard glowColor="none" borderVariant="default" hoverEffect={false} className="p-5">
         <div className="flex items-center justify-between mb-3">
           <SectionHeader title="RIG" color="cyan" />
