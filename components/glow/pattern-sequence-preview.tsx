@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useRef, useState, useMemo, type ComponentType } from 'react';
 import {
   Monitor,
   Pause,
@@ -439,6 +439,35 @@ export function PatternSequencePreview({
             style={{ aspectRatio }}
           >
             <canvas ref={displayCanvasRef} className="absolute inset-0 size-full" />
+            
+            {/* Media Overlay Layer */}
+            {draft.media && draft.media.active && (
+              <div className="absolute inset-0 z-5 pointer-events-none flex items-center justify-center overflow-hidden bg-black/20">
+                {draft.media.kind === 'gif' && draft.media.gifUrl && (
+                  <img
+                    src={draft.media.gifUrl}
+                    alt="Preview GIF"
+                    className="w-full h-full object-contain"
+                  />
+                )}
+                {draft.media.kind === 'text' && draft.media.text && (
+                  <div className="w-full h-full flex items-center justify-center p-2">
+                    <SequencedTextRenderer
+                      text={draft.media.text}
+                      mode={draft.media.mode || 'marquee'}
+                      speed={draft.media.speed || 5}
+                      colorHex={draft.media.colorHex || '#ffffff'}
+                      loop={draft.media.loop ?? true}
+                      fontSize={draft.media.fontSize ? draft.media.fontSize * 0.45 : undefined} // Scaled down for preview size
+                      matrix={{ rows: PREVIEW_ROWS, cols: PREVIEW_COLS }}
+                      row={previewMode === 'device' ? 0 : 1} // center row for preview grid
+                      col={previewMode === 'device' ? 0 : 3} // center col for preview grid
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div
               className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent"
               style={{ boxShadow: `inset 0 -8px 24px -8px ${accentColor}40` }}
@@ -478,4 +507,170 @@ function previewModeLabel(
   }
 
   return 'Room Layout · Pattern output';
+}
+
+type SequencedTextRendererProps = {
+  text: string;
+  mode: 'marquee' | 'word_by_word' | 'spread_grid';
+  speed: number;
+  colorHex?: string;
+  loop: boolean;
+  row?: number;
+  col?: number;
+  matrix: { rows: number; cols: number };
+  fontSize?: number;
+};
+
+function SequencedTextRenderer({
+  text,
+  mode,
+  speed,
+  colorHex = '#ffffff',
+  loop,
+  row,
+  col,
+  matrix,
+  fontSize,
+}: SequencedTextRendererProps) {
+  const [wordIdx, setWordIdx] = useState(0);
+  const words = useMemo(() => text.split(/\s+/).filter(Boolean), [text]);
+
+  // Handle word_by_word mode
+  useEffect(() => {
+    if (mode !== 'word_by_word' || words.length === 0) return;
+    setWordIdx(0);
+    const interval = setInterval(() => {
+      setWordIdx((prev) => {
+        if (prev + 1 >= words.length) {
+          if (loop) return 0;
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 1000 / Math.max(0.1, speed));
+    return () => clearInterval(interval);
+  }, [words, speed, loop, mode]);
+
+  // Handle spread_grid mode
+  const gridWord = useMemo(() => {
+    if (mode !== 'spread_grid' || row === undefined || col === undefined || words.length === 0) {
+      return null;
+    }
+    const cellIndex = row * matrix.cols + col;
+    const pageSize = matrix.rows * matrix.cols;
+    const numPages = Math.ceil(words.length / pageSize);
+    const pageDurationMs = (pageSize / Math.max(0.1, speed)) * 1000;
+    
+    return { cellIndex, pageSize, numPages, pageDurationMs };
+  }, [mode, row, col, words.length, matrix.rows, matrix.cols, speed]);
+
+  const [gridPage, setGridPage] = useState(0);
+
+  useEffect(() => {
+    if (!gridWord) return;
+    setGridPage(0);
+    const interval = setInterval(() => {
+      setGridPage((prev) => {
+        if (prev + 1 >= gridWord.numPages) {
+          if (loop) return 0;
+          clearInterval(interval);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, gridWord.pageDurationMs);
+    return () => clearInterval(interval);
+  }, [gridWord, loop]);
+
+  if (mode === 'marquee') {
+    const duration = Math.max(3, text.length / Math.max(1, speed));
+    return (
+      <div className="w-full whitespace-nowrap overflow-hidden">
+        <span
+          className={cn(
+            "inline-block font-cyber font-black tracking-widest uppercase",
+            !fontSize && "text-[20px]"
+          )}
+          style={{
+            color: colorHex,
+            fontSize: fontSize ? `${fontSize}px` : undefined,
+            animation: `marquee ${duration}s linear ${loop ? 'infinite' : '1'}`,
+          }}
+        >
+          {text}
+        </span>
+        <style>{`
+          @keyframes marquee {
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100%); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  if (mode === 'word_by_word') {
+    const currentWord = words[wordIdx] || '';
+    return (
+      <span
+        className={cn(
+          "font-cyber font-black tracking-widest uppercase",
+          !fontSize && "text-[24px]"
+        )}
+        style={{
+          color: colorHex,
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+        }}
+        key={wordIdx}
+      >
+        {currentWord}
+      </span>
+    );
+  }
+
+  if (mode === 'spread_grid') {
+    if (row === undefined || col === undefined) {
+      const duration = Math.max(3, text.length / Math.max(1, speed));
+      return (
+        <div className="w-full whitespace-nowrap overflow-hidden">
+          <span
+            className={cn(
+              "inline-block font-cyber font-black tracking-widest uppercase",
+              !fontSize && "text-[20px]"
+            )}
+            style={{
+              color: colorHex,
+              fontSize: fontSize ? `${fontSize}px` : undefined,
+              animation: `marquee ${duration}s linear ${loop ? 'infinite' : '1'}`,
+            }}
+          >
+            {text}
+          </span>
+        </div>
+      );
+    }
+
+    if (!gridWord) return null;
+    const wordIndex = gridPage * gridWord.pageSize + gridWord.cellIndex;
+    const currentWord = words[wordIndex] || '';
+
+    return (
+      <span
+        className={cn(
+          "font-cyber font-black tracking-widest uppercase",
+          !fontSize && "text-[24px]"
+        )}
+        style={{
+          color: colorHex,
+          fontSize: fontSize ? `${fontSize}px` : undefined,
+        }}
+        key={wordIndex}
+      >
+        {currentWord}
+      </span>
+    );
+  }
+
+  return null;
 }

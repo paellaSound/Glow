@@ -2,19 +2,16 @@
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronDown, ChevronUp, Smartphone } from 'lucide-react';
-import QRCode from 'qrcode';
+import { ChevronDown, ChevronUp, Users, LogOut, Radio, HelpCircle } from 'lucide-react';
 import { parseMatrixParam } from '@/lib/glow/join-url';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { DeviceList } from '@/components/glow/device-list';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
-import { RoomShareControls } from '@/components/glow/room-share-controls';
 import {
   PatternSequenceEditor,
   toDistributionEffects,
 } from '@/components/glow/pattern-sequence-editor';
 import { VisualsTab, type VisualsWorkingState, type RigWithCues } from '@/components/glow/visuals-tab';
-import { MediaPanel } from '@/components/glow/media-panel';
 import { TorchControls } from '@/components/glow/torch-controls';
 import { ORCHESTRATOR_SCHEDULE_MS } from '@/lib/glow/orchestrator-delay';
 import { useAudioAnalyzer } from '@/lib/glow/audio-analyzer';
@@ -29,27 +26,9 @@ import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { LiveCallDeskProvider } from '@/lib/glow/use-live-call-desk';
 
-
 type ActiveTab = 'patterns' | 'visuals';
 
-type RigConsoleConfig = {
-  visibleTabs?: Array<'patterns' | 'visuals' | 'devices'>;
-  hiddenButtons?: string[];
-};
-
-function getConsoleConfig(rig: RigWithCues | null): { visibleTabs: ActiveTab[]; hiddenButtons: string[] } {
-  const config = (rig?.console_config ?? {}) as RigConsoleConfig;
-  return {
-    visibleTabs: config.visibleTabs?.length
-      ? (config.visibleTabs
-          .map((tab) => (tab === 'devices' ? 'patterns' : tab))
-          .filter((tab) => tab === 'patterns' || tab === 'visuals') as ActiveTab[])
-      : ['patterns', 'visuals'],
-    hiddenButtons: config.hiddenButtons ?? [],
-  };
-}
-
-function ControlContent({ code }: { code: string }) {
+function ControlDeviceContent({ code }: { code: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { connected, roomState, emitWithCallback, socket, on } = useGlowSocket();
@@ -60,30 +39,15 @@ function ControlContent({ code }: { code: string }) {
   const [audioSource, setAudioSource] = useState<'local' | 'orchestrator'>('local');
   const [streamOrchestratorAudio, setStreamOrchestratorAudio] = useState(false);
   const [closingRoom, setClosingRoom] = useState(false);
-  const [devicesOpen, setDevicesOpen] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(true);
   const [initialSequenceDraft, setInitialSequenceDraft] = useState<PatternSequenceDraft>(createDefaultDraft());
   const [liveDraftName, setLiveDraftName] = useState<string | null>(null);
   const [presetSeed, setPresetSeed] = useState(() => Date.now());
   const [fallbackSeed, setFallbackSeed] = useState(() => Date.now());
-  const [mobileQrUrl, setMobileQrUrl] = useState<string | null>(null);
-  const [showMobileModal, setShowMobileModal] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const url = `${window.location.origin}/room/${code.toLowerCase()}/control-device`;
-      QRCode.toDataURL(url, {
-        width: 512,
-        margin: 2,
-        color: { dark: '#000000', light: '#ffffff' },
-      }).then((dataUrl) => {
-        setMobileQrUrl(dataUrl);
-      });
-    }
-  }, [code]);
 
   const tabRaw = searchParams.get('tab');
-  const normalizedTab: ActiveTab =
-    tabRaw === 'visuals' ? 'visuals' : 'patterns';
+  const normalizedTab: ActiveTab = tabRaw === 'visuals' ? 'visuals' : 'patterns';
   const [activeTab, setActiveTab] = useState<ActiveTab>(normalizedTab);
 
   const [workingState, setWorkingState] = useState<VisualsWorkingState>({
@@ -99,9 +63,6 @@ function ControlContent({ code }: { code: string }) {
   const [loadedRig, setLoadedRig] = useState<RigWithCues | null>(null);
   const rigLoaded = useRef(false);
   const orchestratorAudio = useAudioAnalyzer({ enabled: streamOrchestratorAudio });
-  const consoleConfig = useMemo(() => getConsoleConfig(loadedRig), [loadedRig]);
-  const visibleTabs = consoleConfig.visibleTabs;
-  const isButtonHidden = (buttonId: string) => consoleConfig.hiddenButtons.includes(buttonId);
 
   const roomHasMatrix = useMemo(() => {
     if (!roomState) return parseMatrixParam(searchParams.get('matrix')) ?? false;
@@ -117,12 +78,6 @@ function ControlContent({ code }: { code: string }) {
     params.set('tab', tab);
     router.replace(`?${params.toString()}`, { scroll: false });
   }
-
-  useEffect(() => {
-    if (!visibleTabs.includes(activeTab)) {
-      setActiveTab(visibleTabs[0] ?? 'patterns');
-    }
-  }, [activeTab, visibleTabs.join(',')]);
 
   useEffect(() => {
     if (!roomState || rigLoaded.current) return;
@@ -201,7 +156,7 @@ function ControlContent({ code }: { code: string }) {
         data: { session },
       } = await supabase.auth.getSession();
       if (!session) {
-        router.push(`/auth/signin?redirect=/room/${code}/control`);
+        router.push(`/auth/signin?redirect=/room/${code}/control-device`);
         return;
       }
 
@@ -246,7 +201,6 @@ function ControlContent({ code }: { code: string }) {
         targetTimestamp,
       });
 
-      // Optional: mirror strobe screen effect with a synchronized torch pattern
       if (
         entitlements.deviceFlashControl &&
         effects.some((effect) => effect.presetId === 'strobe')
@@ -259,7 +213,6 @@ function ControlContent({ code }: { code: string }) {
         });
       }
 
-      // Broadcast media overlays if present and active
       if (draft.media && draft.media.active) {
         const target = draft.media.target || { kind: 'all' };
         if (draft.media.kind === 'text') {
@@ -284,7 +237,6 @@ function ControlContent({ code }: { code: string }) {
           });
         }
       } else {
-        // Send clear if no media is active
         socket.current?.emit('orchestrator:media_clear', {
           roomCode: code.toUpperCase(),
           target: { kind: 'all' },
@@ -319,18 +271,6 @@ function ControlContent({ code }: { code: string }) {
     router.push('/');
   }
 
-  function toggleFallback() {
-    const enabled = !fallbackEnabled;
-    const seedTimestamp = Date.now();
-    setFallbackEnabled(enabled);
-    setFallbackSeed(seedTimestamp);
-    socket.current?.emit('orchestrator:set_fallback_mode', {
-      roomCode: code.toUpperCase(),
-      enabled,
-      seedTimestamp,
-    });
-  }
-
   return (
     <LiveCallDeskProvider
       roomCode={code}
@@ -339,140 +279,136 @@ function ControlContent({ code }: { code: string }) {
       socket={socket}
       connected={connected}
     >
-
-      <main className="relative mx-auto max-w-6xl px-4 py-6 min-h-screen overflow-hidden sm:px-6">
+      <main className="relative mx-auto max-w-lg px-4 py-4 min-h-screen pb-24 overflow-x-hidden">
         <SectionGlow glowColor="mixed" position="top" />
 
         <PageTransitionWrapper>
-          <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <NeonTitle as="h1" color="cyan" className="text-2xl font-black tracking-widest sm:text-3xl">
+          {/* Header Mobile UI */}
+          <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-white/10 bg-black/40 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <NeonTitle as="h1" color="cyan" className="text-xl font-black tracking-widest">
                   ROOM {code.toUpperCase()}
                 </NeonTitle>
-                <p className="mt-2 text-xs font-cyber uppercase tracking-wider text-muted-foreground">
-                  Status:{' '}
-                  <span className={connected ? 'text-neon-cyan' : 'text-zinc-500'}>
-                    {connected ? 'Online' : 'Connecting...'}
-                  </span>
-                  {' · '}
-                  {roomState?.devices.length ?? 0} active screens
-                </p>
+                <div className="mt-1 flex items-center gap-1 text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">
+                  <span className={cn("inline-block size-1.5 rounded-full", connected ? "bg-neon-cyan" : "bg-zinc-500")} />
+                  <span>{connected ? 'Live' : 'Connecting...'}</span>
+                  <span>·</span>
+                  <Users className="size-3 text-neon-cyan" />
+                  <span>{roomState?.devices.length ?? 0} Players</span>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <RoomShareControls
-                  roomCode={code}
-                  matrixEnabled={shareMatrixEnabled}
-                  onMatrixEnabledChange={setShareMatrixEnabled}
-                  showMatrixOption={roomHasMatrix}
-                  compact
-                />
-                <NeonButton
-                  color="cyan"
-                  variant="outline"
-                  className="h-9 px-3 text-xs uppercase tracking-widest gap-1.5"
-                  onClick={() => setShowMobileModal(true)}
-                >
-                  <Smartphone className="size-3.5" />
-                  Phone Mode
-                </NeonButton>
-                {/* {!isButtonHidden('auto-strobe') ? (
-                  <NeonButton
-                    color="cyan"
-                    variant="outline"
-                    onClick={toggleFallback}
-                    className="h-9 px-4 text-xs uppercase tracking-widest"
-                  >
-                    Auto-Strobe {fallbackEnabled ? 'On' : 'Off'}
-                  </NeonButton>
-                ) : null} */}
-                {!isButtonHidden('terminate-rave') ? (
+              <NeonButton
+                color="magenta"
+                variant="outline"
+                className="h-10 px-3 text-xs uppercase tracking-widest border-red-500/20 text-red-400"
+                onClick={() => setShowExitConfirm(true)}
+              >
+                <LogOut className="size-4 mr-1" />
+                End
+              </NeonButton>
+            </div>
+
+            {/* Custom Tab Switcher - Large Targets */}
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/15 bg-black/50 p-1">
+              <button
+                type="button"
+                onClick={() => switchTab('patterns')}
+                className={cn(
+                  'rounded-lg py-3 text-xs font-cyber uppercase tracking-widest transition-all text-center',
+                  activeTab === 'patterns'
+                    ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 shadow-inner'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                )}
+              >
+                Devices
+              </button>
+              <button
+                type="button"
+                onClick={() => switchTab('visuals')}
+                className={cn(
+                  'rounded-lg py-3 text-xs font-cyber uppercase tracking-widest transition-all text-center',
+                  activeTab === 'visuals'
+                    ? 'bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/40 shadow-inner'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                )}
+              >
+                Visuals
+              </button>
+            </div>
+          </div>
+
+          {/* Confirm End Session Dialog */}
+          {showExitConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+              <NeonCard glowColor="magenta" borderVariant="magenta" className="p-6 max-w-sm w-full">
+                <NeonTitle as="h3" color="magenta" className="text-lg font-black tracking-wider text-center">
+                  End Live Session?
+                </NeonTitle>
+                <p className="mt-3 text-sm text-center text-zinc-300">
+                  This will close the room for all players and surfaces. This action cannot be undone.
+                </p>
+                <div className="mt-6 flex gap-3">
                   <NeonButton
                     color="magenta"
-                    variant="outline"
-                    className="h-9 px-4 text-xs uppercase tracking-widest border-red-500/20 text-red-400"
+                    variant="solid"
+                    className="flex-1 text-xs uppercase tracking-widest h-10"
                     disabled={closingRoom}
                     onClick={() => void handleCloseRoom()}
                   >
-                    {closingRoom ? 'Closing...' : 'End session'}
+                    {closingRoom ? 'Closing...' : 'Yes, End Session'}
                   </NeonButton>
-                ) : null}
-              </div>
-            </div>
-
-            {visibleTabs.length > 1 ? (
-              <div
-                role="tablist"
-                aria-label="Control desk sections"
-                className={cn(
-                  'grid gap-2 rounded-xl border border-white/10 bg-black/30 p-1 sm:max-w-md',
-                  visibleTabs.length === 3
-                    ? 'grid-cols-3'
-                    : visibleTabs.length === 2
-                    ? 'grid-cols-2'
-                    : 'grid-cols-1'
-                )}
-              >
-                {visibleTabs.map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === tab}
-                    id={`tab-${tab}`}
-                    onClick={() => switchTab(tab)}
-                    className={cn(
-                      'rounded-lg px-4 py-2.5 text-xs font-cyber uppercase tracking-widest transition-all',
-                      activeTab === tab
-                        ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/30'
-                        : 'text-zinc-500 hover:text-zinc-200'
-                    )}
+                  <NeonButton
+                    color="cyan"
+                    variant="outline"
+                    className="flex-1 text-xs uppercase tracking-widest h-10"
+                    onClick={() => setShowExitConfirm(false)}
                   >
-                    {tab === 'patterns' ? 'Play Devices' : 'Visuals'}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+                    Cancel
+                  </NeonButton>
+                </div>
+              </NeonCard>
+            </div>
+          )}
 
-          {activeTab === 'patterns' && visibleTabs.includes('patterns') ? (
-            <div className="flex flex-col gap-6">
-              {!isButtonHidden('preset-sequences') ? (
-                <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-5 sm:p-6">
-                  <div className="mb-5">
-                    <NeonTitle as="h2" color="violet" className="text-lg font-black tracking-widest">
-                      Rave Pattern Sequences
-                    </NeonTitle>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Pick a sequence to send live. Edit below and save to overwrite, or rename to add new.
-                    </p>
-                  </div>
+          {/* Tab Content: Devices */}
+          {activeTab === 'patterns' && (
+            <div className="flex flex-col gap-4">
+              <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-4">
+                <div className="mb-3">
+                  <NeonTitle as="h2" color="violet" className="text-base font-black tracking-widest">
+                    Rave Patterns
+                  </NeonTitle>
+                  <p className="mt-0.5 text-[10px] text-muted-foreground uppercase">
+                    Pick a sequence to broadcast live. Adjust effects in real time.
+                  </p>
+                </div>
 
-                  <PatternSequenceEditor
-                    key={loadedRig?.id ?? 'default'}
-                    variant="control"
-                    availablePresetIds={entitlements.availablePresets}
-                    audioReactive={entitlements.audioReactive}
-                    effectLayering={entitlements.effectLayering}
-                    maxPatternSequences={entitlements.maxPatternSequences}
-                    disabled={!connected}
-                    audioSource={audioSource}
-                    onAudioSourceChange={setAudioSource}
-                    initialDraft={initialSequenceDraft}
-                    onSendLive={(draft) => sendDistribution(draft, true)}
-                    roomCode={code.toUpperCase()}
-                    liveName={liveDraftName}
-                    presetSeed={presetSeed}
-                    fallbackEnabled={fallbackEnabled}
-                    fallbackSeed={fallbackSeed}
-                    roomState={roomState || undefined}
-                  />
-                </NeonCard>
-              ) : null}
+                <PatternSequenceEditor
+                  key={loadedRig?.id ?? 'default'}
+                  variant="control"
+                  mode="operate"
+                  availablePresetIds={entitlements.availablePresets}
+                  audioReactive={entitlements.audioReactive}
+                  effectLayering={entitlements.effectLayering}
+                  maxPatternSequences={entitlements.maxPatternSequences}
+                  disabled={!connected}
+                  audioSource={audioSource}
+                  onAudioSourceChange={setAudioSource}
+                  initialDraft={initialSequenceDraft}
+                  onSendLive={(draft) => sendDistribution(draft, true)}
+                  roomCode={code.toUpperCase()}
+                  liveName={liveDraftName}
+                  presetSeed={presetSeed}
+                  fallbackEnabled={fallbackEnabled}
+                  fallbackSeed={fallbackSeed}
+                  roomState={roomState || undefined}
+                />
+              </NeonCard>
 
-              {roomState ? (
-                <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5 sm:p-6">
+              {roomState && (
+                <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-4">
                   <TorchControls
                     roomCode={code}
                     roomState={roomState}
@@ -480,27 +416,28 @@ function ControlContent({ code }: { code: string }) {
                     disabled={!connected}
                   />
                 </NeonCard>
-              ) : null}
+              )}
 
+              {/* Connected Players Toggle list */}
               <NeonCard glowColor="none" borderVariant="default" hoverEffect={false} className="overflow-hidden">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between px-5 py-4 text-left"
+                  className="flex w-full items-center justify-between px-4 py-3 text-left"
                   onClick={() => setDevicesOpen((value) => !value)}
                 >
                   <div>
-                    <NeonTitle as="h3" color="white" className="text-base font-black tracking-widest">
-                      Connected Screens
+                    <NeonTitle as="h3" color="white" className="text-sm font-black tracking-widest">
+                      CONNECTED SCREENS
                     </NeonTitle>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
                       {roomState?.devices.length ?? 0} / {entitlements.maxDevices} devices online
                     </p>
                   </div>
                   {devicesOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                 </button>
 
-                {devicesOpen && roomState ? (
-                  <div className="border-t border-white/10 px-5 pb-5">
+                {devicesOpen && roomState && (
+                  <div className="border-t border-white/10 px-4 pb-4">
                     <DeviceList
                       roomState={roomState}
                       onIdentify={(publicId) =>
@@ -511,12 +448,12 @@ function ControlContent({ code }: { code: string }) {
                       }
                     />
                   </div>
-                ) : null}
+                )}
               </NeonCard>
 
-              {roomHasMatrix && !isButtonHidden('matrix-grid') && roomState ? (
-                <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5 sm:p-6">
-                  <NeonTitle as="h3" color="cyan" className="mb-4 text-base font-black tracking-widest">
+              {roomHasMatrix && roomState && (
+                <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-4">
+                  <NeonTitle as="h3" color="cyan" className="mb-3 text-sm font-black tracking-widest">
                     Grid Matrix
                   </NeonTitle>
                   <MatrixPanel
@@ -525,11 +462,12 @@ function ControlContent({ code }: { code: string }) {
                     onCellClick={(row, col) => setSelectedCell({ row, col })}
                   />
                 </NeonCard>
-              ) : null}
+              )}
             </div>
-          ) : null}
+          )}
 
-          {activeTab === 'visuals' && visibleTabs.includes('visuals') ? (
+          {/* Tab Content: Visuals */}
+          {activeTab === 'visuals' && (
             <VisualsTab
               code={code}
               socket={socket}
@@ -540,61 +478,8 @@ function ControlContent({ code }: { code: string }) {
                 setWorkingState((prev) => ({ ...prev, ...patch }))
               }
               loadedRig={loadedRig}
+              mode="operate"
             />
-          ) : null}
-
-
-          {/* Mobile Phone Control QR Modal */}
-          {showMobileModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-              <NeonCard glowColor="cyan" borderVariant="cyan" className="p-6 max-w-sm w-full relative">
-                <button
-                  type="button"
-                  className="absolute top-4 right-4 text-zinc-400 hover:text-white text-sm"
-                  onClick={() => setShowMobileModal(false)}
-                >
-                  ✕
-                </button>
-                <div className="text-center">
-                  <Smartphone className="size-8 mx-auto text-neon-cyan mb-2" />
-                  <NeonTitle as="h3" color="cyan" className="text-lg font-black tracking-wider uppercase">
-                    Control from Phone
-                  </NeonTitle>
-                  <p className="mt-2 text-xs text-zinc-400">
-                    Scan this QR code to load the operate-only interface on your mobile or tablet.
-                  </p>
-
-                  <div className="my-5 flex justify-center">
-                    {mobileQrUrl ? (
-                      <div className="bg-white p-2 rounded-xl">
-                        <img
-                          src={mobileQrUrl}
-                          alt="Mobile Control QR"
-                          className="size-48"
-                        />
-                      </div>
-                    ) : (
-                      <div className="size-48 flex items-center justify-center text-xs text-zinc-500 font-cyber animate-pulse">
-                        Generating QR...
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="text-[10px] font-mono text-zinc-500 break-all select-all">
-                    {typeof window !== 'undefined' ? `${window.location.origin}/room/${code.toLowerCase()}/control-device` : ''}
-                  </p>
-
-                  <NeonButton
-                    color="cyan"
-                    variant="solid"
-                    className="mt-6 w-full text-xs uppercase tracking-widest h-10"
-                    onClick={() => setShowMobileModal(false)}
-                  >
-                    Got it
-                  </NeonButton>
-                </div>
-              </NeonCard>
-            </div>
           )}
 
         </PageTransitionWrapper>
@@ -603,7 +488,7 @@ function ControlContent({ code }: { code: string }) {
   );
 }
 
-export default function ControlPage({
+export default function ControlDevicePage({
   params,
 }: {
   params: Promise<{ code: string }>;
@@ -611,8 +496,8 @@ export default function ControlPage({
   const { code } = use(params);
 
   return (
-    <Suspense fallback={<main className="mx-auto max-w-6xl px-4 py-6">Loading...</main>}>
-      <ControlContent code={code} />
+    <Suspense fallback={<main className="mx-auto max-w-lg px-4 py-6 text-center text-zinc-500">Loading control console...</main>}>
+      <ControlDeviceContent code={code} />
     </Suspense>
   );
 }

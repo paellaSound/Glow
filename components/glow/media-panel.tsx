@@ -335,6 +335,13 @@ export function MediaPanel({ roomCode, roomState, socket, disabled = false }: Me
                     Speed ({textMode === 'word_by_word' ? 'Words' : textMode === 'marquee' ? 'Chars' : 'Pages'}/Sec)
                   </Label>
                   <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setTextSpeed(Math.max(1, textSpeed - 1))}
+                      className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
+                    >
+                      -
+                    </button>
                     <input
                       id="speed"
                       type="range"
@@ -342,8 +349,15 @@ export function MediaPanel({ roomCode, roomState, socket, disabled = false }: Me
                       max="30"
                       value={textSpeed}
                       onChange={(e) => setTextSpeed(parseInt(e.target.value))}
-                      className="w-full accent-neon-magenta cursor-pointer"
+                      className="flex-1 accent-neon-magenta cursor-pointer"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setTextSpeed(Math.min(30, textSpeed + 1))}
+                      className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
+                    >
+                      +
+                    </button>
                     <span className="font-cyber text-xs text-white min-w-[20px]">{textSpeed}</span>
                   </div>
                 </div>

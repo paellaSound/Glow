@@ -15,6 +15,8 @@ import type {
 } from '@/lib/glow/types';
 
 
+import { useLiveCallDesk } from '@/lib/glow/use-live-call-desk';
+
 type LiveCallControlsProps = {
   roomCode: string;
   roomState: RoomStatePayload;
@@ -77,30 +79,20 @@ export function LiveCallControls({
   const gated = !entitlements.webrtcLiveCall;
   const maxDevices = entitlements.maxLiveCallDevices;
 
-  const [target, setTarget] = useState<DeviceTarget>({ kind: 'devices', publicIds: [] });
-  const [liveState, setLiveState] = useState<LiveCallStatePayload | null>(null);
-  const [layoutPreset, setLayoutPreset] = useState<LiveLayoutPreset>('pip');
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const s = socket.current;
-    if (!s) return;
-
-    const onState = (payload: LiveCallStatePayload) => {
-      setLiveState(payload);
-    };
-
-    s.on('orchestrator:live_call_state', onState);
-    return () => {
-      s.off('orchestrator:live_call_state', onState);
-    };
-  }, [socket]);
-
-  const selectedIds = useMemo(
-    () => resolveDevicePublicIds(roomState.devices, target).slice(0, maxDevices),
-    [roomState.devices, target, maxDevices]
-  );
+  const {
+    target,
+    setTarget,
+    liveState,
+    layoutPreset,
+    setLayoutPreset,
+    starting,
+    error,
+    selectedIds,
+    handleGoLive,
+    handleStopAll,
+    handleStopOne,
+    handleApplyLayout,
+  } = useLiveCallDesk();
 
   const deviceNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -109,71 +101,6 @@ export function LiveCallControls({
     }
     return map;
   }, [roomState.devices]);
-
-  const handleGoLive = useCallback(async () => {
-    if (gated || !connected || selectedIds.length === 0) return;
-    setStarting(true);
-    setError(null);
-
-    try {
-      const s = socket.current;
-      if (!s) throw new Error('Socket not connected');
-
-      s.timeout(10_000).emit(
-        'orchestrator:live_call_start',
-        { roomCode: code, publisherIds: selectedIds },
-        (err: Error | null, response: { ok: boolean; reason?: string; callId?: string }) => {
-          setStarting(false);
-          if (err) {
-            setError('Request timed out');
-            return;
-          }
-          if (!response.ok) {
-            const messages: Record<string, string> = {
-              gated: 'Live call requires a Pro plan.',
-              over_cap: `Maximum ${maxDevices} devices per live call.`,
-              no_publishers: 'Select at least one device.',
-              no_connected_publishers: 'Selected devices are not connected.',
-            };
-            setError(messages[response.reason ?? ''] ?? 'Could not start live call.');
-            return;
-          }
-          if (response.callId) {
-            const tiles = buildLayoutPreset(selectedIds, layoutPreset);
-            s.emit('orchestrator:live_layout', { roomCode: code, tiles });
-          }
-        }
-      );
-    } catch (e: unknown) {
-      setStarting(false);
-      setError(e instanceof Error ? e.message : 'Could not start live call.');
-    }
-  }, [gated, connected, selectedIds, socket, code, layoutPreset, maxDevices]);
-
-  const handleStopAll = useCallback(() => {
-    socket.current?.emit('orchestrator:live_call_stop', { roomCode: code });
-    setLiveState(null);
-  }, [socket, code]);
-
-  const handleStopOne = useCallback(
-    (publicId: string) => {
-      socket.current?.emit('orchestrator:live_call_stop', {
-        roomCode: code,
-        publisherIds: [publicId],
-      });
-    },
-    [socket, code]
-  );
-
-  const handleApplyLayout = useCallback(() => {
-    if (!liveState?.active) return;
-    const liveIds = liveState.publishers
-      .filter((p) => p.status === 'live')
-      .map((p) => p.publicId);
-    if (liveIds.length === 0) return;
-    const tiles = buildLayoutPreset(liveIds, layoutPreset);
-    socket.current?.emit('orchestrator:live_layout', { roomCode: code, tiles });
-  }, [liveState, layoutPreset, socket, code]);
 
   if (gated) {
     return (

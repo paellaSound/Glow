@@ -162,7 +162,7 @@ export type SignalEmitter = (signal: WebrtcSignal) => void;
 export async function requestPublisherMedia(withAudio: boolean): Promise<MediaStream> {
   return navigator.mediaDevices.getUserMedia({
     video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-    audio: withAudio,
+    audio: false, // Forcing video-only publisher (no mic prompt)
   });
 }
 

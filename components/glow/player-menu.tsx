@@ -56,6 +56,8 @@ export function PlayerMenu({
   const [showConfirmExit, setShowConfirmExit] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFullscreenSupported, setIsFullscreenSupported] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
   const [shareInfo, setShareInfo] = useState<ShareInfo>({ rigName: null, socials: [] });
 
   const joinUrl = useMemo(
@@ -65,16 +67,37 @@ export function PlayerMenu({
 
   // Monitor fullscreen state changes
   useEffect(() => {
+    setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent || ''));
+
+    const isSupported = !!(
+      document.fullscreenEnabled ||
+      (document as any).webkitFullscreenEnabled ||
+      (document as any).mozFullScreenEnabled ||
+      (document as any).msFullscreenEnabled
+    );
+    setIsFullscreenSupported(isSupported);
+
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
+      const doc = document as any;
+      const fsElement = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+      setIsFullscreen(!!fsElement);
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
     // Initialize state
-    setIsFullscreen(!!document.fullscreenElement);
+    const doc = document as any;
+    const fsElement = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+    setIsFullscreen(!!fsElement);
 
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
   }, []);
 
@@ -99,10 +122,20 @@ export function PlayerMenu({
 
   async function toggleFullscreen() {
     try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
+      const doc = document as any;
+      const el = document.documentElement as any;
+      const fsElement = doc.fullscreenElement || doc.webkitFullscreenElement || doc.mozFullScreenElement || doc.msFullscreenElement;
+
+      if (fsElement) {
+        const exitFs = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
+        if (exitFs) {
+          await exitFs.call(doc);
+        }
       } else {
-        await document.documentElement.requestFullscreen();
+        const reqFs = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+        if (reqFs) {
+          await reqFs.call(el);
+        }
       }
     } catch {
       // Best effort
@@ -145,18 +178,20 @@ export function PlayerMenu({
             </button>
 
             {/* Fullscreen toggle button */}
-            <button
-              type="button"
-              onClick={() => void toggleFullscreen()}
-              className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-            >
-              {isFullscreen ? (
-                <Minimize2 className="h-4 w-4" />
-              ) : (
-                <Maximize2 className="h-4 w-4" />
-              )}
-            </button>
+            {isFullscreenSupported && (
+              <button
+                type="button"
+                onClick={() => void toggleFullscreen()}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </button>
+            )}
 
             {/* More (⋯) trigger button */}
             <button
@@ -258,6 +293,11 @@ export function PlayerMenu({
                       Enable camera access to blink your phone LED during rave effects.
                       You can disable this anytime.
                     </p>
+                    {isIOS && (
+                      <p className="mt-1.5 text-[10px] text-amber-300/80 italic leading-relaxed">
+                        Note: iOS Safari does not support hardware LED controls. Screen-flash fallback will be used.
+                      </p>
+                    )}
                     {torchCapability?.enabled ? (
                       <p className="mt-2 text-[10px] font-cyber uppercase tracking-wider text-emerald-400">
                         {torchCapability.supported

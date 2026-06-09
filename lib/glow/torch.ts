@@ -63,8 +63,9 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function useTorch(options?: { clockOffset?: number }) {
+export function useTorch(options?: { clockOffset?: number; liveCallActive?: boolean }) {
   const clockOffset = options?.clockOffset ?? 0;
+  const liveCallActive = options?.liveCallActive ?? false;
   const [capability, setCapability] = useState<TorchCapability>({ supported: false, enabled: false });
   const [torchActive, setTorchActive] = useState(false);
   const [screenFlash, setScreenFlash] = useState(false);
@@ -211,6 +212,13 @@ export function useTorch(options?: { clockOffset?: number }) {
     setScreenFlash(false);
   }, [bumpCommandGeneration, clearPatternTimers, clearScheduleTimers, setHardwareTorch, stopRemoteHold]);
 
+  useEffect(() => {
+    if (liveCallActive) {
+      void releaseStream();
+      setCapability({ supported: false, enabled: false });
+    }
+  }, [liveCallActive, releaseStream]);
+
   const disableTorch = useCallback(async () => {
     if (idleReleaseTimerRef.current) {
       clearTimeout(idleReleaseTimerRef.current);
@@ -227,6 +235,19 @@ export function useTorch(options?: { clockOffset?: number }) {
   }, [disableTorch]);
 
   const requestEnable = useCallback(async (): Promise<TorchCapability> => {
+    const isIOS = typeof window !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent || '');
+
+    if (liveCallActive) {
+      const result = { supported: false, enabled: false };
+      setCapability(result);
+      setError(
+        isIOS
+          ? 'iOS Safari does not support web hardware LED control due to platform limitations. Screen-flash fallback will be used.'
+          : 'Camera is being used by the live call. Screen flash fallback will be used.'
+      );
+      return result;
+    }
+
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       const result = { supported: false, enabled: false };
       setCapability(result);
@@ -257,7 +278,11 @@ export function useTorch(options?: { clockOffset?: number }) {
         stream.getTracks().forEach((t) => t.stop());
         const result = { supported: false, enabled: false };
         setCapability(result);
-        setError('This device does not support LED flash control. Screen flash fallback will be used.');
+        setError(
+          isIOS
+            ? 'iOS Safari does not support web hardware LED control due to platform limitations. Screen-flash fallback will be used.'
+            : 'This device does not support LED flash control. Screen flash fallback will be used.'
+        );
         return result;
       }
 
@@ -270,12 +295,16 @@ export function useTorch(options?: { clockOffset?: number }) {
     } catch {
       const result = { supported: false, enabled: false };
       setCapability(result);
-      setError('Camera permission was denied. Enable flash effects requires camera access.');
+      setError(
+        isIOS
+          ? 'iOS Safari does not support web hardware LED control due to platform limitations. Screen-flash fallback will be used.'
+          : 'Camera permission was denied. Enable flash effects requires camera access.'
+      );
       return result;
     } finally {
       setEnabling(false);
     }
-  }, [resetIdleReleaseTimer]);
+  }, [resetIdleReleaseTimer, liveCallActive]);
 
   const runHardwareCommand = useCallback(
     async (command: TorchCommand, generation: number) => {

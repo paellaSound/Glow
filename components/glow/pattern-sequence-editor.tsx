@@ -51,6 +51,7 @@ type PatternSequenceEditorProps = {
   fallbackSeed?: number;
   presetSeed?: number;
   roomState?: RoomStatePayload;
+  mode?: 'edit' | 'operate';
 };
 
 export function PatternSequenceEditor({
@@ -71,6 +72,7 @@ export function PatternSequenceEditor({
   fallbackSeed = 0,
   presetSeed,
   roomState,
+  mode = 'edit',
 }: PatternSequenceEditorProps) {
   const { teamEntitlements } = useTeamEntitlements();
   const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
@@ -417,56 +419,60 @@ export function PatternSequenceEditor({
               </select>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Input
-                value={draft.name}
-                disabled={disabled}
-                onChange={(event) => patchDraft({ name: event.target.value })}
-                placeholder={namePlaceholder}
-                aria-invalid={duplicateName}
-                className={cn(
-                  'min-w-[12rem] flex-1',
-                  duplicateName && 'border-red-400/50 focus-visible:ring-red-400/30'
-                )}
-              />
-              <Button
-                type="button"
-                size="sm"
-                disabled={
-                  disabled || saving || !canSave || (saveAsNew && atSequenceLimit)
-                }
-                onClick={() => void saveSequence()}
-              >
-                <Save data-icon="inline-start" />
-                {saveButtonLabel}
-              </Button>
-            </div>
+            {mode !== 'operate' && (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    value={draft.name}
+                    disabled={disabled}
+                    onChange={(event) => patchDraft({ name: event.target.value })}
+                    placeholder={namePlaceholder}
+                    aria-invalid={duplicateName}
+                    className={cn(
+                      'min-w-[12rem] flex-1',
+                      duplicateName && 'border-red-400/50 focus-visible:ring-red-400/30'
+                    )}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      disabled || saving || !canSave || (saveAsNew && atSequenceLimit)
+                    }
+                    onClick={() => void saveSequence()}
+                  >
+                    <Save data-icon="inline-start" />
+                    {saveButtonLabel}
+                  </Button>
+                </div>
 
-            {!hasSavedSequences ? (
-              <p className="text-xs text-muted-foreground">
-                Name and save your first sequence to load it in any room.
-              </p>
-            ) : duplicateName ? (
-              <p className="text-xs text-red-400">
-                A sequence with this name already exists. Choose a different name to add a new one.
-              </p>
-            ) : nameChanged ? (
-              <p className="text-xs text-muted-foreground">
-                Name changed — will create a new sequence. Keep the original name to overwrite.
-              </p>
-            ) : isDirty && selectedId ? (
-              <p className="text-xs text-muted-foreground">
-                Unsaved changes — Overwrite current pattern to save them.
-              </p>
-            ) : null}
+                {!hasSavedSequences ? (
+                  <p className="text-xs text-muted-foreground">
+                    Name and save your first sequence to load it in any room.
+                  </p>
+                ) : duplicateName ? (
+                  <p className="text-xs text-red-400">
+                    A sequence with this name already exists. Choose a different name to add a new one.
+                  </p>
+                ) : nameChanged ? (
+                  <p className="text-xs text-muted-foreground">
+                    Name changed — will create a new sequence. Keep the original name to overwrite.
+                  </p>
+                ) : isDirty && selectedId ? (
+                  <p className="text-xs text-muted-foreground">
+                    Unsaved changes — Overwrite current pattern to save them.
+                  </p>
+                ) : null}
 
-            <p className="text-xs text-muted-foreground">
-              To rename or delete sequences, go to the{' '}
-              <Link href="/pattern-sequences" className="text-neon-violet underline">
-                sequence library
-              </Link>
-              .
-            </p>
+                <p className="text-xs text-muted-foreground">
+                  To rename or delete sequences, go to the{' '}
+                  <Link href="/pattern-sequences" className="text-neon-violet underline">
+                    sequence library
+                  </Link>
+                  .
+                </p>
+              </>
+            )}
           </>
         ) : (
           <>
@@ -934,6 +940,21 @@ export function PatternSequenceEditor({
                       Speed
                     </Label>
                     <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentSpeed = draft.media?.speed || 5;
+                          const nextSpeed = Math.max(1, currentSpeed - 1);
+                          const updatedMedia = { ...draft.media!, speed: nextSpeed };
+                          patchDraft({ media: updatedMedia });
+                          if (draft.media?.active) {
+                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                          }
+                        }}
+                        className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
+                      >
+                        -
+                      </button>
                       <input
                         id="media-speed"
                         type="range"
@@ -948,8 +969,23 @@ export function PatternSequenceEditor({
                             sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                           }
                         }}
-                        className="w-full accent-neon-magenta cursor-pointer"
+                        className="flex-1 accent-neon-magenta cursor-pointer"
                       />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentSpeed = draft.media?.speed || 5;
+                          const nextSpeed = Math.min(30, currentSpeed + 1);
+                          const updatedMedia = { ...draft.media!, speed: nextSpeed };
+                          patchDraft({ media: updatedMedia });
+                          if (draft.media?.active) {
+                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                          }
+                        }}
+                        className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
+                      >
+                        +
+                      </button>
                       <span className="font-cyber text-xs text-white min-w-[20px]">{draft.media.speed || 5}</span>
                     </div>
                   </div>
@@ -959,6 +995,21 @@ export function PatternSequenceEditor({
                       Font Size
                     </Label>
                     <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentSize = draft.media?.fontSize || 48;
+                          const nextSize = Math.max(12, currentSize - 4);
+                          const updatedMedia = { ...draft.media!, fontSize: nextSize };
+                          patchDraft({ media: updatedMedia });
+                          if (draft.media?.active) {
+                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                          }
+                        }}
+                        className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
+                      >
+                        -
+                      </button>
                       <input
                         id="media-fontsize"
                         type="range"
@@ -973,8 +1024,23 @@ export function PatternSequenceEditor({
                             sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                           }
                         }}
-                        className="w-full accent-neon-magenta cursor-pointer"
+                        className="flex-1 accent-neon-magenta cursor-pointer"
                       />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentSize = draft.media?.fontSize || 48;
+                          const nextSize = Math.min(120, currentSize + 4);
+                          const updatedMedia = { ...draft.media!, fontSize: nextSize };
+                          patchDraft({ media: updatedMedia });
+                          if (draft.media?.active) {
+                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                          }
+                        }}
+                        className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
+                      >
+                        +
+                      </button>
                       <span className="font-cyber text-xs text-white min-w-[30px]">{draft.media.fontSize || 48}px</span>
                     </div>
                   </div>

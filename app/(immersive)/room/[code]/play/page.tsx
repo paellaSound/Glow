@@ -55,6 +55,11 @@ type JoinResponse = {
   };
 };
 
+type ShareInfo = {
+  rigName: string | null;
+  socials: RigSocial[];
+};
+
 function NicknameGate({
   roomCode,
   hostName,
@@ -187,6 +192,18 @@ function PlayerContent({
     setTheme('dark');
   }, [setTheme]);
 
+  const [fetchedShareInfo, setFetchedShareInfo] = useState<ShareInfo | null>(null);
+
+  // Fetch DJ branding & socials on mount
+  useEffect(() => {
+    void fetch(`/api/rooms/${roomCode}/share-info`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: ShareInfo | null) => {
+        if (data) setFetchedShareInfo(data);
+      })
+      .catch(() => {});
+  }, [roomCode]);
+
   const { connected, emit, emitWithCallback, on, socket, roomState } = useGlowSocket();
   const [joined, setJoined] = useState(false);
 
@@ -288,15 +305,22 @@ function PlayerContent({
     startManualFlash,
     stopManualFlash,
     manualHoldActive,
-  } = useTorch({ clockOffset });
+  } = useTorch({ clockOffset, liveCallActive: liveCall.isLive });
 
   const applyJoinResponse = useCallback(
-    (response: JoinResponse) => {
+    (response: JoinResponse & { rigName?: string | null; rigSocials?: RigSocial[] }) => {
       if (!response.accepted) return false;
 
       setJoined(true);
       setConnectionLost(false);
       setReconnectError(null);
+
+      if (response.rigName !== undefined || response.rigSocials !== undefined) {
+        setFetchedShareInfo({
+          rigName: response.rigName ?? null,
+          socials: response.rigSocials ?? [],
+        });
+      }
 
       if (response.devicePublicId) {
         setDevicePublicId(response.devicePublicId);
@@ -553,6 +577,40 @@ function PlayerContent({
               </p>
             </div>
 
+            {/* Follow the DJ section on session end */}
+            {(fetchedShareInfo?.rigName || (fetchedShareInfo?.socials && fetchedShareInfo.socials.length > 0)) && (
+              <div className="mb-6 rounded-xl border border-white/5 bg-zinc-900/50 p-4">
+                <div className="text-center mb-2">
+                  <span className="text-[9px] font-cyber tracking-widest text-zinc-500 uppercase">
+                    FOLLOW THE DJ
+                  </span>
+                  {fetchedShareInfo?.rigName && (
+                    <h4 className="text-sm font-bold text-neon-magenta mt-1 uppercase tracking-wide">
+                      {fetchedShareInfo.rigName}
+                    </h4>
+                  )}
+                </div>
+                {fetchedShareInfo?.socials && fetchedShareInfo.socials.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+                    {fetchedShareInfo.socials.map((social, idx) => {
+                      const label = getSocialLabel(social);
+                      return (
+                        <a
+                          key={idx}
+                          href={social.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-[10px] text-zinc-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all font-cyber uppercase tracking-wider cursor-pointer"
+                        >
+                          {label}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             <NeonButton
               type="button"
               color="magenta"
@@ -577,8 +635,8 @@ function PlayerContent({
     return (
       <NicknameGate
         roomCode={roomCode}
-        hostName={hostName}
-        hostSocials={hostSocials}
+        hostName={fetchedShareInfo?.rigName || hostName}
+        hostSocials={fetchedShareInfo?.socials?.length ? fetchedShareInfo.socials : hostSocials}
         onSubmit={(nick) => {
           storeNickname(roomCode, nick);
           setActiveNickname(nick);
@@ -725,15 +783,6 @@ function PlayerContent({
             <p className="mt-3 text-sm text-zinc-300 text-center leading-relaxed">
               The DJ wants to show your camera on the big screen.
             </p>
-            <label className="mt-4 flex items-center justify-center gap-2 text-xs font-cyber text-zinc-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={liveCall.withAudio}
-                onChange={(e) => liveCall.setWithAudio(e.target.checked)}
-                className="rounded border-white/20"
-              />
-              Include microphone
-            </label>
             {liveCall.publishError ? (
               <p className="mt-3 text-[10px] text-red-400 font-cyber uppercase text-center">
                 {liveCall.publishError}

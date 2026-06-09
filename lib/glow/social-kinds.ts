@@ -23,11 +23,32 @@ export type RigSocial = {
   sortOrder: number;
 };
 
-export function getSocialLabel(social: Pick<RigSocial, 'kind' | 'label'>) {
-  if (social.kind === 'other' && social.label?.trim()) {
+export function detectSocialKindFromUrl(url: string): string | null {
+  if (!url) return null;
+  const lowerUrl = url.toLowerCase();
+  if (lowerUrl.includes('soundcloud.com')) return 'soundcloud';
+  if (lowerUrl.includes('spotify.com')) return 'spotify';
+  if (lowerUrl.includes('music.apple.com') || lowerUrl.includes('apple.com/apple-music')) return 'apple_music';
+  if (lowerUrl.includes('bandcamp.com')) return 'bandcamp';
+  if (lowerUrl.includes('beatport.com')) return 'beatport';
+  if (lowerUrl.includes('mixcloud.com')) return 'mixcloud';
+  if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) return 'youtube';
+  if (lowerUrl.includes('instagram.com')) return 'instagram';
+  if (lowerUrl.includes('tiktok.com')) return 'tiktok';
+  if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) return 'x';
+  if (lowerUrl.includes('facebook.com') || lowerUrl.includes('fb.com')) return 'facebook';
+  if (lowerUrl.includes('twitch.tv')) return 'twitch';
+  return null;
+}
+
+export function getSocialLabel(social: Pick<RigSocial, 'kind' | 'label' | 'url'>) {
+  const detectedKind = social.url ? detectSocialKindFromUrl(social.url) : null;
+  const actualKind = detectedKind || social.kind;
+
+  if (actualKind === 'other' && social.label?.trim()) {
     return social.label.trim();
   }
-  return SOCIAL_KINDS.find((k) => k.value === social.kind)?.label ?? social.kind;
+  return SOCIAL_KINDS.find((k) => k.value === actualKind)?.label ?? actualKind;
 }
 
 export function getEnabledSocials(socials: RigSocial[] | undefined) {
@@ -36,3 +57,4 @@ export function getEnabledSocials(socials: RigSocial[] | undefined) {
     .filter((social) => social.enabled && social.url.trim())
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
+
