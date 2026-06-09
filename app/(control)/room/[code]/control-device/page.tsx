@@ -160,7 +160,22 @@ function ControlDeviceContent({ code }: { code: string }) {
         return;
       }
 
-      await emitWithCallback('orchestrator:rejoin_room', { roomCode: code.toUpperCase() });
+      try {
+        const res = await emitWithCallback<{ ok: boolean; error?: string }>('orchestrator:rejoin_room', {
+          roomCode: code.toUpperCase(),
+          accessToken: session.access_token,
+        });
+        if (res && res.error) {
+          if (res.error === 'Unauthorized') {
+            router.push(`/auth/signin?redirect=/room/${code}/control-device`);
+          } else {
+            router.push('/');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to rejoin room:', err);
+        router.push('/');
+      }
     }
 
     if (connected) {
