@@ -47,6 +47,12 @@ type JoinResponse = {
   row?: number;
   col?: number;
   matrix?: { rows: number; cols: number };
+  playerVisualState?: {
+    kind: 'color' | 'preset' | 'distribution' | 'fallback' | 'idle';
+    payload: any;
+    version: number;
+    updatedAt: number;
+  };
 };
 
 function NicknameGate({
@@ -190,7 +196,7 @@ function PlayerContent({
     socket.current?.disconnect();
     router.push('/join');
   }, [roomCode, socket, router]);
-  const { delayMs, trackOrchestratorMessage } = useOrchestratorDelay({
+  const { delayMs, clockOffset, trackOrchestratorMessage } = useOrchestratorDelay({
     connected,
     enabled: joined,
     emit,
@@ -238,7 +244,29 @@ function PlayerContent({
     col: position?.col ?? 0,
     matrixRows: matrixSize.rows,
     matrixCols: matrixSize.cols,
+    clockOffset,
   });
+
+  const applyPlayerVisualState = useCallback((state: any) => {
+    if (!state || state.kind === 'idle') return;
+    if (state.kind === 'color') {
+      visual.scheduleColor(state.payload);
+    } else if (state.kind === 'preset') {
+      visual.schedulePreset(state.payload);
+    } else if (state.kind === 'distribution') {
+      visual.scheduleEffectDistribution(state.payload);
+    } else if (state.kind === 'fallback') {
+      visual.setFallbackMode(state.payload);
+    }
+  }, [visual]);
+
+  const resync = useCallback((socketInstance: any) => {
+    socketInstance.emit('player:resync', { roomCode }, (response: { ok: boolean; playerVisualState?: any; reason?: string }) => {
+      if (response.ok && response.playerVisualState) {
+        applyPlayerVisualState(response.playerVisualState);
+      }
+    });
+  }, [roomCode, applyPlayerVisualState]);
 
   const liveCall = useLiveCallPublisher({
     roomCode,
@@ -260,7 +288,7 @@ function PlayerContent({
     startManualFlash,
     stopManualFlash,
     manualHoldActive,
-  } = useTorch();
+  } = useTorch({ clockOffset });
 
   const applyJoinResponse = useCallback(
     (response: JoinResponse) => {
@@ -284,9 +312,13 @@ function PlayerContent({
         setPickMode(false);
       }
 
+      if (response.playerVisualState) {
+        applyPlayerVisualState(response.playerVisualState);
+      }
+
       return true;
     },
-    [matrixRequired, roomCode]
+    [matrixRequired, roomCode, applyPlayerVisualState]
   );
 
   const attemptRejoin = useCallback(
@@ -437,6 +469,29 @@ function PlayerContent({
       enabled: torchCapability.enabled,
     });
   }, [connected, joined, roomCode, emit, torchCapability.supported, torchCapability.enabled]);
+
+  useEffect(() => {
+    if (!joined || !connected) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && socket.current?.connected) {
+        resync(socket.current);
+      }
+    };
+    const handleFocus = () => {
+      if (socket.current?.connected) {
+        resync(socket.current);
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [joined, connected, resync, socket]);
 
   async function requestPosition(row: number, col: number) {
     const response = await emitWithCallback<{

@@ -12,6 +12,7 @@ import { WakeLock } from '@/components/glow/wake-lock';
 import { getRealtimeUrl } from '@/lib/glow/matrix';
 import { useLiveCallViewer } from '@/lib/glow/use-live-call-viewer';
 import { cn } from '@/lib/utils';
+import { NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,6 +84,8 @@ function VisualsContent({ code }: { code: string }) {
   const [artId, setArtId] = useState<VisualArtId>('glow-branded');
   // Live input for the art (updated by realtime events)
   const inputRef = useRef<VisualArtInput>(makeDefaultInput(roomCode));
+
+  const [roomClosedReason, setRoomClosedReason] = useState<string>('The DJ has ended the session.');
 
   // Logo overlay state
   const [logo, setLogo] = useState<{
@@ -243,17 +246,55 @@ function VisualsContent({ code }: { code: string }) {
     return () => clearInterval(interval);
   }, []);
 
+  // ── Apply state helper ──────────────────────────────────────────────────
+  const applyVisualsState = useCallback((state: any) => {
+    const nextInput = { ...inputRef.current, roomCode };
+    if (state.palette) {
+      nextInput.palette = state.palette;
+    }
+    if (state.logo !== undefined) {
+      setLogo(state.logo);
+      nextInput.logo = state.logo;
+    }
+    inputRef.current = nextInput;
+    controllerRef.current?.setInput(nextInput);
+
+    if (state.artId) {
+      setArtId(prev => state.artId && state.artId !== prev ? (state.artId as VisualArtId) : prev);
+    }
+    if (state.qrConfig !== undefined) {
+      setQrConfig(state.qrConfig);
+    }
+  }, [roomCode]);
+
+  const resync = useCallback((socket: Socket) => {
+    socket.emit('visuals:resync', { roomCode }, (response: { ok: boolean; visualsState?: any; reason?: string }) => {
+      if (response.ok && response.visualsState) {
+        applyVisualsState(response.visualsState);
+      }
+    });
+  }, [roomCode, applyVisualsState]);
+
   // ── Subscribe helper (called on connect and on reconnect) ─────────────────
   const subscribe = useCallback((socket: Socket, tok: string) => {
     setConnectionState('subscribing');
     socket.emit(
       'visuals:subscribe',
       { roomCode, token: tok },
-      (response: { ok: boolean; sessionId?: string; reason?: string; matrix?: { rows: number; cols: number } }) => {
+      (response: {
+        ok: boolean;
+        sessionId?: string;
+        reason?: string;
+        matrix?: { rows: number; cols: number };
+        visualsState?: any;
+      }) => {
         if (response.ok) {
           setConnectionState('subscribed');
           if (response.matrix) {
             setMatrixSize(response.matrix);
+          }
+          if (response.visualsState) {
+            applyVisualsState(response.visualsState);
           }
         } else {
           const reason = response.reason ?? 'unknown';
@@ -267,7 +308,7 @@ function VisualsContent({ code }: { code: string }) {
         }
       },
     );
-  }, [roomCode]);
+  }, [roomCode, applyVisualsState]);
 
   // ── Connect socket when token is available ────────────────────────────────
   useEffect(() => {
@@ -297,24 +338,14 @@ function VisualsContent({ code }: { code: string }) {
 
     // ── visuals:scene ─────────────────────────────────────────────────────
     socket.on('visuals:scene', (payload: ScenePayload) => {
-      if (payload.palette) {
-        inputRef.current = { ...inputRef.current, palette: payload.palette, roomCode };
-      }
-      if (payload.artId && payload.artId !== artId) {
-        setArtId(payload.artId as VisualArtId);
-      }
-      if (payload.logo !== undefined) {
-        setLogo(payload.logo);
-        inputRef.current = { ...inputRef.current, logo: payload.logo };
-      }
-      if (payload.qrConfig !== undefined) {
-        setQrConfig(payload.qrConfig);
-      }
+      applyVisualsState(payload);
     });
 
     // ── visuals:palette ───────────────────────────────────────────────────
     socket.on('visuals:palette', (payload: { palette: string[] }) => {
-      inputRef.current = { ...inputRef.current, palette: payload.palette };
+      const nextInput = { ...inputRef.current, palette: payload.palette };
+      inputRef.current = nextInput;
+      controllerRef.current?.setInput(nextInput);
     });
 
     // ── visuals:logo ──────────────────────────────────────────────────────
@@ -329,13 +360,17 @@ function VisualsContent({ code }: { code: string }) {
         } | null;
       }) => {
         setLogo(payload.logo);
-        inputRef.current = { ...inputRef.current, logo: payload.logo };
+        const nextInput = { ...inputRef.current, logo: payload.logo };
+        inputRef.current = nextInput;
+        controllerRef.current?.setInput(nextInput);
       },
     );
 
     // ── visuals:audio_features ─────────────────────────────────────────────
     socket.on('visuals:audio_features', (payload: { features: AudioFeatures }) => {
-      inputRef.current = { ...inputRef.current, audio: payload.features };
+      const nextInput = { ...inputRef.current, audio: payload.features };
+      inputRef.current = nextInput;
+      controllerRef.current?.setInput(nextInput);
     });
 
     // ── visuals:reaction ──────────────────────────────────────────────────
@@ -381,32 +416,36 @@ function VisualsContent({ code }: { code: string }) {
     );
 
     // ── room:closed ────────────────────────────────────────────────────────
-    socket.on('room:closed', () => {
+    socket.on('room:closed', (payload?: { reason?: string }) => {
+      if (payload?.reason === 'duration_limit') {
+        setRoomClosedReason('Room session has reached its duration limit.');
+      } else {
+        setRoomClosedReason('The host has ended this room session.');
+      }
       setConnectionState('room_closed');
     });
 
-    // ── visuals:media ─────────────────────────────────────────────────────
-    socket.on('visuals:media', (payload: any) => {
-      if (payload.kind === 'clear') {
-        setActiveMedia(null);
-      } else {
-        setActiveMedia(payload);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && socket.connected) {
+        resync(socket);
       }
-    });
+    };
+    const handleFocus = () => {
+      if (socket.connected) {
+        resync(socket);
+      }
+    };
 
-    socket.on('visuals:media_clear', () => {
-      setActiveMedia(null);
-    });
-
-    socket.on('media_clear', () => {
-      setActiveMedia(null);
-    });
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
       socket.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, applyVisualsState, resync, subscribe]);
 
   // ── Status helpers ────────────────────────────────────────────────────────
   const statusLabel: Record<ConnectionState, string> = {
@@ -422,8 +461,7 @@ function VisualsContent({ code }: { code: string }) {
   const isError = (
     connectionState === 'token_missing' ||
     connectionState === 'token_expired' ||
-    connectionState === 'room_not_found' ||
-    connectionState === 'room_closed'
+    connectionState === 'room_not_found'
   );
 
   const errorMessages: Partial<Record<ConnectionState, { title: string; body: string }>> = {
@@ -606,6 +644,25 @@ function VisualsContent({ code }: { code: string }) {
           <p className="text-sm text-white/60">
             {errorMessages[connectionState]?.body}
           </p>
+        </div>
+      )}
+
+      {/* ── Session Ended Overlay ── */}
+      {connectionState === 'room_closed' && (
+        <div className="dark absolute inset-0 z-30 flex flex-col items-center justify-center bg-background px-6 py-10 overflow-hidden">
+          <SectionGlow glowColor="magenta" position="center" />
+          <PageTransitionWrapper className="w-full max-w-sm">
+            <NeonCard glowColor="magenta" borderVariant="magenta" className="p-8">
+              <div className="text-center">
+                <NeonTitle as="h2" color="magenta" className="text-2xl font-black tracking-widest">
+                  SESSION ENDED
+                </NeonTitle>
+                <p className="text-sm font-cyber tracking-wide text-zinc-300 mt-4 uppercase">
+                  {roomClosedReason}
+                </p>
+              </div>
+            </NeonCard>
+          </PageTransitionWrapper>
         </div>
       )}
 

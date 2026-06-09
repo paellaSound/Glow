@@ -63,7 +63,8 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function useTorch() {
+export function useTorch(options?: { clockOffset?: number }) {
+  const clockOffset = options?.clockOffset ?? 0;
   const [capability, setCapability] = useState<TorchCapability>({ supported: false, enabled: false });
   const [torchActive, setTorchActive] = useState(false);
   const [screenFlash, setScreenFlash] = useState(false);
@@ -446,14 +447,14 @@ export function useTorch() {
 
   const scheduleCommand = useCallback(
     (event: DeviceTorchEvent) => {
-      const delayMs = Math.max(0, event.targetTimestamp - Date.now());
+      const delayMs = Math.max(0, event.targetTimestamp - (Date.now() + clockOffset));
       const timer = setTimeout(() => {
         executeCommand(event.command);
       }, delayMs);
       scheduleTimersRef.current.push(timer);
       resetIdleReleaseTimer();
     },
-    [executeCommand, resetIdleReleaseTimer]
+    [executeCommand, resetIdleReleaseTimer, clockOffset]
   );
 
   useEffect(() => {

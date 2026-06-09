@@ -163,6 +163,36 @@ export function PatternSequenceEditor({
       JSON.stringify({ ...draft, id: selectedId, createdAt: '', updatedAt: '', isDefault: draft.isDefault ?? false })
     : true;
 
+  const debouncedSendTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper to handle debounced and immediate live updates to prevent event floods
+  const sendLiveUpdate = (nextDraft: PatternSequenceDraft, immediate: boolean) => {
+    if (!isControlVariant) return;
+
+    if (debouncedSendTimeoutRef.current) {
+      clearTimeout(debouncedSendTimeoutRef.current);
+      debouncedSendTimeoutRef.current = null;
+    }
+
+    if (immediate) {
+      onSendLive(nextDraft);
+    } else {
+      debouncedSendTimeoutRef.current = setTimeout(() => {
+        onSendLive(nextDraft);
+        debouncedSendTimeoutRef.current = null;
+      }, 200);
+    }
+  };
+
+  // Clean up timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (debouncedSendTimeoutRef.current) {
+        clearTimeout(debouncedSendTimeoutRef.current);
+      }
+    };
+  }, []);
+
   function patchDraft(patch: Partial<PatternSequenceDraft>) {
     setDraft((current) => {
       const next = { ...current, ...patch };
@@ -190,6 +220,10 @@ export function PatternSequenceEditor({
     setDraft(loaded);
     setPreviewEffectId(loaded.effects.length === 1 ? loaded.effects[0]!.id : null);
     onPreviewChange?.(loaded);
+    if (debouncedSendTimeoutRef.current) {
+      clearTimeout(debouncedSendTimeoutRef.current);
+      debouncedSendTimeoutRef.current = null;
+    }
     if (options?.sendLive) {
       onSendLive(loaded);
     }
@@ -205,9 +239,11 @@ export function PatternSequenceEditor({
       newEffect.params = { audioSource: params?.audioSource ?? audioSource };
     }
 
+    let nextDraftEffects: PatternSequenceEffect[];
     if (!effectLayering) {
+      nextDraftEffects = [{ ...newEffect, active: true, weight: 100 }];
       patchDraft({
-        effects: [{ ...newEffect, active: true, weight: 100 }],
+        effects: nextDraftEffects,
       });
     } else {
       nextEffects.forEach((effect) => {
@@ -215,9 +251,11 @@ export function PatternSequenceEditor({
         effect.weight = 0;
       });
       nextEffects.push({ ...newEffect, active: true });
-      patchEffects(normalizeWeights(nextEffects));
+      nextDraftEffects = normalizeWeights(nextEffects);
+      patchEffects(nextDraftEffects);
       setPreviewEffectId(newEffect.id);
     }
+    sendLiveUpdate({ ...draft, effects: nextDraftEffects }, true);
     setShowAddPicker(false);
   }
 
@@ -227,16 +265,22 @@ export function PatternSequenceEditor({
     const next = draft.effects.map((effect) =>
       effect.id === effectId ? { ...effect, active: !effect.active } : effect
     );
-    patchEffects(normalizeWeights(next));
+    const normalized = normalizeWeights(next);
+    patchEffects(normalized);
+    sendLiveUpdate({ ...draft, effects: normalized }, true);
   }
 
   function removeEffect(effectId: string) {
     const next = draft.effects.filter((effect) => effect.id !== effectId);
     if (next.length === 0) {
-      patchDraft({ effects: [createEmptyEffect('pulse')] });
+      const fallbackEffects = [createEmptyEffect('pulse')];
+      patchDraft({ effects: fallbackEffects });
+      sendLiveUpdate({ ...draft, effects: fallbackEffects }, true);
       return;
     }
-    patchEffects(normalizeWeights(next));
+    const normalized = normalizeWeights(next);
+    patchEffects(normalized);
+    sendLiveUpdate({ ...draft, effects: normalized }, true);
   }
 
   async function saveSequence() {
@@ -278,6 +322,10 @@ export function PatternSequenceEditor({
       setStatus(saveAsNew ? `Added "${data.name}"` : `Saved "${data.name}"`);
 
       if (isControlVariant) {
+        if (debouncedSendTimeoutRef.current) {
+          clearTimeout(debouncedSendTimeoutRef.current);
+          debouncedSendTimeoutRef.current = null;
+        }
         onSendLive({
           name: data.name,
           palette: payload.palette,
@@ -302,6 +350,10 @@ export function PatternSequenceEditor({
   }
 
   function handleSendLive() {
+    if (debouncedSendTimeoutRef.current) {
+      clearTimeout(debouncedSendTimeoutRef.current);
+      debouncedSendTimeoutRef.current = null;
+    }
     onSendLive(draft);
     setStatus(`Live: ${draft.name}`);
   }
@@ -506,7 +558,11 @@ export function PatternSequenceEditor({
 
       <ColorPaletteField
         palette={draft.palette}
-        onChange={(palette) => patchDraft({ palette })}
+        onChange={(palette) => {
+          const next = { ...draft, palette };
+          patchDraft({ palette });
+          sendLiveUpdate(next, false);
+        }}
         maxColors={12}
         disabled={disabled}
         label="Pattern Color Palette"
@@ -671,9 +727,7 @@ export function PatternSequenceEditor({
             if (currentMedia) {
               const updatedMedia = { ...currentMedia, active: !currentMedia.active };
               patchDraft({ media: updatedMedia });
-              if (isControlVariant) {
-                onSendLive({ ...draft, media: updatedMedia });
-              }
+              sendLiveUpdate({ ...draft, media: updatedMedia }, true);
             } else {
               const initialMedia: PatternSequenceMedia = {
                 kind: 'text',
@@ -687,9 +741,7 @@ export function PatternSequenceEditor({
                 target: { kind: 'all' }
               };
               patchDraft({ media: initialMedia });
-              if (isControlVariant) {
-                onSendLive({ ...draft, media: initialMedia });
-              }
+              sendLiveUpdate({ ...draft, media: initialMedia }, true);
             }
           }}
           className={cn(
@@ -798,8 +850,8 @@ export function PatternSequenceEditor({
                           ...(subTab === 'gif' && !draft.media?.gifUrl ? { gifSlug: '', gifUrl: '', gifWidth: 200, gifHeight: 200 } : {}),
                         } as PatternSequenceMedia;
                         patchDraft({ media: updatedMedia });
-                        if (isControlVariant && draft.media?.active) {
-                          onSendLive({ ...draft, media: updatedMedia });
+                        if (draft.media?.active) {
+                          sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                         }
                       }}
                       className={cn(
@@ -834,8 +886,8 @@ export function PatternSequenceEditor({
                       onChange={(e) => {
                         const updatedMedia = { ...draft.media!, text: e.target.value };
                         patchDraft({ media: updatedMedia });
-                        if (isControlVariant && draft.media?.active) {
-                          onSendLive({ ...draft, media: updatedMedia });
+                        if (draft.media?.active) {
+                          sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                         }
                       }}
                       placeholder="TYPE OVERLAY TEXT..."
@@ -860,8 +912,8 @@ export function PatternSequenceEditor({
                               speed: mode === 'word_by_word' ? 3 : mode === 'marquee' ? 12 : 4,
                             };
                             patchDraft({ media: updatedMedia });
-                            if (isControlVariant && draft.media?.active) {
-                              onSendLive({ ...draft, media: updatedMedia });
+                            if (draft.media?.active) {
+                              sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                             }
                           }}
                           className={cn(
@@ -892,8 +944,8 @@ export function PatternSequenceEditor({
                         onChange={(e) => {
                           const updatedMedia = { ...draft.media!, speed: parseInt(e.target.value) };
                           patchDraft({ media: updatedMedia });
-                          if (isControlVariant && draft.media?.active) {
-                            onSendLive({ ...draft, media: updatedMedia });
+                          if (draft.media?.active) {
+                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                           }
                         }}
                         className="w-full accent-neon-magenta cursor-pointer"
@@ -917,8 +969,8 @@ export function PatternSequenceEditor({
                         onChange={(e) => {
                           const updatedMedia = { ...draft.media!, fontSize: parseInt(e.target.value) };
                           patchDraft({ media: updatedMedia });
-                          if (isControlVariant && draft.media?.active) {
-                            onSendLive({ ...draft, media: updatedMedia });
+                          if (draft.media?.active) {
+                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                           }
                         }}
                         className="w-full accent-neon-magenta cursor-pointer"
@@ -939,8 +991,8 @@ export function PatternSequenceEditor({
                         onChange={(e) => {
                           const updatedMedia = { ...draft.media!, colorHex: e.target.value };
                           patchDraft({ media: updatedMedia });
-                          if (isControlVariant && draft.media?.active) {
-                            onSendLive({ ...draft, media: updatedMedia });
+                          if (draft.media?.active) {
+                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                           }
                         }}
                         placeholder="#FFFFFF"
@@ -954,8 +1006,8 @@ export function PatternSequenceEditor({
                         onChange={(e) => {
                           const updatedMedia = { ...draft.media!, colorHex: e.target.value };
                           patchDraft({ media: updatedMedia });
-                          if (isControlVariant && draft.media?.active) {
-                            onSendLive({ ...draft, media: updatedMedia });
+                          if (draft.media?.active) {
+                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                           }
                         }}
                         className="size-8 p-0 rounded bg-transparent border border-white/10 overflow-hidden cursor-pointer shrink-0"
@@ -972,8 +1024,8 @@ export function PatternSequenceEditor({
                       onChange={(e) => {
                         const updatedMedia = { ...draft.media!, loop: e.target.checked };
                         patchDraft({ media: updatedMedia });
-                        if (isControlVariant && draft.media?.active) {
-                          onSendLive({ ...draft, media: updatedMedia });
+                        if (draft.media?.active) {
+                          sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                         }
                       }}
                       className="accent-neon-magenta size-4 rounded cursor-pointer"
@@ -998,8 +1050,8 @@ export function PatternSequenceEditor({
                         gifHeight: gif.height,
                       };
                       patchDraft({ media: updatedMedia });
-                      if (isControlVariant && draft.media?.active) {
-                        onSendLive({ ...draft, media: updatedMedia });
+                      if (draft.media?.active) {
+                        sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                       }
                     }}
                     selectedSlug={draft.media.gifSlug}
@@ -1015,7 +1067,11 @@ export function PatternSequenceEditor({
         <AllocationBar
           effects={draft.effects}
           disabled={disabled}
-          onChange={(effects) => patchEffects(effects)}
+          onChange={(effects) => {
+            const next = { ...draft, effects };
+            patchEffects(effects);
+            sendLiveUpdate(next, false);
+          }}
         />
       ) : null}
     </div>

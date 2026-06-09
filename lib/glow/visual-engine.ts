@@ -25,6 +25,7 @@ type VisualEngineOptions = {
   matrixRows?: number;
   matrixCols?: number;
   onIdentify?: (label: string) => void;
+  clockOffset?: number;
 };
 
 /**
@@ -99,6 +100,11 @@ export function useVisualEngine(options: VisualEngineOptions) {
   const orchestratorAudioRef = useRef<VisualAudioFeaturesEvent['features'] | null>(null);
   const rafRef = useRef<number | null>(null);
 
+  const clockOffsetRef = useRef(0);
+  useEffect(() => {
+    clockOffsetRef.current = options.clockOffset ?? 0;
+  }, [options.clockOffset]);
+
   useEffect(() => {
     if (activeMedia && activeMedia.durationMs && activeMedia.durationMs > 0) {
       const elapsed = Date.now() - activeMedia.timestamp;
@@ -120,7 +126,7 @@ export function useVisualEngine(options: VisualEngineOptions) {
 
   useEffect(() => {
     const tick = () => {
-      const now = Date.now();
+      const now = Date.now() + clockOffsetRef.current;
       setColor(resolveScreenColor(now));
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -214,7 +220,7 @@ export function useVisualEngine(options: VisualEngineOptions) {
     presetRef.current = null;
     setMicEnabled(false);
     orchestratorAudioRef.current = null;
-    const delay = Math.max(0, event.targetTimestamp - Date.now());
+    const delay = Math.max(0, event.targetTimestamp - (Date.now() + clockOffsetRef.current));
     window.setTimeout(() => {
       directColorRef.current = event.colorHex;
       setColor(event.colorHex);

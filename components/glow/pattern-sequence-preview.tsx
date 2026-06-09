@@ -8,6 +8,8 @@ import {
   RectangleHorizontal,
   RectangleVertical,
   Smartphone,
+  Layers,
+  Tv,
 } from 'lucide-react';
 import {
   computeDistributionColor,
@@ -120,6 +122,7 @@ export function PatternSequencePreview({
   const [playing, setPlaying] = useState(true);
   const [orientation, setOrientation] = useState<Orientation>('landscape');
   const [viewport, setViewport] = useState<ViewportMode>('mobile');
+  const [previewMode, setPreviewMode] = useState<'split' | 'device'>('split');
   const [statusLabel, setStatusLabel] = useState('Preview');
   const playingRef = useRef(true);
   const presetSeedRef = useRef(presetSeedProp ?? Date.now());
@@ -152,7 +155,11 @@ export function PatternSequencePreview({
     }
 
     if (isSplitPreview) {
-      setStatusLabel(`Split preview · ${activeEffects.length} effects in mix`);
+      if (previewMode === 'device') {
+        setStatusLabel(`Device preview · 1 assigned effect`);
+      } else {
+        setStatusLabel(`Split preview · ${activeEffects.length} effects in mix`);
+      }
       return;
     }
 
@@ -163,7 +170,7 @@ export function PatternSequencePreview({
     }
 
     setStatusLabel(`Editing · ${draft.name}`);
-  }, [draft.name, draft.effects, activeEffects, fallbackEnabled, isSplitPreview, previewEffect]);
+  }, [draft.name, draft.effects, activeEffects, fallbackEnabled, isSplitPreview, previewEffect, previewMode]);
 
   useEffect(() => {
     const canvas = presetCanvasRef.current;
@@ -235,8 +242,6 @@ export function PatternSequencePreview({
       const frame = renderFrameRef.current!;
       const width = frame.clientWidth;
       const height = frame.clientHeight;
-      const cellWidth = width / PREVIEW_COLS;
-      const cellHeight = height / PREVIEW_ROWS;
       const seed = presetSeedRef.current;
 
       const distributionEffects = toDistributionEffects(draft.effects, draft.palette);
@@ -261,16 +266,23 @@ export function PatternSequencePreview({
           }
         : undefined;
 
-      for (let row = 0; row < PREVIEW_ROWS; row++) {
-        for (let col = 0; col < PREVIEW_COLS; col++) {
+      const displayRows = previewMode === 'device' ? 1 : PREVIEW_ROWS;
+      const displayCols = previewMode === 'device' ? 1 : PREVIEW_COLS;
+      const cellWidth = width / displayCols;
+      const cellHeight = height / displayRows;
+
+      for (let row = 0; row < displayRows; row++) {
+        for (let col = 0; col < displayCols; col++) {
           let color = '#111111';
+          const targetRow = previewMode === 'device' ? 0 : row;
+          const targetCol = previewMode === 'device' ? 0 : col;
 
           if (fallbackEnabled) {
-            color = computeFallbackColor(roomCode, fallbackSeed, row, col, now);
+            color = computeFallbackColor(roomCode, fallbackSeed, targetRow, targetCol, now);
           } else if (soloEffect && soloParams) {
             color = computePresetColor(soloEffect.presetId, {
-              row,
-              col,
+              row: targetRow,
+              col: targetCol,
               timeMs: now - seed,
               seed,
               matrixRows: PREVIEW_ROWS,
@@ -279,16 +291,19 @@ export function PatternSequencePreview({
               audio: soloEffect.presetId === 'audio' ? mockAudioFeatures(now) : undefined,
             });
           } else if (distribution) {
+            const deviceKey = previewMode === 'device'
+              ? previewDeviceKey(0, 0, PREVIEW_COLS)
+              : previewDeviceKey(row, col, PREVIEW_COLS);
             color = computeDistributionColor(
               distribution,
-              { row, col, timeMs: now - seed, audio: undefined },
-              previewDeviceKey(row, col, PREVIEW_COLS)
+              { row: targetRow, col: targetCol, timeMs: now - seed, audio: mockAudioFeatures(now) },
+              deviceKey
             );
           } else if (distributionEffects[0]) {
             const effect = distributionEffects[0];
             color = computePresetColor(effect.presetId, {
-              row,
-              col,
+              row: targetRow,
+              col: targetCol,
               timeMs: now - seed,
               seed,
               matrixRows: PREVIEW_ROWS,
@@ -298,8 +313,8 @@ export function PatternSequencePreview({
             });
           } else {
             color = computePresetColor(IDLE_PREVIEW_PRESET, {
-              row,
-              col,
+              row: targetRow,
+              col: targetCol,
               timeMs: now - seed,
               seed,
               matrixRows: PREVIEW_ROWS,
@@ -330,6 +345,7 @@ export function PatternSequencePreview({
     fallbackSeed,
     renderDimensions.width,
     renderDimensions.height,
+    previewMode,
   ]);
 
   return (
@@ -355,9 +371,18 @@ export function PatternSequencePreview({
             {statusLabel}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full border border-neon-violet/30 bg-neon-violet/10 px-2 py-0.5 text-[9px] font-cyber uppercase tracking-wider text-neon-violet">
+            {/* <span className="inline-flex items-center gap-1 rounded-full border border-neon-violet/30 bg-neon-violet/10 px-2 py-0.5 text-[9px] font-cyber uppercase tracking-wider text-neon-violet">
               <span className="size-1.5 rounded-full bg-neon-violet" />
-              Canvas preview
+              Room Space Preview
+            </span> */}
+            <span className={cn(
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-cyber uppercase tracking-wider",
+              previewMode === 'device'
+                ? "border-neon-cyan/30 bg-neon-cyan/10 text-neon-cyan"
+                : "border-neon-violet/30 bg-neon-violet/10 text-neon-violet"
+            )}>
+              <span className={cn("size-1.5 rounded-full", previewMode === 'device' ? "bg-neon-cyan" : "bg-neon-violet")} />
+              {previewMode === 'device' ? 'Single Device View' : 'Group View'}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-cyber uppercase tracking-wider text-emerald-400">
               <span className="size-1.5 rounded-full bg-emerald-400" />
@@ -367,6 +392,15 @@ export function PatternSequencePreview({
         </div>
 
         <div className="flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-black/75 p-1">
+          <IconToggle
+            icons={[Layers, Tv]}
+            labels={['Group View (Room)', 'Single Device View (Phone)']}
+            activeIndex={previewMode === 'split' ? 0 : 1}
+            onToggle={() =>
+              setPreviewMode((value) => (value === 'split' ? 'device' : 'split'))
+            }
+            isActive={previewMode === 'device'}
+          />
           <IconToggle
             icons={[Pause, Play]}
             labels={['Pause preview', 'Play preview']}
@@ -412,7 +446,7 @@ export function PatternSequencePreview({
           </div>
         </div>
         <p className="mt-2 text-center text-[9px] font-cyber uppercase tracking-widest text-zinc-500">
-          {viewportLabel} · {previewModeLabel(draft, previewEffectId)}
+          {viewportLabel} · {previewModeLabel(draft, previewEffectId, previewMode)}
           {!playing ? ' · Paused' : ''}
         </p>
       </div>
@@ -422,8 +456,13 @@ export function PatternSequencePreview({
 
 function previewModeLabel(
   draft: PatternSequenceDraft,
-  previewEffectId: string | null | undefined
+  previewEffectId: string | null | undefined,
+  previewMode?: 'split' | 'device'
 ): string {
+  if (previewMode === 'device') {
+    return 'Single Device Screen';
+  }
+
   const previewEffect = previewEffectId
     ? draft.effects.find((effect) => effect.id === previewEffectId)
     : null;
@@ -431,12 +470,12 @@ function previewModeLabel(
 
   if (previewEffect) {
     const label = getPreset(previewEffect.presetId)?.label ?? previewEffect.presetId;
-    return `Single effect · ${label}`;
+    return `Room Layout · ${label}`;
   }
 
   if (activeEffects.length > 1) {
-    return 'Audience split preview';
+    return 'Room Layout · Split View';
   }
 
-  return 'Pattern output';
+  return 'Room Layout · Pattern output';
 }

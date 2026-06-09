@@ -22,6 +22,7 @@ export function useOrchestratorDelay({
   on,
 }: UseOrchestratorDelayOptions) {
   const [delayMs, setDelayMs] = useState<number | null>(null);
+  const [clockOffset, setClockOffset] = useState<number>(0);
 
   const trackOrchestratorMessage = useCallback(
     (targetTimestamp: number, seedTimestamp?: number) => {
@@ -33,6 +34,7 @@ export function useOrchestratorDelay({
   useEffect(() => {
     if (!connected || !enabled) {
       setDelayMs(null);
+      setClockOffset(0);
       return;
     }
 
@@ -41,8 +43,12 @@ export function useOrchestratorDelay({
     const pingInterval = window.setInterval(ping, PING_INTERVAL_MS);
 
     const unsubPong = on('latency:pong', (payload) => {
-      const { sentAt } = payload as { sentAt: number; serverTime: number };
-      setDelayMs(measureOneWayLatency(sentAt));
+      const { sentAt, serverTime } = payload as { sentAt: number; serverTime: number };
+      const now = Date.now();
+      const latency = measureOneWayLatency(sentAt, now);
+      setDelayMs(latency);
+      const calculatedOffset = serverTime - (sentAt + latency);
+      setClockOffset(calculatedOffset);
     });
 
     return () => {
@@ -51,5 +57,5 @@ export function useOrchestratorDelay({
     };
   }, [connected, enabled, emit, on]);
 
-  return { delayMs, trackOrchestratorMessage };
+  return { delayMs, clockOffset, trackOrchestratorMessage };
 }
