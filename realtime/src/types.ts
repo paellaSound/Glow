@@ -1,0 +1,226 @@
+export type PlanEntitlements = {
+  maxDevices: number;
+  adsEnabled: boolean;
+  availablePresets: string[];
+  audioReactive: boolean;
+  matrixMode: boolean;
+  advancedMatrix: boolean;
+  customGridSize: boolean;
+  maxGridRows: number;
+  maxGridCols: number;
+  maxRoomDurationMinutes: number;
+  manualFallbackMode: boolean;
+  priorityReconnectWindowSeconds: number;
+  // v2 — Visuals surface
+  visualsSurface: boolean;
+  availableVisualArts: string[];
+  maxRigs: number;
+  effectLayering: boolean;
+  maxPatternSequences: number;
+  audienceReactions: boolean;
+  customMediaUpload: boolean;
+  gifBroadcast: boolean;
+  sequencedText: boolean;
+  deviceFlashControl: boolean;
+  webrtcLiveCall: boolean;
+  maxLiveCallDevices: number;
+};
+
+// ── WebRTC live-call ─────────────────────────────────────────────────────────
+
+export type WebrtcSignal =
+  | { type: 'offer'; sdp: string }
+  | { type: 'answer'; sdp: string }
+  | { type: 'ice'; candidate: RTCIceCandidateInit };
+
+export type LiveTile = {
+  publicId: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  z: number;
+};
+
+export type LiveCallPublisherStatus = 'requested' | 'live' | 'declined';
+
+export type LiveCallPublisherState = {
+  publicId: string;
+  status: LiveCallPublisherStatus;
+};
+
+export type LiveCallState = {
+  callId: string;
+  active: boolean;
+  publishers: Map<string, LiveCallPublisherState>;
+  tiles: LiveTile[];
+  /** Per-publisher timestamp of last surface_reconnect emit (cooldown against spam). */
+  surfaceReconnectCooldown?: Map<string, number>;
+};
+
+export type LiveCallStatePayload = {
+  callId: string;
+  active: boolean;
+  publishers: LiveCallPublisherState[];
+  tiles: LiveTile[];
+};
+
+export type PlayerDeviceState = {
+  socketId: string;
+  publicId: string;
+  nickname?: string;
+  row?: number;
+  col?: number;
+  label?: string;
+  joinedAt: number;
+  lastSeenAt: number;
+  lastPingAt?: number;
+  latencyMs?: number;
+  status: 'online' | 'stale' | 'reconnecting';
+  torchCapability?: TorchCapability;
+};
+
+export type RigSocial = {
+  kind: string;
+  label: string | null;
+  url: string;
+  enabled: boolean;
+  sortOrder: number;
+};
+
+export type MatrixState = {
+  rows: number;
+  cols: number;
+  cells: Map<string, string>;
+};
+
+export type RoomState = {
+  code: string;
+  sessionId: string;
+  teamId: string;
+  orchestratorUserId: string;
+  ownerUserId: string;
+  orchestratorSocketId: string;
+  planCode: string;
+  status: 'active' | 'orchestrator_missing' | 'closing';
+  createdAt: number;
+  lastActivityAt: number;
+  reconnectDeadlineAt?: number;
+  closesAt: number;
+  mode: 'live' | 'fallback';
+  fallbackSeed?: number;
+  matrix: MatrixState;
+  entitlements: PlanEntitlements;
+  devices: Map<string, PlayerDeviceState>;
+  disconnectedPlayers: Map<string, PlayerDeviceState>;
+  totalJoinedDevices: number;
+  peakDevices: number;
+  adsEnabled: boolean;
+  visualsState: VisualsState;
+  playerVisualState: PlayerVisualState;
+  /** Live cue position — advanced by orchestrator:visuals_next_cue */
+  cueIndex?: number;
+  /** Snapshot of the rig cue list, set on room creation, used for Next/Prev */
+  rigCues?: Array<{
+    id: string;
+    visualArtId: string;
+    sortOrder: number;
+    params?: Record<string, unknown>;
+    transition?: { type: 'cut' | 'fade'; durationMs: number };
+    label?: string;
+  }>;
+  /** Active WebRTC live-call state (mesh publishers → visuals surface) */
+  liveCall?: LiveCallState;
+  rigName?: string | null;
+  rigSocials?: RigSocial[];
+};
+
+export type VisualsState = {
+  artId: string;
+  params?: Record<string, unknown>;
+  palette: string[];
+  logo?: {
+    url: string;
+    opacity: number;
+    position: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    effect?: 'none' | 'pulse' | 'spin' | 'float' | 'neon';
+  } | null;
+  transition?: 'cut' | 'fade';
+  qrConfig?: {
+    enabled: boolean;
+    intervalSeconds: number;
+    durationSeconds: number;
+    position?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    size?: 'small' | 'medium' | 'large';
+  } | null;
+  displayName?: string;
+  text?: {
+    text: string;
+    mode: 'marquee' | 'word_by_word' | 'spread_grid';
+    speed: number;
+    colorHex?: string;
+    fontSize?: number;
+    loop: boolean;
+  } | null;
+  version: number;
+  updatedAt: number;
+};
+
+export type PlayerVisualState = {
+  kind: 'color' | 'preset' | 'distribution' | 'fallback' | 'idle';
+  payload: any;
+  version: number;
+  updatedAt: number;
+};
+
+export type RoomStatePayload = {
+  code: string;
+  sessionId: string;
+  status: RoomState['status'];
+  mode: RoomState['mode'];
+  matrix: { rows: number; cols: number; occupied: Array<{ row: number; col: number; label: string; publicId: string; nickname?: string; latencyMs?: number; status: string }> };
+  devices: Array<Omit<PlayerDeviceState, 'socketId'>>;
+  entitlements: PlanEntitlements;
+  adsEnabled: boolean;
+  serverTime: number;
+  rigName?: string | null;
+  rigSocials?: RigSocial[];
+};
+
+export type TorchCapability = {
+  supported: boolean;
+  enabled: boolean;
+};
+
+export type TorchCommand =
+  | { action: 'off' }
+  | { action: 'hold'; mode: 'pulse' }
+  | { action: 'hold'; mode: 'strobe'; onMs: number; offMs: number }
+  | { action: 'on' }
+  | { action: 'pulse'; durationMs: number }
+  | { action: 'pattern'; onMs: number; offMs: number; cycles: number };
+
+export type DeviceTorchEvent = {
+  command: TorchCommand;
+  targetTimestamp: number;
+};
+
+export type DeviceTarget =
+  | { kind: 'all' }
+  | { kind: 'devices'; publicIds: string[] }
+  | { kind: 'matrix_range'; fromRow: number; toRow: number; fromCol: number; toCol: number }
+  | { kind: 'fraction'; from: number; to: number };
+
+export type VisualMediaEvent = {
+  kind: 'image' | 'gif' | 'text' | 'clear';
+  url?: string;
+  text?: string;
+  mode?: 'marquee' | 'word_by_word' | 'spread_grid';
+  speed?: number;
+  colorHex?: string;
+  loop?: boolean;
+  fontSize?: number;
+  fit?: 'cover' | 'contain';
+  durationMs?: number;
+  timestamp: number;
+};

@@ -1,0 +1,19 @@
+# Railway config for the glow-realtime service (shared pnpm monorepo).
+# Set the service Root Directory to "/" (repo root) in the Railway dashboard.
+# Config path: /realtime/railway.toml (absolute from repo root).
+
+[build]
+buildCommand = "pnpm --filter glow-realtime build"
+watchPatterns = [
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "realtime/**",
+  "web/package.json",
+  "web/packages/glow-presets/**",
+  "web/packages/glow-visuals/**",
+  "packages/**",
+]
+
+[deploy]
+startCommand = "pnpm --filter glow-realtime start"

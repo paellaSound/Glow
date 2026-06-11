@@ -1,0 +1,26 @@
+{
+  "name": "glow-realtime",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -C ../web/packages/glow-presets build && pnpm -C ../web/packages/glow-visuals build && tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "pnpm -C ../web/packages/glow-presets build && pnpm -C ../web/packages/glow-visuals build && tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "glow-presets": "workspace:*",
+    "glow-visuals": "workspace:*",
+    "@supabase/supabase-js": "^2.107.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "postgres": "^3.4.5",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/node": "^22.15.18",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

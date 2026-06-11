@@ -1,24 +1,20 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
 # dependencies
 node_modules
-**/.pnp
+/.pnp
 .pnp.js
 .yarn/install-state.gz
-.pnpm-store
 
 # testing
-coverage
-**/coverage
+/coverage
 
 # next.js
-.next
-**/.next
-out
-**/out
+/.next/
+/out/
 
 # production
-build
-dist
-**/dist
+/build
 
 # misc
 .DS_Store
@@ -31,7 +27,6 @@ yarn-error.log*
 
 # local env files
 .env
-.env*.local
 
 # vercel
 .vercel
@@ -41,5 +36,6 @@ yarn-error.log*
 next-env.d.ts
 .vscode
 
-# Docker / local data
+# Docker
 postgres_data/
+.env*.local

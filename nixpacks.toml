@@ -1,0 +1,6 @@
+# Force pnpm for the shared workspace (Railway defaults to npm without a root package.json).
+[phases.setup]
+nixPkgs = ["nodejs_22", "pnpm"]
+
+[phases.install]
+cmds = ["pnpm install --frozen-lockfile"]
