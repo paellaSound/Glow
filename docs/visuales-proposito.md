@@ -154,13 +154,14 @@ sequenceDiagram
 
 ### Estrategias de Optimización y Almacenamiento
 
-1. **Base de Datos Ligera:** Postgres **nunca** guarda los archivos binarios. Solo almacena filas de metadatos (unos ~200 bytes por registro en `room_media_assets`) relacionando el `storagePath` con el `roomSessionId`.
-2. **Supabase Storage (Object Storage):** Los archivos se suben a buckets de Supabase Storage. El almacenamiento es directo en disco/S3, optimizado para entrega de archivos masivos a través de una red de CDN.
-3. **Estrategia de Recolección de Basura (Garbage Collection):** Para evitar que el almacenamiento crezca indefinidamente con archivos temporales subidos por los usuarios:
-    * Se asocia la vida útil de los assets al ciclo de vida del `room_session`.
-    * Un proceso en segundo plano (Edge Function o trigger de base de datos) elimina físicamente los objetos del bucket cuando la sesión se cierra (`endedAt` no es nulo) o después de un periodo de expiración (ej. 24 horas).
-4. **Modo Desarrollador Local (Local Server):** Si se trabaja de forma local o sin internet rápida:
-    * El proyector puede resolver rutas relativas locales (ej. `/custom-visuals/*` mapeado a la carpeta `public` de Next.js) especificadas en el panel de control, eliminando la necesidad de subir archivos a la nube en desarrollo.
+1. **Base de Datos Ligera (Metadata):** Postgres **nunca** guarda los archivos binarios. Solo almacena filas de metadatos (unos ~200 bytes por registro en `room_media_assets`) apuntando a la ruta del Storage.
+2. **Supabase Storage (Object Storage):** Los archivos de los usuarios se suben de forma persistente a buckets privados/públicos según corresponda, optimizados para entrega rápida a través de CDN.
+3. **Limitación de Recursos según Plan (Monetización y Control de Storage):**
+    Para evitar un crecimiento desmedido e incontrolable del almacenamiento en la nube, se aplican las siguientes reglas:
+    * **Límite de Peso Máximo:** Cada archivo subido tiene un límite estricto de megabytes (ej. máximo 10MB para modelos 3D y 25MB para videos), configurado por plan.
+    * **Límite de Cantidad de Recursos:** Cada equipo/usuario tiene un número máximo de "recursos subidos" permitidos de forma simultánea según su suscripción (ej. Free: 2 archivos, Plus 25: 10 archivos, Pro: 50 archivos).
+    * **Lógica de Multiplicador para Vídeos Multi-Estado:** Si un visual de tipo Vídeo requiere $N$ estados (ej. 5 vídeos correspondientes a los 5 niveles de energía), subir este visual consume $N$ recursos de su límite disponible.
+    * **Gestión Manual de Espacio:** No se eliminan archivos de forma automática tras cerrar la sala (Garbage Collection descartado). Los recursos permanecen guardados de forma persistente para que el usuario pueda reutilizarlos. Si el usuario alcanza su límite de almacenamiento, el panel de control bloqueará nuevas subidas y le obligará a **eliminar manualmente** recursos antiguos para liberar espacio.
 
 ---
 
