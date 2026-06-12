@@ -134,15 +134,11 @@ Code reads them after `identify` via `posthog.get_property()` and sets them with
 `posthog.setPersonProperties()` in `web/lib/onboarding/person-properties.ts`.
 When PostHog is off (local dev), `localStorage` keys `glow_onboarding_v1` / `glow_ph_*` are used instead.
 
----
-
-| Event | Priority |
-| --- | --- |
-| `billing_upgrade_modal_shown` / `_dismissed` | High — Part 02 PlanGate |
-| `billing_page_viewed` | Medium |
-| `onboarding_step_completed` | Checklist step done (1–4) | `first-party-onboarding` → person prop `onboarding_step_N_completed` |
-| `first_device_connected` | First guest device (once per user) | person prop `first_device_connected` |
-| `first_preset_run` | First Send Live (once per user) | person prop `first_preset_run` |
+| Event | Description | Where |
+| --- | --- | --- |
+| `onboarding_step_completed` | Checklist step done (1–4) | `lib/onboarding/analytics.ts` |
+| `first_device_connected` | First guest device (once per user) | `lib/onboarding/analytics.ts` |
+| `first_preset_run` | First Send Live (once per user) | `lib/onboarding/analytics.ts` |
 
 ---
 

@@ -410,6 +410,56 @@ depende del monorepo pnpm completo.
 
 ---
 
+## Paso 5b — PostHog (analytics + error tracking)
+
+PostHog EU es **obligatorio para release pública**. En local va **apagado** por defecto.
+
+**Spec completa:** [posthog-production-analytics.md](./posthog-production-analytics.md)  
+**Estado de implementación:** [web/posthog-setup-report.md](../web/posthog-setup-report.md)
+
+### Vercel (web)
+
+| Variable | Obligatoria | Notas |
+| --- | --- | --- |
+| `NEXT_PUBLIC_POSTHOG_ENABLED` | Sí (prod) | `true` en preview/prod; `false` en local |
+| `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` | Sí (prod) | Token del proyecto EU (`phc_…`) |
+| `NEXT_PUBLIC_POSTHOG_HOST` | Sí | `https://eu.i.posthog.com` |
+| `POSTHOG_PERSONAL_API_KEY` | Recomendada | Solo build Vercel — sube source maps (`phx_…`) |
+| `POSTHOG_PROJECT_ID` | Recomendada | ID numérico del proyecto (ej. `200710`) |
+
+El cliente usa proxy `/ingest/*` (rewrite en `next.config.ts`) para evitar bloqueadores.
+
+### Railway (realtime)
+
+| Variable | Obligatoria | Notas |
+| --- | --- | --- |
+| `POSTHOG_ENABLED` | Sí (prod) | `true` en prod; `false` en local |
+| `POSTHOG_API_KEY` | Sí (prod) | Mismo token `phc_…` que web |
+| `POSTHOG_HOST` | Sí | `https://eu.i.posthog.com` |
+
+Eventos server-side: `device_connected`, `device_disconnected`, `room_closed`, `plan_limit_hit`, `$exception`.
+
+### Verificación rápida
+
+```txt
+1. Preview deploy con ENABLED=true
+2. Login Google → Live Events: signin_completed
+3. Crear sala → room_created; unir móvil → device_connected
+4. /billing → billing_page_viewed
+5. PlanGate → billing_upgrade_modal_shown
+6. Local dev: ENABLED=false → cero requests a /ingest
+```
+
+### Dashboards inversor (una vez)
+
+```bash
+POSTHOG_PERSONAL_API_KEY=phx_... node web/scripts/posthog-investor-dashboards.mjs
+```
+
+Ver [web/posthog-investor-dashboards.md](../web/posthog-investor-dashboards.md).
+
+---
+
 ## Paso 5 — Conectar todo
 
 Orden recomendado:
@@ -419,7 +469,8 @@ Orden recomendado:
 2. Realtime (deploy + URL pública + CORS)
 3. Vercel web (NEXT_PUBLIC_REALTIME_URL apuntando al realtime)
 4. Stripe webhook apuntando a Vercel
-5. Prueba end-to-end
+5. PostHog env vars (Vercel + Railway) — ver Paso 5b
+6. Prueba end-to-end
 ```
 
 ---
@@ -434,6 +485,7 @@ Checklist de validación:
 4. **Segundo dispositivo:** `/join` con el código de sala
 5. **Control:** cambiar color en matrix desde el orquestador
 6. **Billing (test):** `/billing` → checkout Stripe test → plan actualizado, ads desactivados en salas de pago
+7. **PostHog (preview/prod):** con `NEXT_PUBLIC_POSTHOG_ENABLED=true` → Live Events: `signin_completed`, `room_created`, `billing_page_viewed`
 
 Si el socket se queda en **Connecting...**:
 
@@ -469,6 +521,11 @@ Si falla **login / bootstrap**:
 | `TURN_USERNAME` / `TURN_CREDENTIAL` | v2 | Credenciales TURN (servidor; el navegador las obtiene vía `/api/webrtc/ice-servers`) |
 | `TURN_RELAY_ONLY` | v2 | `true` fuerza ICE relay-only (pruebas cross-network) |
 | `WEBRTC_ICE_TRANSPORT_POLICY` | v2 | `all` (default) o `relay` |
+| `NEXT_PUBLIC_POSTHOG_ENABLED` | Prod gate | `true` preview/prod; `false` local |
+| `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` | Prod gate | Token EU `phc_…` |
+| `NEXT_PUBLIC_POSTHOG_HOST` | Prod gate | `https://eu.i.posthog.com` |
+| `POSTHOG_PERSONAL_API_KEY` | Recomendada | Source maps en build Vercel (`phx_…`) |
+| `POSTHOG_PROJECT_ID` | Recomendada | ID numérico del proyecto PostHog |
 
 ### Realtime (Railway / Fly / Render)
 
@@ -481,6 +538,9 @@ Si falla **login / bootstrap**:
 | `PORT` | Auto | Lo inyecta la plataforma |
 | `NODE_ENV` | Sí | `production` |
 | `VISUALS_TOKEN_SECRET` | v2 | Verifica el token de la superficie de visuales (igual que en web) |
+| `POSTHOG_ENABLED` | Prod gate | `true` en prod |
+| `POSTHOG_API_KEY` | Prod gate | Mismo token `phc_…` que web |
+| `POSTHOG_HOST` | Prod gate | `https://eu.i.posthog.com` |
 
 ---
 

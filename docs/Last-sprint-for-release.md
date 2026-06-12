@@ -204,7 +204,7 @@ Video prompt & storyboard: see [onboarding-first-party.md](./onboarding-first-pa
 - [x] HTML house ad in `mock-ad.tsx` (Glow logo + Tailwind animations)
 - [ ] Optional: replace with MP4 bumper later
 - [ ] Optional: `placement`-specific cut (create vs join) or single asset
-- [ ] Track impressions via PostHog when wired
+- [x] Track impressions via PostHog (`ad_viewed`)
 
 ---
 
@@ -219,7 +219,7 @@ Video prompt & storyboard: see [onboarding-first-party.md](./onboarding-first-pa
 - [ ] Update [plans.md](./plans.md) §1, §4, §5 with scale / branding / depth matrix
 - [ ] Update [product-intent.md](./product-intent.md) § Plans And Monetization
 - [ ] Add [improvements/09-raffle-mode.md](./improvements/09-raffle-mode.md)
-- [ ] Add [improvements/10-plan-gate-wrapper.md](./improvements/10-plan-gate-wrapper.md)
+- [x] Add [improvements/10-plan-gate-wrapper.md](./improvements/10-plan-gate-wrapper.md)
 - [ ] Add [features/10-song-requests.md](./features/10-song-requests.md)
 - [ ] Add [features/11-live-polls.md](./features/11-live-polls.md)
 - [ ] Update [features/00-feature-index.md](./features/00-feature-index.md)
@@ -227,25 +227,25 @@ Video prompt & storyboard: see [onboarding-first-party.md](./onboarding-first-pa
 
 ### Entitlements & seed
 
-- [ ] Add `max_matrix_cells`, `custom_rig_logo`, `custom_qr_branding`, `gif_search_mode`, `visuals_emit_slots_per_mode`, raffle keys
-- [ ] Fix matrix rows/cols in `PLAN_SEED_DATA` per §3
-- [ ] Remove regressive gates (e.g. `audio_reactive: false` on Party)
-- [ ] `pnpm db:seed`
+- [x] Add `max_matrix_cells`, `custom_rig_logo`, `custom_qr_branding`, `gif_search_mode`, `visuals_emit_slots_per_mode`, raffle keys
+- [x] Fix matrix rows/cols in `PLAN_SEED_DATA` per §3
+- [x] Remove regressive gates (e.g. `audio_reactive: false` on Party)
+- [ ] `pnpm db:seed` (run in staging/prod)
 
 ### Server
 
-- [ ] Enforce `rows × cols ≤ max_matrix_cells` in room-manager
-- [ ] Enforce branding on logo / QR / raffle payloads
-- [ ] Enforce poll votes only when plan covers device count (production)
-- [ ] Enforce visuals preview vs emit
+- [x] Enforce `rows × cols ≤ max_matrix_cells` in room-manager
+- [x] Enforce branding on logo / QR payloads
+- [ ] Enforce poll votes only when plan covers device count (production) — v1.1
+- [x] Enforce visuals preview vs emit
 
 ### UI
 
-- [ ] `<PlanGate />` + upgrade modal + checkout deep link
-- [ ] Billing page restructure (Stage / Floor / Crowd / Scale)
-- [ ] Test mode toggles for live call + poll in desk
-- [ ] Matrix picker respects `max_matrix_cells`
-- [ ] House ad video in `mock-ad.tsx` — see §8.1
+- [x] `<PlanGate />` + upgrade modal + checkout deep link
+- [x] Billing page restructure (Stage / Floor / Crowd / Scale)
+- [x] Test mode toggles for live call + poll in desk
+- [x] Matrix picker respects `max_matrix_cells`
+- [x] House ad HTML in `mock-ad.tsx` — see §8.1
 
 ### QA
 
@@ -257,14 +257,14 @@ Video prompt & storyboard: see [onboarding-first-party.md](./onboarding-first-pa
 
 ### Observability (production gate)
 
-- [ ] PostHog project (EU) + env vars on Vercel + Railway — see [posthog-production-analytics.md](./posthog-production-analytics.md)
-- [ ] Core events: `room_created`, `device_connected`, billing funnel
-- [ ] Error tracking: `$exception` on web + realtime
-- [ ] PostHog disabled by default in local dev
+- [ ] PostHog project (EU) + env vars on Vercel + Railway — see [posthog-production-analytics.md](./posthog-production-analytics.md) and [deployment.md](./deployment.md) § Paso 5b
+- [x] Core events: `room_created`, `device_connected`, billing funnel (`billing_page_viewed`, modal, `checkout_started`)
+- [x] Error tracking: `$exception` on web + realtime
+- [x] PostHog disabled by default in local dev
 
 ### Onboarding (production gate)
 
-- [ ] In-app checklist / empty states from [onboarding-first-party.md](./onboarding-first-party.md)
+- [ ] In-app checklist / empty states from [onboarding-first-party.md](./onboarding-first-party.md) — **in progress (Luis)**
 - [ ] AI onboarding video produced from doc storyboard + prompts
 - [ ] Video embedded on landing or first `/room/new` visit
 
