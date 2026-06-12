@@ -1,11 +1,16 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { NeonButton } from '@/components/ui/neon';
 import { usePlanGate, type UsePlanGateOptions } from '@/lib/plans/use-plan-gate';
-import type { GateFeature, PlanGateState } from '@/lib/plans/plan-meta';
+import type { GateFeature, PlanCode, PlanGateState } from '@/lib/plans/plan-meta';
+import {
+  trackBillingUpgradeModalDismissed,
+  trackBillingUpgradeModalShown,
+  type BillingUpgradeModalTrigger,
+} from '@/lib/billing/analytics';
 import { UpgradeModal } from './upgrade-modal';
 
 type PlanGateProps = UsePlanGateOptions & {
@@ -21,6 +26,33 @@ function buildReturnUrl(pathname: string, search: string): string {
   return search ? `${pathname}?${search}` : pathname;
 }
 
+function useUpgradeModal(
+  feature: GateFeature,
+  requiredPlan: Exclude<PlanCode, 'free'>,
+  trigger: BillingUpgradeModalTrigger,
+  onUpgradeClick?: () => void
+) {
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const openModal = useCallback(() => {
+    onUpgradeClick?.();
+    trackBillingUpgradeModalShown({ feature, requiredPlan, trigger });
+    setModalOpen(true);
+  }, [feature, onUpgradeClick, requiredPlan, trigger]);
+
+  const onModalOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        trackBillingUpgradeModalDismissed({ feature, requiredPlan });
+      }
+      setModalOpen(open);
+    },
+    [feature, requiredPlan]
+  );
+
+  return { modalOpen, openModal, onModalOpenChange };
+}
+
 export function PlanGate({
   feature,
   children,
@@ -33,19 +65,18 @@ export function PlanGate({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const gate = usePlanGate(feature, gateOptions);
-  const [modalOpen, setModalOpen] = useState(false);
+  const { modalOpen, openModal, onModalOpenChange } = useUpgradeModal(
+    feature,
+    gate.requiredPlan,
+    gate.state === 'limited' || gate.state === 'preview' ? 'limited' : 'overlay',
+    onUpgradeClick
+  );
 
   const resolvedReturnUrl =
     returnUrl ?? buildReturnUrl(pathname, searchParams.toString());
 
   if (gate.state === 'allowed') {
     return <>{children}</>;
-  }
-
-  function openModal() {
-    onUpgradeClick?.();
-    // PostHog stub — wire billing_upgrade_modal_shown in Part 05
-    setModalOpen(true);
   }
 
   if (gate.state === 'limited' || gate.state === 'preview') {
@@ -66,7 +97,7 @@ export function PlanGate({
         </div>
         <UpgradeModal
           open={modalOpen}
-          onOpenChange={setModalOpen}
+          onOpenChange={onModalOpenChange}
           title={gate.limitReason}
           body={gate.limitBody}
           requiredPlan={gate.requiredPlan}
@@ -119,7 +150,7 @@ export function PlanGate({
 
       <UpgradeModal
         open={modalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={onModalOpenChange}
         title={gate.limitReason}
         body={gate.limitBody}
         requiredPlan={gate.requiredPlan}
@@ -140,7 +171,11 @@ export function PlanGateUpsell({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const gate = usePlanGate(feature, gateOptions);
-  const [modalOpen, setModalOpen] = useState(false);
+  const { modalOpen, openModal, onModalOpenChange } = useUpgradeModal(
+    feature,
+    gate.requiredPlan,
+    'upsell'
+  );
 
   const resolvedReturnUrl =
     returnUrl ?? buildReturnUrl(pathname, searchParams.toString());
@@ -156,14 +191,14 @@ export function PlanGateUpsell({
           color="magenta"
           variant="solid"
           className="text-xs uppercase tracking-widest"
-          onClick={() => setModalOpen(true)}
+          onClick={openModal}
         >
           {gate.hasActiveSubscription ? 'Manage plan' : `Upgrade to ${getPlanMetaLabel(gate.requiredPlan)}`}
         </NeonButton>
       </div>
       <UpgradeModal
         open={modalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={onModalOpenChange}
         title={gate.limitReason}
         body={gate.limitBody}
         requiredPlan={gate.requiredPlan}
@@ -193,7 +228,11 @@ export function PlanGateBanner({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const gate = usePlanGate(feature, gateOptions);
-  const [modalOpen, setModalOpen] = useState(false);
+  const { modalOpen, openModal, onModalOpenChange } = useUpgradeModal(
+    feature,
+    gate.requiredPlan,
+    'banner'
+  );
 
   const resolvedReturnUrl =
     returnUrl ?? buildReturnUrl(pathname, searchParams.toString());
@@ -214,14 +253,14 @@ export function PlanGateBanner({
           color="violet"
           variant="outline"
           className="h-7 text-[9px] uppercase tracking-widest px-3 shrink-0"
-          onClick={() => setModalOpen(true)}
+          onClick={openModal}
         >
           Upgrade
         </NeonButton>
       </div>
       <UpgradeModal
         open={modalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={onModalOpenChange}
         title={gate.limitReason}
         body={gate.limitBody}
         requiredPlan={gate.requiredPlan}

@@ -3,7 +3,7 @@
 **Last updated:** 2026-06-12  
 **Project:** Glow EU — [PostHog project 200710](https://eu.posthog.com/project/200710)  
 **Full spec:** [docs/posthog-production-analytics.md](../docs/posthog-production-analytics.md)  
-**Release part:** [docs/release-attack-plan/05-posthog.md](../docs/release-attack-plan/05-posthog.md) (~95% done)  
+**Release part:** [docs/release-attack-plan/05-posthog.md](../docs/release-attack-plan/05-posthog.md) — **done**  
 **Investor dashboards:** [posthog-investor-dashboards.md](./posthog-investor-dashboards.md)
 
 ---
@@ -22,6 +22,7 @@
 | Source maps / Error Tracking | ✅ `@posthog/nextjs-config` on Vercel production build |
 | Session replay | ✅ Orchestrator routes only (`/billing`, `/room/new`, `/room/*/control`) |
 | Error boundary | ✅ Control layout → `$exception` with `surface: control` |
+| Billing funnel | ✅ `billing_page_viewed`, modal shown/dismissed, `checkout_started` with `source` |
 | Investor-grade dashboards | ✅ Script + manual spec in `posthog-investor-dashboards.md` |
 
 ---
@@ -103,7 +104,10 @@ POSTHOG_HOST=https://eu.i.posthog.com
 | `room_closed` | Room lifecycle end | `realtime/room-manager.ts` |
 | `plan_limit_hit` | Entitlement cap (`max_devices`, `matrix_too_large`) | realtime + web client |
 | `ad_viewed` | House ad shown | `components/glow/mock-ad.tsx` |
-| `checkout_started` | Stripe checkout initiated | `lib/payments/actions.ts` |
+| `billing_page_viewed` | `/billing` page load | `components/glow/billing-page-tracker.tsx` |
+| `billing_upgrade_modal_shown` | PlanGate opens upgrade modal | `components/glow/plan-gate.tsx` |
+| `billing_upgrade_modal_dismissed` | Modal closed without checkout | `components/glow/plan-gate.tsx` |
+| `checkout_started` | Stripe checkout initiated | `lib/payments/actions.ts` (`source: billing \| modal`) |
 | `checkout_completed` | Checkout success redirect | `app/api/stripe/checkout/route.ts` |
 | `subscription_activated` | Webhook active/trialing | `lib/payments/stripe.ts` |
 | `subscription_cancelled` | Webhook cancelled/downgrade | `lib/payments/stripe.ts` |

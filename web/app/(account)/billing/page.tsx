@@ -2,6 +2,7 @@ import { getAllPlans, getTeamForUser } from '@/lib/db/queries';
 import { getTeamEntitlements, buildEntitlementsFromRows } from '@/lib/entitlements';
 import { customerPortalAction } from '@/lib/payments/actions';
 import { BillingPlanCard } from '@/components/glow/billing-plan-card';
+import { BillingPageTracker } from '@/components/glow/billing-page-tracker';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { GLOW_BRAND_NAME } from '@/lib/glow/branding';
 import { buildBillingPresentation } from '@/lib/plans/billing-cards';
@@ -35,6 +36,7 @@ export default async function BillingPage() {
 
   return (
     <main className="relative mx-auto max-w-6xl px-6 py-12 min-h-screen overflow-hidden">
+      <BillingPageTracker currentPlanCode={currentPlanCode} />
       <SectionGlow glowColor="mixed" position="top" />
 
       <PageTransitionWrapper>

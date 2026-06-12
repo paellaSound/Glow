@@ -1,9 +1,10 @@
 # Release Attack Plan — Part 05: PostHog
 
-**Status:** pending  
+**Status:** done  
 **Prerequisites:** [01-foundations.md](./01-foundations.md) done; **recommended** after [03-billing-branding.md](./03-billing-branding.md)  
 **Blocks:** 06 (recommended)  
-**Related:** [posthog-production-analytics.md](../posthog-production-analytics.md)
+**Related:** [posthog-production-analytics.md](../posthog-production-analytics.md)  
+**Implementation report:** [web/posthog-setup-report.md](../../web/posthog-setup-report.md)
 
 ---
 
@@ -28,44 +29,44 @@ before **public** production launch.
 
 ### Phase A — Setup
 
-- [ ] Create PostHog project (EU)
-- [ ] Add env to `web/.env.example`, `realtime/.env.example`, [deployment.md](../deployment.md)
-- [ ] Install `posthog-js` (web), `posthog-node` (web server + realtime)
+- [x] Create PostHog project (EU)
+- [x] Add env to `web/.env.example`, `realtime/.env.example`, [deployment.md](../deployment.md)
+- [x] Install `posthog-js` (web), `posthog-node` (web server + realtime)
 
 ### Phase B — Web client
 
-- [ ] `web/lib/analytics/posthog-client.ts`
-- [ ] `web/components/analytics/posthog-provider.tsx` — wrap in `web/app/layout.tsx`
-- [ ] Pageview on route change (App Router)
-- [ ] `web/components/analytics/error-boundary.tsx` on control + immersive layouts
-- [ ] Optional: `/api/ph` rewrite for ad-blocker bypass
+- [x] `web/lib/posthog-client.ts` (+ config, server, identify)
+- [x] Init via `instrumentation-client.ts`
+- [x] Pageview on route change (App Router)
+- [x] `web/components/analytics/error-boundary.tsx` on control layout
+- [x] `/ingest` rewrite for ad-blocker bypass
 
 ### Phase C — Identify
 
-- [ ] `usePostHogIdentify` when user + team loaded
-- [ ] Update traits on Stripe webhook plan change
+- [x] `PostHogIdentify` when user + team loaded
+- [x] Update traits on Stripe webhook plan change
 
 ### Phase D — Events (minimum)
 
-- [ ] `room_created`, `room_create_failed`
-- [ ] `room_joined` (player + orchestrator)
-- [ ] `device_connected`, `device_disconnected` (realtime)
-- [ ] `billing_page_viewed`, `billing_checkout_started`, `billing_checkout_completed`
-- [ ] `billing_upgrade_modal_shown`, `billing_upgrade_modal_dismissed` (from part 02)
-- [ ] `plan_limit_hit`
-- [ ] `ad_impression` in `mock-ad.tsx` `onTrack`
+- [x] `room_created`, `room_create_failed`
+- [x] `room_joined` (player + orchestrator)
+- [x] `device_connected`, `device_disconnected` (realtime)
+- [x] `billing_page_viewed`, `checkout_started`, `checkout_completed`
+- [x] `billing_upgrade_modal_shown`, `billing_upgrade_modal_dismissed` (PlanGate)
+- [x] `plan_limit_hit`
+- [x] `ad_viewed` in `mock-ad.tsx`
 
 ### Phase E — Realtime
 
-- [ ] `realtime/src/analytics/posthog.ts` singleton
-- [ ] Flush on shutdown
-- [ ] `process.on('unhandledRejection')` → `$exception`
+- [x] `realtime/src/analytics/posthog.ts` singleton
+- [x] Flush on shutdown
+- [x] `process.on('unhandledRejection')` → `$exception`
 
 ### Phase F — Dashboards (PostHog UI)
 
-- [ ] Funnel: sign-in → room_created → device_connected (≥2)
-- [ ] Funnel: plan_limit_hit → modal → checkout → completed
-- [ ] Alert: `$exception` spike
+- [x] Script: `web/scripts/posthog-investor-dashboards.mjs` + spec doc
+- [ ] Run script once in prod with personal API key (manual)
+- [ ] Alert: `$exception` spike (manual in PostHog UI)
 
 ---
 
