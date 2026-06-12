@@ -1088,6 +1088,7 @@ export function PatternSequenceEditor({
                 <PlanGate feature="gifBroadcast" roomEntitlements={roomState?.entitlements}>
                 <div className="relative space-y-3 min-h-[150px]">
                   <GifSearch
+                    gifSearchMode={roomState?.entitlements.gifSearchMode}
                     onSelect={(gif) => {
                       const updatedMedia = {
                         ...draft.media!,

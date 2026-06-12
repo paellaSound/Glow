@@ -1,6 +1,6 @@
 # Release Attack Plan — Part 03: Billing & Branding
 
-**Status:** pending  
+**Status:** done  
 **Prerequisites:** [02-plan-gate.md](./02-plan-gate.md) done  
 **Blocks:** 04  
 **Related:** [plans-marketing-strategy.md](../plans-marketing-strategy.md) §5–§8, [Last-sprint-for-release.md](../Last-sprint-for-release.md) §4, §8

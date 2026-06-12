@@ -87,6 +87,8 @@ paid feature. Recommended tier assignment:
 | `max_pattern_sequences` | number | 1 | 3 | 10 | 50 | [07](./features/07-preset-mixing-engine.md) |
 | `webrtc_live_call` | boolean | false | false | false | true | [09](./features/09-webrtc-live-call.md) |
 | `max_live_call_devices` | number | 0 | 0 | 0 | 6 | [09](./features/09-webrtc-live-call.md) |
+| `custom_rig_logo` | boolean | false | false | true | true | Venue+ white-label on surface / rig |
+| `custom_qr_branding` | boolean | false | false | true | true | Venue+ host socials on QR / share |
 
 \* Reactions on Free are allowed but capped harder (lower rate limit, fewer emojis,
 no "mega" boosted reactions). See [05](./features/05-audience-reactions.md).
@@ -114,6 +116,12 @@ server (reject in `room-manager.ts`). UI-only gating is not secure.
 | Pattern sequences | `max_pattern_sequences` | block "save" over limit | reject create over limit (API) |
 | Effect layering | `effect_layering` | single-effect UI | reject multi-effect `run_distribution` payload |
 | WebRTC live call | `webrtc_live_call`, `max_live_call_devices` | hide live-call | reject `webrtc:start` + cap N |
+| Custom rig logo | `custom_rig_logo` | PlanGate on rig editor + visuals toggle | `visuals_set_logo` forces Glow logo |
+| Custom QR / socials | `custom_qr_branding` | PlanGate on socials + share QR | strip socials in `share-info` + join ACK |
+
+**Branding rule:** Free and Party always show **Glow Rave** on surface logo and share QR.
+Venue+ may use host logo upload and rig social links. See
+[release-attack-plan/03-billing-branding.md](./release-attack-plan/03-billing-branding.md).
 
 ---
 

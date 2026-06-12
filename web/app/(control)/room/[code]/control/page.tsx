@@ -2,7 +2,7 @@
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import posthog from 'posthog-js';
+import { captureClientEvent } from '@/lib/posthog-client';
 import { ChevronDown, ChevronUp, Smartphone } from 'lucide-react';
 import QRCode from 'qrcode';
 import { parseMatrixParam } from '@/lib/glow/join-url';
@@ -268,7 +268,7 @@ function ControlContent({ code }: { code: string }) {
 
       if (markLive) {
         setLiveDraftName(draft.name);
-        posthog.capture('pattern_sent_live', {
+        captureClientEvent('pattern_sent_live', {
           room_code: code.toUpperCase(),
           sequence_name: draft.name,
           effect_count: effects.length,
@@ -354,7 +354,7 @@ function ControlContent({ code }: { code: string }) {
       return;
     }
 
-    posthog.capture('room_ended', {
+    captureClientEvent('room_ended', {
       room_code: code.toUpperCase(),
       device_count: roomState?.devices.length ?? 0,
     });

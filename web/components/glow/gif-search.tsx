@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { PlanGateBanner } from '@/components/glow/plan-gate';
+import type { GifSearchMode } from '@/lib/glow/types';
+import { hasFullGifSearch } from '@/lib/plans/freemium-depth';
 import { cn } from '@/lib/utils';
 
 type GifItem = {
@@ -22,9 +25,10 @@ type GifItem = {
 type GifSearchProps = {
   onSelect: (gif: { slug: string; url: string; width: number; height: number }) => void;
   selectedSlug?: string;
+  gifSearchMode?: GifSearchMode;
 };
 
-export function GifSearch({ onSelect, selectedSlug }: GifSearchProps) {
+export function GifSearch({ onSelect, selectedSlug, gifSearchMode = 'featured_page1' }: GifSearchProps) {
   const [query, setQuery] = useState('');
   const [gifs, setGifs] = useState<GifItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,6 +45,9 @@ export function GifSearch({ onSelect, selectedSlug }: GifSearchProps) {
       
       const res = await fetch(endpoint);
       if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error('Featured page only — upgrade to Venue for full GIF search');
+        }
         throw new Error('Failed to fetch GIFs');
       }
       const data = await res.json();
@@ -73,8 +80,13 @@ export function GifSearch({ onSelect, selectedSlug }: GifSearchProps) {
     return () => clearTimeout(timer);
   }, [query, page]);
 
+  const fullSearch = hasFullGifSearch(gifSearchMode);
+
   return (
     <div className="flex flex-col gap-3">
+      {!fullSearch ? (
+        <PlanGateBanner feature="gifSearchFull" />
+      ) : null}
       <div className="flex items-center justify-between gap-3">
         <Input
           type="search"
@@ -192,8 +204,11 @@ export function GifSearch({ onSelect, selectedSlug }: GifSearchProps) {
           <Button
             size="sm"
             variant="outline"
-            disabled={gifs.length < 12}
-            onClick={() => setPage((p) => p + 1)}
+            disabled={!fullSearch || gifs.length < 12}
+            onClick={() => {
+              if (!fullSearch) return;
+              setPage((p) => p + 1);
+            }}
             className="h-7 px-3 text-[10px] font-cyber uppercase tracking-widest text-white border-white/10"
           >
             Next

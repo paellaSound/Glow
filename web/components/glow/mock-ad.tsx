@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import posthog from 'posthog-js';
+import { captureClientEvent } from '@/lib/posthog-client';
 import { GlowLogo } from '@/components/glow/glow-logo';
 import { NeonButton, NeonCard, NeonTitle, SectionGlow } from '@/components/ui/neon';
 import { cn } from '@/lib/utils';
@@ -136,7 +136,7 @@ export function MockAd({ placement, onComplete, onTrack }: MockAdProps) {
 
   useEffect(() => {
     onTrack?.();
-    posthog.capture('ad_viewed', { placement });
+    captureClientEvent('ad_viewed', { placement });
   }, []);
 
   useEffect(() => {

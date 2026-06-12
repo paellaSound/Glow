@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import Link from 'next/link';
-import posthog from 'posthog-js';
+import { captureClientEvent } from '@/lib/posthog-client';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -130,7 +130,7 @@ export default function CreateRoomPage() {
         return;
       }
 
-      posthog.capture('room_created', {
+      captureClientEvent('room_created', {
         room_code: response.roomCode,
         matrix_enabled: positionRequired,
         matrix_rows: positionRequired ? rows : 1,

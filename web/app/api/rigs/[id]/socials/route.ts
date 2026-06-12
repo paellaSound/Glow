@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db/drizzle';
 import { rigs, rigSocials } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { getTeamForUser } from '@/lib/db/queries';
+import { getTeamEntitlements } from '@/lib/entitlements';
 
 export async function PUT(
   req: NextRequest,
@@ -26,11 +28,24 @@ export async function PUT(
       return NextResponse.json({ error: 'Rig not found or not owned by user' }, { status: 404 });
     }
 
+    const team = await getTeamForUser();
+    if (!team) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const entitlements = await getTeamEntitlements(team.id);
+
     const body = await req.json();
-    const { socials } = body; // Array of social objects
+    const { socials } = body;
 
     if (!Array.isArray(socials)) {
       return NextResponse.json({ error: 'socials must be an array' }, { status: 400 });
+    }
+
+    if (!entitlements.customQrBranding && socials.length > 0) {
+      return NextResponse.json(
+        { error: 'Custom QR social links require a Venue plan or higher' },
+        { status: 403 }
+      );
     }
 
     // Atomically replace all socials

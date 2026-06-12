@@ -393,6 +393,7 @@ export function MediaPanel({ roomCode, roomState, socket, disabled = false }: Me
               <GifSearch
                 onSelect={(gif) => setSelectedGif(gif)}
                 selectedSlug={selectedGif?.slug}
+                gifSearchMode={roomState.entitlements.gifSearchMode}
               />
             </div>
             </PlanGate>

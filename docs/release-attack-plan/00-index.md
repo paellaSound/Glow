@@ -63,9 +63,9 @@ Each part is scoped to **one focused implementation session** (roughly 1–2 day
 | --- | --- | --- |
 | 01 | done | Seed + server scale enforcement; private beta OK |
 | 02 | done | PlanGate + UpgradeModal + checkout deep link |
-| 03 | pending | blocked by 02 (02 done) |
-| 04 | pending | blocked by 03 |
-| 05 | pending | blocked by 01; best after 03 |
+| 03 | done | Billing marketing rewrite + Venue white-label |
+| 04 | done | freemium depth shipped |
+| 05 | pending | next — PostHog (01–04 done) |
 | 06 | pending | blocked by 05 recommended |
 | 07 | pending | blocked by 04 |
 

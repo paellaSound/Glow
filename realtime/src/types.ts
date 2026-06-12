@@ -30,6 +30,9 @@ export type PlanEntitlements = {
   deviceFlashControl: boolean;
   webrtcLiveCall: boolean;
   maxLiveCallDevices: number;
+  visualsEmitSlotsPerMode: number;
+  liveCallTestModeOnly: boolean;
+  pollProductionEnabled: boolean;
 };
 
 // ── WebRTC live-call ─────────────────────────────────────────────────────────
@@ -139,6 +142,8 @@ export type RoomState = {
   liveCall?: LiveCallState;
   rigName?: string | null;
   rigSocials?: RigSocial[];
+  /** Per-mode emit counts toward visuals_emit_slots_per_mode (freemium depth). */
+  visualsEmittedCounts?: Map<VisualsMode, number>;
 };
 
 export type VisualsMode = 'standard' | 'youtube' | 'custom-video' | '3d' | 'pptt';

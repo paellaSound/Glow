@@ -9,6 +9,8 @@ import type { RigSocial } from '@/lib/glow/social-kinds';
 type ShareInfo = {
   rigName: string | null;
   socials: RigSocial[];
+  customQrBranding?: boolean;
+  glowBrandName?: string;
 };
 
 function QrContent({ code }: { code: string }) {
@@ -34,6 +36,8 @@ function QrContent({ code }: { code: string }) {
         matrixEnabled={matrixEnabled}
         rigName={shareInfo.rigName}
         socials={shareInfo.socials}
+        customQrBranding={shareInfo.customQrBranding ?? false}
+        glowBrandName={shareInfo.glowBrandName}
       />
     </main>
   );

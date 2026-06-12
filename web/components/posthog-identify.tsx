@@ -3,9 +3,12 @@
 import { useEffect } from 'react';
 import posthog from 'posthog-js';
 import { createClient } from '@/lib/supabase/client';
+import { isPostHogEnabled } from '@/lib/posthog-config';
 
 export function PostHogIdentify() {
   useEffect(() => {
+    if (!isPostHogEnabled()) return;
+
     const supabase = createClient();
 
     async function identify() {

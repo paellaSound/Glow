@@ -11,6 +11,15 @@ import {
   MAX_BOOST_PAID,
   type ReactionEmoji
 } from 'glow-visuals';
+import {
+  buildDefaultGlowSurfaceLogo,
+  getPublicRigSocials,
+  resolveSurfaceLogo,
+} from './branding.js';
+import {
+  canEmitVisualsMode,
+  recordVisualsEmit,
+} from './freemium-depth.js';
 import type {
   RoomState,
   RoomStatePayload,
@@ -106,7 +115,7 @@ export function serializeRoomState(room: RoomState): RoomStatePayload {
     adsEnabled: room.adsEnabled,
     serverTime: Date.now(),
     rigName: room.rigName,
-    rigSocials: room.rigSocials,
+    rigSocials: getPublicRigSocials(room),
   };
 }
 
@@ -570,12 +579,26 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
             rigName = rig.name || null;
             rigSocials = await getRigSocials(payload.rigId);
             const logoConfig = rig.console_config?.logoConfig;
-            const logo = (rig.logo_enabled && rig.logo_asset_path) ? {
-              url: `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/storage/v1/object/public/rig-logos/${rig.logo_asset_path}`,
-              opacity: typeof logoConfig?.opacity === 'number' ? logoConfig.opacity : 0.8,
-              position: (logoConfig?.position || 'center') as 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right',
-              effect: (logoConfig?.effect || 'none') as 'none' | 'pulse' | 'spin' | 'float' | 'neon',
-            } : null;
+            const customLogo =
+              rig.logo_enabled && rig.logo_asset_path
+                ? {
+                    url: `${process.env.NEXT_PUBLIC_SUPABASE_URL || ''}/storage/v1/object/public/rig-logos/${rig.logo_asset_path}`,
+                    opacity: typeof logoConfig?.opacity === 'number' ? logoConfig.opacity : 0.8,
+                    position: (logoConfig?.position || 'center') as
+                      | 'center'
+                      | 'top-left'
+                      | 'top-right'
+                      | 'bottom-left'
+                      | 'bottom-right',
+                    effect: (logoConfig?.effect || 'none') as
+                      | 'none'
+                      | 'pulse'
+                      | 'spin'
+                      | 'float'
+                      | 'neon',
+                  }
+                : null;
+            const logo = resolveSurfaceLogo(customLogo, entitlements, Boolean(rig.logo_enabled));
 
             // Legacy rigs may still reference removed arts (glow-branded, pulse-grid)
             visualsState.artId = LEGACY_ART_IDS.has(rig.default_visual_art_id || '')
@@ -783,7 +806,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         serverTime: Date.now(),
         playerVisualState: room.playerVisualState,
         rigName: room.rigName,
-        rigSocials: room.rigSocials,
+        rigSocials: getPublicRigSocials(room),
       });
 
       // Emit visual state backup
@@ -851,7 +874,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         serverTime: Date.now(),
         playerVisualState: room.playerVisualState,
         rigName: room.rigName,
-        rigSocials: room.rigSocials,
+        rigSocials: getPublicRigSocials(room),
       });
 
       // Emit visual state backup
@@ -942,6 +965,28 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       });
 
       room.lastActivityAt = Date.now();
+    }
+  );
+
+  socket.on(
+    'player:poll_vote',
+    async (
+      payload: { roomCode: string; pollId?: string; optionId?: string },
+      callback?: (response: { ok: boolean; reason?: string }) => void
+    ) => {
+      const roomCode = payload.roomCode?.toUpperCase();
+      const room = rooms.get(roomCode);
+      const device = room ? getDeviceBySocketId(room, socket.id) : null;
+      if (!room || !device) {
+        callback?.({ ok: false, reason: 'unauthorized' });
+        return;
+      }
+      await refreshRoomEntitlementsFromTeam(room);
+      if (!room.entitlements.pollProductionEnabled) {
+        callback?.({ ok: false, reason: 'gated' });
+        return;
+      }
+      callback?.({ ok: false, reason: 'not_implemented' });
     }
   );
 
@@ -1515,7 +1560,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         return;
       }
       await refreshRoomEntitlementsFromTeam(room);
-      if (!room.entitlements.webrtcLiveCall) {
+      if (!room.entitlements.webrtcLiveCall || room.entitlements.liveCallTestModeOnly) {
         callback?.({ ok: false, reason: 'gated' });
         return;
       }
@@ -1735,17 +1780,41 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
   // ── Visuals surface: set mode (standard | youtube | custom-video | 3d | pptt) ──
   socket.on(
     'orchestrator:visuals_set_mode',
-    async (payload: { roomCode: string; mode: VisualsState['mode'] }) => {
+    async (
+      payload: { roomCode: string; mode: VisualsState['mode'] },
+      callback?: (response: { ok: boolean; reason?: string }) => void
+    ) => {
       const room = rooms.get(payload.roomCode?.toUpperCase());
-      if (!room || room.orchestratorSocketId !== socket.id) return;
-      if (!VISUALS_MODES.has(payload.mode)) return;
+      if (!room || room.orchestratorSocketId !== socket.id) {
+        callback?.({ ok: false, reason: 'unauthorized' });
+        return;
+      }
+      if (!VISUALS_MODES.has(payload.mode)) {
+        callback?.({ ok: false, reason: 'invalid_mode' });
+        return;
+      }
       await refreshRoomEntitlementsFromTeam(room);
-      if (!room.entitlements.visualsSurface) return;
+      if (!room.entitlements.visualsSurface) {
+        callback?.({ ok: false, reason: 'gated' });
+        return;
+      }
+
+      const emitCheck = canEmitVisualsMode(
+        room.entitlements,
+        room.visualsEmittedCounts,
+        payload.mode
+      );
+      if (!emitCheck.allowed) {
+        callback?.({ ok: false, reason: emitCheck.reason ?? 'visuals_emit_limit' });
+        return;
+      }
 
       const updatedState = updateVisualsState(room, { mode: payload.mode });
+      room.visualsEmittedCounts = recordVisualsEmit(room.visualsEmittedCounts, payload.mode);
 
       io.to(`visuals:${room.code}`).emit('visuals:mode', { mode: updatedState.mode });
       room.lastActivityAt = Date.now();
+      callback?.({ ok: true });
     }
   );
 
@@ -2054,9 +2123,12 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       await refreshRoomEntitlementsFromTeam(room);
       if (!room.entitlements.visualsSurface) return;
 
-      const updatedState = updateVisualsState(room, { logo: payload.logo });
+      const logo = payload.logo
+        ? resolveSurfaceLogo(payload.logo, room.entitlements, true) ?? buildDefaultGlowSurfaceLogo()
+        : null;
+      const updatedState = updateVisualsState(room, { logo });
 
-      io.to(`visuals:${room.code}`).emit('visuals:logo', { logo: payload.logo });
+      io.to(`visuals:${room.code}`).emit('visuals:logo', { logo });
 
       room.lastActivityAt = Date.now();
     }
@@ -2084,7 +2156,9 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         updates.displayName = payload.displayName;
       }
       if (payload.logo !== undefined) {
-        updates.logo = payload.logo;
+        updates.logo = payload.logo
+          ? resolveSurfaceLogo(payload.logo, room.entitlements, true) ?? buildDefaultGlowSurfaceLogo()
+          : null;
       }
 
       if (Object.keys(updates).length > 0) {

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db/drizzle';
 import { rigs } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { getTeamForUser } from '@/lib/db/queries';
+import { getTeamEntitlements } from '@/lib/entitlements';
 
 export async function GET(
   _req: NextRequest,
@@ -61,6 +63,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Rig not found or not owned by user' }, { status: 404 });
     }
 
+    const team = await getTeamForUser();
+    if (!team) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const entitlements = await getTeamEntitlements(team.id);
+
     const body = await req.json();
     const {
       name,
@@ -73,6 +81,28 @@ export async function PATCH(
       isDefault,
     } = body;
 
+    const patch: Record<string, unknown> = {
+      name: name !== undefined ? name : undefined,
+      defaultVisualArtId: defaultVisualArtId !== undefined ? defaultVisualArtId : undefined,
+      palette: palette !== undefined ? palette : undefined,
+      consoleConfig: consoleConfig !== undefined ? consoleConfig : undefined,
+      metadata: metadata !== undefined ? metadata : undefined,
+      isDefault: isDefault !== undefined ? isDefault : undefined,
+      updatedAt: new Date(),
+    };
+
+    if (entitlements.customRigLogo) {
+      if (logoAssetPath !== undefined) patch.logoAssetPath = logoAssetPath;
+      if (logoEnabled !== undefined) patch.logoEnabled = logoEnabled;
+    } else if (logoEnabled === false) {
+      patch.logoEnabled = false;
+    } else if (logoAssetPath !== undefined || logoEnabled === true) {
+      return NextResponse.json(
+        { error: 'Custom rig logo requires a Venue plan or higher' },
+        { status: 403 }
+      );
+    }
+
     // Validate palette length (1-4 hex colors)
     if (palette && (!Array.isArray(palette) || palette.length < 1 || palette.length > 4)) {
       return NextResponse.json({ error: 'Palette must have between 1 and 4 colors' }, { status: 400 });
@@ -84,19 +114,13 @@ export async function PATCH(
     }
 
     // Update
+    const updatePayload = Object.fromEntries(
+      Object.entries(patch).filter(([, value]) => value !== undefined)
+    );
+
     const [updatedRig] = await db
       .update(rigs)
-      .set({
-        name: name !== undefined ? name : undefined,
-        defaultVisualArtId: defaultVisualArtId !== undefined ? defaultVisualArtId : undefined,
-        palette: palette !== undefined ? palette : undefined,
-        logoAssetPath: logoAssetPath !== undefined ? logoAssetPath : undefined,
-        logoEnabled: logoEnabled !== undefined ? logoEnabled : undefined,
-        consoleConfig: consoleConfig !== undefined ? consoleConfig : undefined,
-        metadata: metadata !== undefined ? metadata : undefined,
-        isDefault: isDefault !== undefined ? isDefault : undefined,
-        updatedAt: new Date(),
-      })
+      .set(updatePayload)
       .where(and(eq(rigs.id, id), eq(rigs.ownerUserId, user.id)))
       .returning();
 

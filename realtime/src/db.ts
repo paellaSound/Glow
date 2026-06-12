@@ -41,6 +41,9 @@ const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   deviceFlashControl: false,
   webrtcLiveCall: false,
   maxLiveCallDevices: 0,
+  visualsEmitSlotsPerMode: 1,
+  liveCallTestModeOnly: true,
+  pollProductionEnabled: false,
 };
 
 const KEY_MAP: Record<string, keyof PlanEntitlements> = {
@@ -73,6 +76,9 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   device_flash_control: 'deviceFlashControl',
   webrtc_live_call: 'webrtcLiveCall',
   max_live_call_devices: 'maxLiveCallDevices',
+  visuals_emit_slots_per_mode: 'visualsEmitSlotsPerMode',
+  live_call_test_mode_only: 'liveCallTestModeOnly',
+  poll_production_enabled: 'pollProductionEnabled',
 };
 
 export async function getTeamContextForUser(userId: string) {

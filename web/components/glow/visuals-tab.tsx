@@ -22,9 +22,18 @@ import type { Socket } from 'socket.io-client';
 import type { RoomStatePayload, VisualsMode, YoutubeQueueItem, YoutubeTransitionEffect } from '@/lib/glow/types';
 import { VISUAL_ART_REGISTRY } from 'glow-visuals';
 import { LiveCallControls } from '@/components/glow/live-call-controls';
-import { PlanGateUpsell } from '@/components/glow/plan-gate';
+import { PlanGate, PlanGateUpsell } from '@/components/glow/plan-gate';
+import { GlowLogo } from '@/components/glow/glow-logo';
+import {
+  buildDefaultGlowSurfaceLogo,
+  GLOW_BRAND_NAME,
+} from '@/lib/glow/branding';
 import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
 import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
+import {
+  canEmitVisualsMode,
+  isUnlimitedEmitSlots,
+} from '@/lib/plans/freemium-depth';
 import { cn } from '@/lib/utils';
 import { VisualsPreview } from '@/components/glow/visuals-preview';
 import { parseYoutubeVideoId } from '@/lib/youtube';
@@ -181,6 +190,12 @@ export function VisualsTab({
   const { teamEntitlements } = useTeamEntitlements();
   const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
   const hasVisualsSurface = entitlements.visualsSurface;
+
+  // Surface vs desk preview (freemium depth)
+  const [surfaceMode, setSurfaceMode] = useState<VisualsMode>('standard');
+  const [emittedCounts, setEmittedCounts] = useState<Partial<Record<VisualsMode, number>>>({});
+  const [emitError, setEmitError] = useState<string | null>(null);
+  const [emittingMode, setEmittingMode] = useState(false);
 
   // Output section state
   const [mintingToken, setMintingToken] = useState(false);
@@ -407,12 +422,67 @@ export function VisualsTab({
     setTimeout(() => setCopyDone(false), 2500);
   }
 
-  // ── Visuals mode selector ─────────────────────────────────────────────────
+  // Sync authoritative surface mode from server
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const onMode = (payload: { mode: VisualsMode }) => {
+      if (payload.mode) setSurfaceMode(payload.mode);
+    };
+    s.on('visuals:mode', onMode);
+    return () => {
+      s.off('visuals:mode', onMode);
+    };
+  }, [socket, connected]);
 
-  function handleModeChange(mode: VisualsMode) {
+  const previewingMode = workingState.mode !== surfaceMode;
+  const emitSlots = entitlements.visualsEmitSlotsPerMode ?? 999;
+  const showEmitSlots = !isUnlimitedEmitSlots(emitSlots);
+  const currentEmitCheck = canEmitVisualsMode(entitlements, emittedCounts, workingState.mode);
+
+  function canControlSurfaceForMode(mode: VisualsMode): boolean {
+    return surfaceMode === mode;
+  }
+
+  // ── Visuals mode selector (desk preview only) ─────────────────────────────
+
+  function handleModePreviewChange(mode: VisualsMode) {
     if (mode === workingState.mode) return;
     onWorkingStateChange({ mode, dirty: true });
-    socket.current?.emit('orchestrator:visuals_set_mode', { roomCode, mode });
+    setEmitError(null);
+  }
+
+  function handleEmitModeToSurface() {
+    const mode = workingState.mode;
+    const check = canEmitVisualsMode(entitlements, emittedCounts, mode);
+    if (!check.allowed) {
+      setEmitError('Emit limit reached for this mode this session.');
+      return;
+    }
+    if (mode === surfaceMode) return;
+
+    setEmittingMode(true);
+    setEmitError(null);
+    socket.current?.emit(
+      'orchestrator:visuals_set_mode',
+      { roomCode, mode },
+      (response: { ok: boolean; reason?: string }) => {
+        setEmittingMode(false);
+        if (response?.ok) {
+          setSurfaceMode(mode);
+          setEmittedCounts((prev) => ({
+            ...prev,
+            [mode]: (prev[mode] ?? 0) + 1,
+          }));
+          return;
+        }
+        if (response?.reason === 'visuals_emit_limit') {
+          setEmitError('Emit limit reached for this mode this session.');
+          return;
+        }
+        setEmitError('Could not push mode to the surface.');
+      }
+    );
   }
 
   // ── YouTube mode controls ─────────────────────────────────────────────────
@@ -483,11 +553,13 @@ export function VisualsTab({
       // metadata is best-effort — load the video regardless
     }
     setYtLoading(false);
+    if (!canControlSurfaceForMode('youtube')) return;
     socket.current?.emit('orchestrator:visuals_youtube_load', { roomCode, videoId, title, thumbnail });
     setYtUrlInput('');
   }
 
   function handleYtPlayPause() {
+    if (!canControlSurfaceForMode('youtube')) return;
     const next = !ytPlaying;
     setYtPlaying(next);
     socket.current?.emit(
@@ -497,28 +569,33 @@ export function VisualsTab({
   }
 
   function handleYtVolume(volume: number, muted: boolean) {
+    if (!canControlSurfaceForMode('youtube')) return;
     setYtVolume(volume);
     setYtMuted(muted);
     socket.current?.emit('orchestrator:visuals_youtube_set_volume', { roomCode, volume, muted });
   }
 
   function handleYtSeekCommit(sec: number) {
+    if (!canControlSurfaceForMode('youtube')) return;
     setYtSeekDragging(null);
     setYtCurrentTime(sec);
     socket.current?.emit('orchestrator:visuals_youtube_seek', { roomCode, sec });
   }
 
   function handleYtQueueJump(index: number, seekSec?: number) {
+    if (!canControlSurfaceForMode('youtube')) return;
     socket.current?.emit('orchestrator:visuals_youtube_queue_jump', { roomCode, index, seekSec });
   }
 
   function handleYtQueueRemove(index: number) {
+    if (!canControlSurfaceForMode('youtube')) return;
     socket.current?.emit('orchestrator:visuals_youtube_queue_remove', { roomCode, index });
   }
 
   const [ytConfirmMove, setYtConfirmMove] = useState<{ from: number; to: number } | null>(null);
 
   function emitYtQueueMove(from: number, to: number) {
+    if (!canControlSurfaceForMode('youtube')) return;
     socket.current?.emit('orchestrator:visuals_youtube_queue_move', { roomCode, from, to });
   }
 
@@ -533,6 +610,7 @@ export function VisualsTab({
   }
 
   function handleYtSetTransition(index: number, effect: YoutubeTransitionEffect) {
+    if (!canControlSurfaceForMode('youtube')) return;
     socket.current?.emit('orchestrator:visuals_youtube_set_transition', { roomCode, index, effect });
   }
 
@@ -554,10 +632,12 @@ export function VisualsTab({
 
   function handle3dEnergy(level: number) {
     setEnergy3d(level);
+    if (!canControlSurfaceForMode('3d')) return;
     socket.current?.emit('orchestrator:visuals_3d_set_energy', { roomCode, level });
   }
 
   function handle3dAction(action: 'shockwave' | 'burst') {
+    if (!canControlSurfaceForMode('3d')) return;
     socket.current?.emit('orchestrator:visuals_3d_trigger_action', { roomCode, action });
   }
 
@@ -565,6 +645,7 @@ export function VisualsTab({
 
   function handleArtChange(artId: string) {
     onWorkingStateChange({ artId, dirty: true });
+    if (!canControlSurfaceForMode('standard')) return;
     socket.current?.emit('orchestrator:visuals_set_scene', {
       roomCode,
       artId,
@@ -580,6 +661,7 @@ export function VisualsTab({
     if (cues.length === 0) return;
     const nextIndex = (workingState.cueIndex + 1) % cues.length;
     onWorkingStateChange({ cueIndex: nextIndex, dirty: true });
+    if (!canControlSurfaceForMode('standard')) return;
     socket.current?.emit('orchestrator:visuals_next_cue', { roomCode });
   }
 
@@ -588,6 +670,7 @@ export function VisualsTab({
     const prevIndex = (workingState.cueIndex - 1 + cues.length) % cues.length;
     const cue = cues[prevIndex]!;
     onWorkingStateChange({ cueIndex: prevIndex, artId: cue.visualArtId, dirty: true });
+    if (!canControlSurfaceForMode('standard')) return;
     socket.current?.emit('orchestrator:visuals_set_scene', {
       roomCode,
       artId: cue.visualArtId,
@@ -601,6 +684,7 @@ export function VisualsTab({
     if (cues.length === 0) return;
     const cue = cues[index]!;
     onWorkingStateChange({ cueIndex: index, artId: cue.visualArtId, dirty: true });
+    if (!canControlSurfaceForMode('standard')) return;
     socket.current?.emit('orchestrator:visuals_set_scene', {
       roomCode,
       artId: cue.visualArtId,
@@ -614,6 +698,7 @@ export function VisualsTab({
 
   function handlePaletteChange(palette: string[]) {
     onWorkingStateChange({ palette, dirty: true });
+    if (!canControlSurfaceForMode('standard')) return;
     socket.current?.emit('orchestrator:visuals_set_palette', { roomCode, palette });
   }
 
@@ -623,22 +708,28 @@ export function VisualsTab({
     const next = !workingState.logoEnabled;
     onWorkingStateChange({ logoEnabled: next, dirty: true });
 
+    if (!next) {
+      socket.current?.emit('orchestrator:visuals_set_logo', { roomCode, logo: null });
+      return;
+    }
+
     const logoConfig = (loadedRig?.console_config as any)?.logoConfig;
     const logoPath = loadedRig?.logo_asset_path;
+    const customLogo =
+      entitlements.customRigLogo && logoPath
+        ? {
+            url: rigLogoUrl(logoPath),
+            opacity: typeof logoConfig?.opacity === 'number' ? logoConfig.opacity : 0.8,
+            position: logoConfig?.position ?? 'center',
+            effect: logoConfig?.effect ?? 'none',
+          }
+        : null;
+    const logo = customLogo ?? buildDefaultGlowSurfaceLogo();
 
-    if (next && logoPath) {
-      socket.current?.emit('orchestrator:visuals_set_logo', {
-        roomCode,
-        logo: {
-          url: rigLogoUrl(logoPath),
-          opacity: typeof logoConfig?.opacity === 'number' ? logoConfig.opacity : 0.8,
-          position: logoConfig?.position ?? 'center',
-          effect: logoConfig?.effect ?? 'none',
-        },
-      });
-    } else {
-      socket.current?.emit('orchestrator:visuals_set_logo', { roomCode, logo: null });
-    }
+    socket.current?.emit('orchestrator:visuals_set_logo', {
+      roomCode,
+      logo,
+    });
   }
 
   // ── Overwrite rig ─────────────────────────────────────────────────────────
@@ -744,19 +835,21 @@ export function VisualsTab({
           }}
         >
           <div className="overflow-hidden">
-            <div className="mt-4 pt-4 border-t border-white/5">
+            <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {VISUALS_MODES.map((m) => {
                   const active = m.id === workingState.mode;
+                  const onSurface = m.id === surfaceMode;
+                  const modeEmit = canEmitVisualsMode(entitlements, emittedCounts, m.id);
                   return (
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => handleModeChange(m.id)}
+                      onClick={() => handleModePreviewChange(m.id)}
                       disabled={!connected || !m.implemented}
                       title={m.description}
                       className={cn(
-                        'flex flex-col items-center gap-1 rounded-xl border px-3 py-3 text-center transition-all duration-150',
+                        'relative flex flex-col items-center gap-1 rounded-xl border px-3 py-3 text-center transition-all duration-150',
                         active
                           ? 'border-neon-violet/50 bg-neon-violet/10 text-white'
                           : m.implemented
@@ -766,15 +859,64 @@ export function VisualsTab({
                       id={`visuals-mode-${m.id}`}
                     >
                       <span className="text-xs font-cyber">{m.label}</span>
+                      {m.implemented && active && !onSurface ? (
+                        <span className="text-[8px] font-cyber uppercase tracking-widest text-violet-300">
+                          Preview
+                        </span>
+                      ) : null}
+                      {m.implemented && onSurface ? (
+                        <span className="text-[8px] font-cyber uppercase tracking-widest text-neon-cyan">
+                          On surface
+                        </span>
+                      ) : null}
                       {!m.implemented && (
                         <span className="text-[8px] font-cyber uppercase tracking-widest text-zinc-600">
                           Coming soon
                         </span>
                       )}
+                      {showEmitSlots && m.implemented && !modeEmit.allowed ? (
+                        <span className="text-[7px] font-cyber uppercase tracking-widest text-amber-400/80">
+                          Limit reached
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
               </div>
+
+              {previewingMode ? (
+                <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+                  <div className="text-xs text-violet-100/90">
+                    <p>
+                      Desk preview — surface is still{' '}
+                      <span className="font-cyber uppercase">{surfaceMode}</span>.
+                    </p>
+                    {showEmitSlots ? (
+                      <p className="mt-1 text-[10px] text-violet-200/70 font-cyber uppercase tracking-wide">
+                        Emits: {currentEmitCheck.used}/{currentEmitCheck.limit} for {workingState.mode}
+                      </p>
+                    ) : null}
+                  </div>
+                  <NeonButton
+                    color="violet"
+                    variant="solid"
+                    onClick={handleEmitModeToSurface}
+                    disabled={!connected || emittingMode || !currentEmitCheck.allowed}
+                    className="text-[10px] uppercase tracking-widest h-8 px-4 shrink-0"
+                  >
+                    {emittingMode ? 'Pushing…' : 'Push to surface'}
+                  </NeonButton>
+                </div>
+              ) : null}
+
+              {emitError ? (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200 flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
+                  <span>{emitError}</span>
+                  {!currentEmitCheck.allowed ? (
+                    <PlanGateUpsell feature="visualsEmit" roomEntitlements={roomState?.entitlements} />
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -801,20 +943,23 @@ export function VisualsTab({
           <div className="overflow-hidden">
             <div className="mt-3 pt-3 border-t border-white/5">
               <VisualsPreview
+                mode={workingState.mode}
                 artId={workingState.artId}
                 palette={workingState.palette}
                 displayName={workingState.displayName || 'Glow'}
                 logo={
-                  workingState.logoEnabled && loadedRig?.logo_asset_path
-                    ? {
-                        url: rigLogoUrl(loadedRig.logo_asset_path),
-                        opacity:
-                          typeof (loadedRig.console_config as any)?.logoConfig?.opacity === 'number'
-                            ? (loadedRig.console_config as any).logoConfig.opacity
-                            : 0.8,
-                        position: (loadedRig.console_config as any)?.logoConfig?.position ?? 'center',
-                        effect: (loadedRig.console_config as any)?.logoConfig?.effect ?? 'none',
-                      }
+                  workingState.logoEnabled
+                    ? entitlements.customRigLogo && loadedRig?.logo_asset_path
+                      ? {
+                          url: rigLogoUrl(loadedRig.logo_asset_path),
+                          opacity:
+                            typeof (loadedRig.console_config as any)?.logoConfig?.opacity === 'number'
+                              ? (loadedRig.console_config as any).logoConfig.opacity
+                              : 0.8,
+                          position: (loadedRig.console_config as any)?.logoConfig?.position ?? 'center',
+                          effect: (loadedRig.console_config as any)?.logoConfig?.effect ?? 'none',
+                        }
+                      : buildDefaultGlowSurfaceLogo()
                     : null
                 }
                 text={activeTextOverlay}
@@ -992,6 +1137,11 @@ export function VisualsTab({
         <NeonCard glowColor="magenta" borderVariant="magenta" hoverEffect={false} className="p-5">
           <style>{YT_DESK_CSS}</style>
           <SectionHeader title="YOUTUBE" color="magenta" />
+          {!canControlSurfaceForMode('youtube') ? (
+            <p className="mt-3 text-xs text-violet-200/80 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2">
+              Desk preview only — push YouTube to the surface to drive the projector.
+            </p>
+          ) : null}
           <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
             {/* URL loader */}
             <div className="flex gap-2">
@@ -1280,6 +1430,11 @@ export function VisualsTab({
       {workingState.mode === '3d' && (
         <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5">
           <SectionHeader title="3D VISUALS — ENERGY ORB" color="cyan" />
+          {!canControlSurfaceForMode('3d') ? (
+            <p className="mt-3 text-xs text-violet-200/80 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2">
+              Desk preview only — push 3D to the surface to drive the projector.
+            </p>
+          ) : null}
           <div className="mt-4 pt-4 border-t border-white/5 space-y-5">
             {/* Energy level */}
             <div>
@@ -1512,30 +1667,46 @@ export function VisualsTab({
                   />
                 </div>
 
-                {loadedRig?.logo_asset_path ? (
-                  <div className="flex items-center gap-4 pt-2">
-                    <div className="w-14 h-14 rounded-xl border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center flex-none">
-                      <img
-                        src={rigLogoUrl(loadedRig.logo_asset_path)}
-                        alt="Rig logo"
-                        className="max-w-full max-h-full object-contain"
-                      />
+                {entitlements.customRigLogo ? (
+                  loadedRig?.logo_asset_path ? (
+                    <div className="flex items-center gap-4 pt-2">
+                      <div className="w-14 h-14 rounded-xl border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center flex-none">
+                        <img
+                          src={rigLogoUrl(loadedRig.logo_asset_path)}
+                          alt="Rig logo"
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-cyber text-zinc-300 truncate mb-1">
+                          {loadedRig.logo_asset_path.split('/').pop()}
+                        </p>
+                        <p className="text-[10px] text-zinc-500">From loaded rig</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-cyber text-zinc-300 truncate mb-1">
-                        {loadedRig.logo_asset_path.split('/').pop()}
-                      </p>
-                      <p className="text-[10px] text-zinc-500">From loaded rig</p>
-                    </div>
-                  </div>
+                  ) : (
+                    <PlanGate feature="customRigLogo" roomEntitlements={roomState?.entitlements}>
+                      <div className="rounded-xl border border-dashed border-white/10 p-4 text-center">
+                        <p className="text-xs font-cyber text-muted-foreground tracking-wide">
+                          No logo on this rig
+                        </p>
+                        <p className="text-[10px] text-zinc-600 mt-1">
+                          Upload a logo in the Rigs Manager to enable this toggle.
+                        </p>
+                      </div>
+                    </PlanGate>
+                  )
                 ) : (
-                  <div className="rounded-xl border border-dashed border-white/10 p-4 text-center">
-                    <p className="text-xs font-cyber text-muted-foreground tracking-wide">
-                      No logo on this rig
-                    </p>
-                    <p className="text-[10px] text-zinc-600 mt-1">
-                      Upload a logo in the Rigs Manager to enable this toggle.
-                    </p>
+                  <div className="flex items-center gap-4 pt-2 rounded-xl border border-white/10 bg-black/20 p-4">
+                    <GlowLogo className="h-10 w-auto shrink-0 text-neon-magenta" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-cyber text-zinc-200 uppercase tracking-wider">
+                        {GLOW_BRAND_NAME}
+                      </p>
+                      <p className="text-[10px] text-zinc-500 mt-1">
+                        Toggle puts Glow branding on stage. Upgrade to Venue for your logo.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

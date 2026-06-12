@@ -11,7 +11,11 @@ export type GateFeature =
   | 'sequencedText'
   | 'deviceFlashControl'
   | 'webrtcLiveCall'
-  | 'visualsSurface';
+  | 'visualsSurface'
+  | 'customRigLogo'
+  | 'customQrBranding'
+  | 'gifSearchFull'
+  | 'visualsEmit';
 
 export type PlanGateState = 'allowed' | 'limited' | 'preview' | 'blocked';
 
@@ -62,6 +66,10 @@ export const FEATURE_MIN_PLAN: Record<GateFeature, Exclude<PlanCode, 'free'>> = 
   gifBroadcast: 'plus_50',
   effect_layering: 'plus_50',
   webrtcLiveCall: 'pro',
+  customRigLogo: 'plus_50',
+  customQrBranding: 'plus_50',
+  gifSearchFull: 'plus_50',
+  visualsEmit: 'plus_50',
 };
 
 const ENTITLEMENT_KEY: Record<GateFeature, keyof PlanEntitlements | null> = {
@@ -74,6 +82,10 @@ const ENTITLEMENT_KEY: Record<GateFeature, keyof PlanEntitlements | null> = {
   deviceFlashControl: 'deviceFlashControl',
   webrtcLiveCall: 'webrtcLiveCall',
   visualsSurface: 'visualsSurface',
+  customRigLogo: 'customRigLogo',
+  customQrBranding: 'customQrBranding',
+  gifSearchFull: 'gifSearchMode',
+  visualsEmit: 'visualsEmitSlotsPerMode',
 };
 
 export function formatPlanPrice(priceCents: number): string {
@@ -102,6 +114,10 @@ export function isFeatureAllowed(
       return (context?.deviceCount ?? 0) < entitlements.maxDevices;
     case 'matrix_too_large':
       return (context?.matrixCells ?? 0) <= entitlements.maxMatrixCells;
+    case 'gifSearchFull':
+      return entitlements.gifSearchMode === 'full';
+    case 'visualsEmit':
+      return (entitlements.visualsEmitSlotsPerMode ?? 999) >= 999;
     default: {
       const key = ENTITLEMENT_KEY[feature];
       if (!key) return true;
@@ -147,6 +163,14 @@ export function buildLimitTitle(
       return 'Live call mosaic requires Pro';
     case 'visualsSurface':
       return 'Visuals surface requires Party';
+    case 'customRigLogo':
+      return 'Custom rig logo requires Venue';
+    case 'customQrBranding':
+      return 'Custom QR & socials require Venue';
+    case 'gifSearchFull':
+      return 'Full GIF search requires Venue';
+    case 'visualsEmit':
+      return 'More surface emits require Venue';
     default:
       return 'Upgrade to unlock this feature';
   }
@@ -171,6 +195,13 @@ export function buildLimitBody(feature: GateFeature, planCode: Exclude<PlanCode,
       return `${meta.marketingName} unlocks this control — ${price}`;
     case 'webrtcLiveCall':
       return `${meta.marketingName} unlocks live camera mosaic — ${price}`;
+    case 'customRigLogo':
+    case 'customQrBranding':
+      return `${meta.marketingName} puts your brand on stage & QR — ${price}`;
+    case 'gifSearchFull':
+      return `${meta.marketingName} unlocks full GIF search — ${price}`;
+    case 'visualsEmit':
+      return `${meta.marketingName} unlocks unlimited surface emits — ${price}`;
     default:
       return `${meta.marketingName} — ${price}`;
   }

@@ -3,8 +3,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
-// Vercel Root Directory is `web/` inside the monorepo; parent is the workspace root.
-const monorepoRoot = path.resolve(projectRoot, '..');
+const isVercel = process.env.VERCEL === '1';
+// Vercel Root Directory is `web/`: tracing from the parent causes `web/web/.next` doubling.
+// Local dev keeps the monorepo parent for workspace resolution.
+const monorepoRoot = isVercel ? projectRoot : path.resolve(projectRoot, '..');
 
 const nextConfig: NextConfig = {
   transpilePackages: ['glow-presets', 'glow-visuals'],

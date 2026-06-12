@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import crypto from 'node:crypto';
+import { getTeamGifSearchMode } from '@/lib/klipy/entitlements';
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -10,8 +11,17 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const page = searchParams.get('page') || '1';
+  const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10);
   const perPage = searchParams.get('per_page') || '20';
+
+  const gifSearchMode = await getTeamGifSearchMode();
+  const page = gifSearchMode === 'featured_page1' ? 1 : requestedPage;
+  if (gifSearchMode === 'featured_page1' && requestedPage > 1) {
+    return NextResponse.json(
+      { error: 'featured_page1_only', message: 'Upgrade to Venue for full GIF search' },
+      { status: 403 }
+    );
+  }
 
   const appKey = process.env.KLIPY_APP_KEY || 'test_key';
   const customerId = crypto.createHash('md5').update(user.id).digest('hex');
@@ -24,7 +34,8 @@ export async function GET(req: NextRequest) {
     }
     const data = await res.json();
     return NextResponse.json(data);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Klipy trending failed' }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Klipy trending failed';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

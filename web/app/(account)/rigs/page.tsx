@@ -35,6 +35,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ColorPaletteField, validatePalette } from '@/components/glow/color-palette-field';
+import { PlanGate } from '@/components/glow/plan-gate';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -1249,6 +1250,7 @@ export default function RigsPage() {
                   />
 
                   {/* Logo Upload Field */}
+                  <PlanGate feature="customRigLogo">
                   <div className="space-y-3 pt-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs uppercase font-cyber tracking-wider text-muted-foreground">Branding Logo (Upload)</Label>
@@ -1358,6 +1360,7 @@ export default function RigsPage() {
                       </div>
                     )}
                   </div>
+                  </PlanGate>
 
                   {/* QR Code Overlay Settings moved to Info & Colors */}
                   <div className="space-y-3 pt-2 border-t border-border/40">
@@ -1590,6 +1593,7 @@ export default function RigsPage() {
 
               {/* TAB 3: Socials Links Editor */}
               {activeTab === 'socials' && (
+                <PlanGate feature="customQrBranding">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <p className="text-xs uppercase font-cyber tracking-widest text-muted-foreground">
@@ -1687,6 +1691,7 @@ export default function RigsPage() {
                     )}
                   </div>
                 </div>
+                </PlanGate>
               )}
 
               {/* TAB 4: Console Settings */}

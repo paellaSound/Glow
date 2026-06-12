@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import posthog from 'posthog-js';
+import { captureClientEvent } from '@/lib/posthog-client';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,7 +30,7 @@ export default function JoinPage() {
     if (!roomCode.trim() || joining) return;
     setJoining(true);
 
-    posthog.capture('room_joined', {
+    captureClientEvent('room_joined', {
       room_code: roomCode.toUpperCase(),
       has_nickname: Boolean(nickname.trim()),
     });

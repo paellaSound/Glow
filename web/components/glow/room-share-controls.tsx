@@ -19,6 +19,8 @@ type RoomShareControlsProps = {
 type ShareInfo = {
   rigName: string | null;
   socials: RigSocial[];
+  customQrBranding?: boolean;
+  glowBrandName?: string;
 };
 
 export function RoomShareControls({
@@ -164,6 +166,8 @@ export function RoomShareControls({
               matrixEnabled={matrixEnabled}
               rigName={shareInfo.rigName}
               socials={shareInfo.socials}
+              customQrBranding={shareInfo.customQrBranding ?? false}
+              glowBrandName={shareInfo.glowBrandName}
               qrSize={480}
               variant="dark"
               showJoinUrl={false}

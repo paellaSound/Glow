@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { getVisualArt } from 'glow-visuals';
 import type { VisualArtController, VisualArtId, VisualArtInput } from 'glow-visuals';
+import type { VisualsMode } from '@/lib/glow/types';
 import QRCode from 'qrcode';
 import { buildPlayerJoinUrl } from '@/lib/glow/join-url';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,7 @@ function getAspectRatio(viewport: ViewportMode, orientation: Orientation): strin
 }
 
 export type VisualsPreviewProps = {
+  mode?: VisualsMode;
   artId: string;
   palette: string[];
   displayName: string;
@@ -62,7 +64,27 @@ export type VisualsPreviewProps = {
   roomCode: string;
 };
 
+const MODE_PREVIEW_COPY: Partial<Record<VisualsMode, { title: string; hint: string }>> = {
+  youtube: {
+    title: 'YouTube preview',
+    hint: 'Queue and transport appear after you push YouTube to the surface.',
+  },
+  '3d': {
+    title: '3D preview',
+    hint: 'Energy and actions drive the projector after you push 3D to the surface.',
+  },
+  'custom-video': {
+    title: 'Custom video',
+    hint: 'Coming soon — desk preview only.',
+  },
+  pptt: {
+    title: 'PPTT mode',
+    hint: 'Coming soon — desk preview only.',
+  },
+};
+
 export function VisualsPreview({
+  mode = 'standard',
   artId,
   palette,
   displayName,
@@ -265,10 +287,27 @@ export function VisualsPreview({
             maxWidth: '100%',
           }}
         >
+          {mode !== 'standard' ? (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-violet-950/80 via-black to-cyan-950/60 p-4 text-center">
+              <span className="rounded bg-violet-500/20 px-2 py-0.5 text-[8px] font-cyber uppercase tracking-widest text-violet-200">
+                Preview
+              </span>
+              <p className="text-[10px] font-cyber uppercase tracking-widest text-white">
+                {MODE_PREVIEW_COPY[mode]?.title ?? mode}
+              </p>
+              <p className="text-[9px] text-zinc-400 leading-relaxed max-w-[200px]">
+                {MODE_PREVIEW_COPY[mode]?.hint ?? 'Push this mode to the surface to go live.'}
+              </p>
+            </div>
+          ) : null}
+
           {/* Canvas */}
           <canvas
             ref={canvasRef}
-            className="absolute inset-0 h-full w-full object-cover"
+            className={cn(
+              'absolute inset-0 h-full w-full object-cover',
+              mode !== 'standard' && 'opacity-20'
+            )}
           />
 
           {/* Live Text Overlay */}

@@ -35,6 +35,9 @@ export type PlanEntitlements = {
   deviceFlashControl: boolean;
   webrtcLiveCall: boolean;
   maxLiveCallDevices: number;
+  visualsEmitSlotsPerMode: number;
+  liveCallTestModeOnly: boolean;
+  pollProductionEnabled: boolean;
 };
 
 export { DEFAULT_ENTITLEMENTS };
@@ -69,6 +72,9 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   device_flash_control: 'deviceFlashControl',
   webrtc_live_call: 'webrtcLiveCall',
   max_live_call_devices: 'maxLiveCallDevices',
+  visuals_emit_slots_per_mode: 'visualsEmitSlotsPerMode',
+  live_call_test_mode_only: 'liveCallTestModeOnly',
+  poll_production_enabled: 'pollProductionEnabled',
 };
 
 export function buildEntitlementsFromRows(
@@ -128,7 +134,7 @@ export const PLAN_SEED_DATA = [
   {
     code: 'free',
     name: 'Free',
-    description: 'Try Glow with up to 10 devices',
+    description: 'Try the full show — Glow branded, up to 10 devices',
     monthlyPriceCents: 0,
     sortOrder: 0,
     entitlements: {
@@ -161,12 +167,15 @@ export const PLAN_SEED_DATA = [
       device_flash_control: false,
       webrtc_live_call: false,
       max_live_call_devices: 0,
+      visuals_emit_slots_per_mode: 1,
+      live_call_test_mode_only: true,
+      poll_production_enabled: false,
     },
   },
   {
     code: 'plus_25',
     name: 'Plus 25',
-    description: 'Up to 25 devices, no ads',
+    description: 'Scale your party — 25 devices, ad-free, Glow branding',
     monthlyPriceCents: 299,
     sortOrder: 1,
     entitlements: {
@@ -199,12 +208,15 @@ export const PLAN_SEED_DATA = [
       device_flash_control: true,
       webrtc_live_call: false,
       max_live_call_devices: 0,
+      visuals_emit_slots_per_mode: 2,
+      live_call_test_mode_only: true,
+      poll_production_enabled: true,
     },
   },
   {
     code: 'plus_50',
     name: 'Plus 50',
-    description: 'Up to 50 devices, advanced presets',
+    description: 'Your brand on stage — logo, QR socials, 50 devices',
     monthlyPriceCents: 500,
     sortOrder: 2,
     entitlements: {
@@ -237,12 +249,15 @@ export const PLAN_SEED_DATA = [
       device_flash_control: true,
       webrtc_live_call: false,
       max_live_call_devices: 0,
+      visuals_emit_slots_per_mode: 999,
+      live_call_test_mode_only: false,
+      poll_production_enabled: true,
     },
   },
   {
     code: 'pro',
     name: 'Pro',
-    description: 'High capacity events and all effects',
+    description: 'Live production — unlimited scale, camera mosaic, all effects',
     monthlyPriceCents: 2500,
     sortOrder: 3,
     entitlements: {
@@ -275,6 +290,9 @@ export const PLAN_SEED_DATA = [
       device_flash_control: true,
       webrtc_live_call: true,
       max_live_call_devices: 6,
+      visuals_emit_slots_per_mode: 999,
+      live_call_test_mode_only: false,
+      poll_production_enabled: true,
     },
   },
 ] as const;

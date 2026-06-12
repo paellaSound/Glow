@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/drizzle';
 import { roomSessions } from '@/lib/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
+import { GLOW_BRAND_NAME } from '@/lib/glow/branding';
+import type { PlanEntitlements } from '@/lib/glow/types';
 
 /**
  * GET /api/rooms/[code]/share-info
  *
- * Public endpoint used by the fullscreen QR page to show rig branding
- * (name + enabled social links) for the active room session.
+ * Public endpoint used by QR / share UI for active room branding.
  */
 export async function GET(
   _req: NextRequest,
@@ -32,19 +33,33 @@ export async function GET(
     });
 
     if (!session) {
-      return NextResponse.json({ rigName: null, socials: [], adsEnabled: true });
+      return NextResponse.json({
+        rigName: null,
+        socials: [],
+        adsEnabled: true,
+        customQrBranding: false,
+        glowBrandName: GLOW_BRAND_NAME,
+      });
     }
 
+    const entitlements = session.entitlementsSnapshot as PlanEntitlements;
+    const customQrBranding = Boolean(entitlements?.customQrBranding);
+    const socials = customQrBranding
+      ? (session.rig?.socials.map((social) => ({
+          kind: social.kind,
+          label: social.label,
+          url: social.url,
+          enabled: social.enabled,
+          sortOrder: social.sortOrder,
+        })) ?? [])
+      : [];
+
     return NextResponse.json({
-      rigName: session.rig?.name ?? null,
-      socials: session.rig?.socials.map((social) => ({
-        kind: social.kind,
-        label: social.label,
-        url: social.url,
-        enabled: social.enabled,
-        sortOrder: social.sortOrder,
-      })) ?? [],
+      rigName: customQrBranding ? (session.rig?.name ?? null) : null,
+      socials,
       adsEnabled: session.adsEnabledSnapshot,
+      customQrBranding,
+      glowBrandName: GLOW_BRAND_NAME,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to load share info';

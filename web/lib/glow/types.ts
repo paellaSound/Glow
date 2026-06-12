@@ -55,6 +55,9 @@ export type PlanEntitlements = {
   deviceFlashControl: boolean;
   webrtcLiveCall: boolean;
   maxLiveCallDevices: number;
+  visualsEmitSlotsPerMode: number;
+  liveCallTestModeOnly: boolean;
+  pollProductionEnabled: boolean;
 };
 
 // ── WebRTC live-call ─────────────────────────────────────────────────────────

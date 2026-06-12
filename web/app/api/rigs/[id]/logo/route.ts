@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { db } from '@/lib/db/drizzle';
 import { rigs } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
+import { getTeamForUser } from '@/lib/db/queries';
+import { getTeamEntitlements } from '@/lib/entitlements';
 
 export async function POST(
   req: NextRequest,
@@ -24,6 +26,18 @@ export async function POST(
 
     if (!rig) {
       return NextResponse.json({ error: 'Rig not found or not owned by user' }, { status: 404 });
+    }
+
+    const team = await getTeamForUser();
+    if (!team) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const entitlements = await getTeamEntitlements(team.id);
+    if (!entitlements.customRigLogo) {
+      return NextResponse.json(
+        { error: 'Custom rig logo requires a Venue plan or higher' },
+        { status: 403 }
+      );
     }
 
     const formData = await req.formData();

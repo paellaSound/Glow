@@ -43,6 +43,7 @@ Turn the phases into a plan and execute one doc per chat.
 | 08 | QA / regression checklist (post-demo) | [08](./08-qa-regression-checklist.md) | All | end-to-end verification | — |
 | 10 | PlanGate + upgrade modal (monetization UX) | [10](./10-plan-gate-wrapper.md) | Control desk + billing | `plan-gate.tsx`, `upgrade-modal.tsx`, `plan-meta.ts` | Medium |
 | 11 | PostHog analytics & error tracking (production gate) | [../posthog-production-analytics.md](../posthog-production-analytics.md) | Web + Realtime | `web/lib/analytics/*`, `realtime/src/analytics/*` | Medium |
+| 12 | Freemium depth (preview vs emit, GIF, test mode) | [12](./12-freemium-depth.md) | Desk + realtime + Klipy | `visuals-tab.tsx`, `freemium-depth.ts`, Klipy routes | Medium |
 
 ---
 

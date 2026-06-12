@@ -30,6 +30,9 @@ export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   deviceFlashControl: false,
   webrtcLiveCall: false,
   maxLiveCallDevices: 0,
+  visualsEmitSlotsPerMode: 1,
+  liveCallTestModeOnly: true,
+  pollProductionEnabled: false,
 };
 
 /** Merge room snapshot entitlements with live team entitlements (team wins). */

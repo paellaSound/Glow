@@ -2,7 +2,7 @@
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import posthog from 'posthog-js';
+import { captureClientEvent } from '@/lib/posthog-client';
 import { useGlowSocket } from '@/lib/glow/socket';
 import { useVisualEngine } from '@/lib/glow/visual-engine';
 import { FullscreenButton } from '@/components/glow/fullscreen-button';
@@ -384,7 +384,7 @@ function PlayerContent({
     });
 
     if (applyJoinResponse(response)) {
-      posthog.capture('player_device_joined', {
+      captureClientEvent('player_device_joined', {
         room_code: roomCode,
         device_public_id: response.devicePublicId,
         has_matrix_position: response.row !== undefined,
