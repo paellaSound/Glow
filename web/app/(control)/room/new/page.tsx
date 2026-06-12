@@ -32,7 +32,7 @@ type Rig = {
 export default function CreateRoomPage() {
   const router = useRouter();
   const { data, isLoading, mutate: mutateTeam } = useSWR<{
-    team: { id: string };
+    team: { id: string; plan: { code: string } } | null;
     entitlements: PlanEntitlements;
   }>('/api/team', fetcher);
   const { data: rigsList } = useSWR<Rig[]>('/api/rigs', fetcher);
@@ -123,6 +123,14 @@ export default function CreateRoomPage() {
 
       if (response.error || !response.roomCode) {
         if (response.reason === 'matrix_too_large' || response.error === 'matrix_too_large') {
+          captureClientEvent('plan_limit_hit', {
+            limit_key: 'matrix_too_large',
+            plan_code: data?.team?.plan?.code ?? 'free',
+            matrix_rows: rows,
+            matrix_cols: cols,
+            matrix_cells: rows * cols,
+            max_matrix_cells: response.maxMatrixCells,
+          });
           setUpgradeOpen(true);
         } else {
           alert(response.error ?? 'Failed to create room');
@@ -151,6 +159,13 @@ export default function CreateRoomPage() {
 
   function handleCreateClick() {
     if (matrixTooLarge) {
+      captureClientEvent('plan_limit_hit', {
+        limit_key: 'matrix_too_large',
+        plan_code: data?.team?.plan?.code ?? 'free',
+        matrix_rows: rows,
+        matrix_cols: cols,
+        matrix_cells: matrixCells,
+      });
       setUpgradeOpen(true);
       return;
     }

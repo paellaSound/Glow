@@ -3,6 +3,10 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { registerSocketHandlers, startCleanupInterval } from './room-manager.js';
 import { reconcileOrphanedSessions } from './db.js';
+import {
+  captureRealtimeException,
+  shutdownRealtimePostHog,
+} from './analytics/posthog.js';
 
 validateEnv();
 
@@ -60,6 +64,25 @@ io.on('connection', (socket) => {
 });
 
 startCleanupInterval(io);
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
+  captureRealtimeException(reason, { error_kind: 'unhandled_rejection' });
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+  captureRealtimeException(error, { error_kind: 'uncaught_exception' });
+});
+
+async function gracefulShutdown(signal: string) {
+  console.log(`Received ${signal}, shutting down...`);
+  await shutdownRealtimePostHog();
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => void gracefulShutdown('SIGINT'));
 
 void reconcileOrphanedSessions().then(() => {
   httpServer.listen(PORT, HOST, () => {

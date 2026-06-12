@@ -44,6 +44,7 @@ import {
   generateRoomCode,
   labelFromPosition,
 } from './matrix.js';
+import { captureRealtimeEvent } from './analytics/posthog.js';
 import {
   closeRoomSession,
   createRoomSession,
@@ -444,6 +445,20 @@ async function closeRoom(io: Server, room: RoomState, reason: string) {
     console.error('[cleanup] Failed to delete storage media:', err.message);
   }
 
+  const durationMinutes = Math.round((Date.now() - room.createdAt) / 60_000);
+
+  captureRealtimeEvent(room.ownerUserId, 'room_closed', {
+    roomCode: room.code,
+    teamId: room.teamId,
+    ownerUserId: room.ownerUserId,
+    planCode: room.planCode,
+  }, {
+    close_reason: reason,
+    duration_minutes: durationMinutes,
+    peak_device_count: room.peakDevices,
+    total_joined_devices: room.totalJoinedDevices,
+  });
+
   await closeRoomSession(room.sessionId, {
     closeReason: reason,
     peakDevices: room.peakDevices,
@@ -519,6 +534,19 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         const cols = Math.min(Math.max(1, payload.matrix.cols), entitlements.maxGridCols);
 
         if (rows * cols > entitlements.maxMatrixCells) {
+          captureRealtimeEvent(user.id, 'plan_limit_hit', {
+            roomCode: 'pending',
+            teamId: teamContext.teamId,
+            ownerUserId: user.id,
+            planCode: teamContext.planCode,
+          }, {
+            limit_key: 'matrix_too_large',
+            matrix_rows: rows,
+            matrix_cols: cols,
+            matrix_cells: rows * cols,
+            max_matrix_cells: entitlements.maxMatrixCells,
+          });
+
           callback({
             error: 'matrix_too_large',
             reason: 'matrix_too_large',
@@ -755,6 +783,17 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       }
 
       if (getActivePlayerCount(room) >= room.entitlements.maxDevices) {
+        captureRealtimeEvent(room.ownerUserId, 'plan_limit_hit', {
+          roomCode: room.code,
+          teamId: room.teamId,
+          ownerUserId: room.ownerUserId,
+          planCode: room.planCode,
+        }, {
+          limit_key: 'max_devices',
+          device_count: getActivePlayerCount(room),
+          max_devices: room.entitlements.maxDevices,
+        });
+
         callback({
           accepted: false,
           reason: 'plan_limit_hit',
@@ -816,6 +855,16 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           socket.emit(ev.name, ev.payload);
         }
       }
+
+      captureRealtimeEvent(room.ownerUserId, 'device_connected', {
+        roomCode: room.code,
+        teamId: room.teamId,
+        ownerUserId: room.ownerUserId,
+        planCode: room.planCode,
+      }, {
+        device_count: room.devices.size,
+        peak_device_count: room.peakDevices,
+      });
 
       emitRoomState(io, room);
     }
@@ -2292,6 +2341,16 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         playerReactionTimestamps.delete(socket.id);
         playerBoostState.delete(socket.id);
         room.lastActivityAt = Date.now();
+
+        captureRealtimeEvent(room.ownerUserId, 'device_disconnected', {
+          roomCode: room.code,
+          teamId: room.teamId,
+          ownerUserId: room.ownerUserId,
+          planCode: room.planCode,
+        }, {
+          device_count: getActivePlayerCount(room),
+        });
+
         emitRoomState(io, room);
       }
     }

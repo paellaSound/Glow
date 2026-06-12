@@ -10,6 +10,7 @@ import {
   getPlanByCode,
 } from '@/lib/db/queries';
 import { getPostHogClient } from '@/lib/posthog-server';
+import { identifyOrchestrator } from '@/lib/posthog-analytics';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -149,8 +150,13 @@ export async function handleSubscriptionChange(subscription: Stripe.Subscription
     });
 
     const posthog = getPostHogClient();
+    identifyOrchestrator(posthog, team.ownerUserId, {
+      team_id: team.id,
+      plan_code: plan.code,
+      subscription_status: status,
+    });
     posthog.capture({
-      distinctId: team.id,
+      distinctId: team.ownerUserId,
       event: 'subscription_activated',
       properties: {
         team_id: team.id,
@@ -159,6 +165,7 @@ export async function handleSubscriptionChange(subscription: Stripe.Subscription
         subscription_status: status,
         stripe_subscription_id: subscriptionId,
       },
+      groups: { team: team.id },
     });
     await posthog.shutdown();
   } else {
@@ -174,14 +181,20 @@ export async function handleSubscriptionChange(subscription: Stripe.Subscription
     });
 
     const posthog = getPostHogClient();
+    identifyOrchestrator(posthog, team.ownerUserId, {
+      team_id: team.id,
+      plan_code: 'free',
+      subscription_status: status === 'canceled' ? 'free' : status,
+    });
     posthog.capture({
-      distinctId: team.id,
+      distinctId: team.ownerUserId,
       event: 'subscription_cancelled',
       properties: {
         team_id: team.id,
         subscription_status: status,
         stripe_subscription_id: subscriptionId,
       },
+      groups: { team: team.id },
     });
     await posthog.shutdown();
   }

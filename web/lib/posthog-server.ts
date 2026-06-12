@@ -1,11 +1,16 @@
 import { PostHog } from 'posthog-node';
 import { getPostHogHost, getPostHogToken, isPostHogEnabled } from '@/lib/posthog-config';
 
-type PostHogLike = Pick<PostHog, 'capture' | 'identify' | 'shutdown'>;
+export type PostHogLike = Pick<
+  PostHog,
+  'capture' | 'identify' | 'groupIdentify' | 'captureException' | 'shutdown'
+>;
 
 const noopClient: PostHogLike = {
   capture: () => undefined,
   identify: () => undefined,
+  groupIdentify: () => undefined,
+  captureException: () => undefined,
   shutdown: async () => undefined,
 };
 

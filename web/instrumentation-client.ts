@@ -9,6 +9,10 @@ if (isPostHogEnabled()) {
       ui_host: 'https://eu.posthog.com',
       defaults: '2026-01-30',
       capture_exceptions: true,
+      disable_session_recording: true,
+      session_recording: {
+        maskAllInputs: true,
+      },
       debug: process.env.NODE_ENV === 'development',
     });
   }

@@ -390,6 +390,13 @@ function PlayerContent({
         has_matrix_position: response.row !== undefined,
       });
     } else {
+      if (response.reason === 'plan_limit_hit') {
+        captureClientEvent('plan_limit_hit', {
+          limit_key: 'max_devices',
+          room_code: roomCode,
+          surface: 'play',
+        });
+      }
       setJoinFailedReason(response.reason ?? 'Could not join room');
     }
   }, [applyJoinResponse, emitWithCallback, activeNickname, roomCode]);

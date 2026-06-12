@@ -33,6 +33,16 @@ export async function getProfile() {
   return result[0] ?? null;
 }
 
+export async function profileExists(userId: string): Promise<boolean> {
+  const result = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  return result.length > 0;
+}
+
 export async function getTeamForUser() {
   const profile = await getProfile();
   if (!profile) return null;

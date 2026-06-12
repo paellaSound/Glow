@@ -31,7 +31,7 @@ Each part is scoped to **one focused implementation session** (roughly 1–2 day
 | **02** | [02-plan-gate.md](./02-plan-gate.md) | Unified `PlanGate` + upgrade modal + checkout deep link | Monetization UX |
 | **03** | [03-billing-branding.md](./03-billing-branding.md) | Billing page rewrite + Venue white-label (logo/QR) | Can sell honestly |
 | **04** | [04-freemium-depth.md](./04-freemium-depth.md) | Try-everything limits: visuals, GIFs, test mode | Free tier complete |
-| **05** | [05-posthog.md](./05-posthog.md) | PostHog events + error tracking | **Public prod gate** |
+| **05** | [05-posthog.md](./05-posthog.md) | PostHog events + error tracking | **Public prod gate** — ~70%, see [web/posthog-setup-report.md](../../web/posthog-setup-report.md) |
 | **06** | [06-onboarding.md](./06-onboarding.md) | In-app first-party onboarding | Activation |
 | **07** | [07-raffle-post-launch.md](./07-raffle-post-launch.md) | Raffle mode + post-launch backlog | v1.1+ |
 
@@ -65,8 +65,8 @@ Each part is scoped to **one focused implementation session** (roughly 1–2 day
 | 02 | done | PlanGate + UpgradeModal + checkout deep link |
 | 03 | done | Billing marketing rewrite + Venue white-label |
 | 04 | done | freemium depth shipped |
-| 05 | pending | next — PostHog (01–04 done) |
-| 06 | pending | blocked by 05 recommended |
+| 05 | in progress (~70%) | Web + kill switch OK; see web/posthog-setup-report.md for optimization pass |
+| 06 | pending | next after 05 optimization (or parallel if PostHog events stubbed) |
 | 07 | pending | blocked by 04 |
 
 ---

@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getPostHogClient } from '@/lib/posthog-server';
+import { captureServerEvent, identifyOrchestrator } from '@/lib/posthog-analytics';
+import { getTeamForUser } from '@/lib/db/queries';
 
 function authRedirect(path: string, redirectTo?: string) {
   const target = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/room/new';
@@ -71,15 +73,23 @@ export async function signInWithPassword(formData: FormData) {
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) {
     const posthog = getPostHogClient();
-    posthog.identify({
-      distinctId: session.user.id,
-      properties: { email: session.user.email },
-    });
-    posthog.capture({
-      distinctId: session.user.id,
-      event: 'signin_completed',
-      properties: { method: 'email', email: session.user.email },
-    });
+    const team = await getTeamForUser();
+
+    if (team) {
+      identifyOrchestrator(posthog, session.user.id, {
+        team_id: team.id,
+        plan_code: team.plan.code,
+        subscription_status: team.subscriptionStatus,
+      });
+    }
+
+    captureServerEvent(
+      posthog,
+      session.user.id,
+      'signin_completed',
+      { method: 'email' },
+      team ? { team: team.id } : undefined
+    );
     await posthog.shutdown();
   }
 
@@ -119,22 +129,23 @@ export async function signUpWithPassword(formData: FormData) {
 
     if (data.user) {
       const posthog = getPostHogClient();
-      posthog.identify({
-        distinctId: data.user.id,
-        properties: {
-          email: data.user.email,
-          name: fullName || data.user.user_metadata?.full_name,
-          created_at: data.user.created_at,
-        },
-      });
-      posthog.capture({
-        distinctId: data.user.id,
-        event: 'signup_completed',
-        properties: {
-          method: 'email',
-          email: data.user.email,
-        },
-      });
+      const team = await getTeamForUser();
+
+      if (team) {
+        identifyOrchestrator(posthog, data.user.id, {
+          team_id: team.id,
+          plan_code: team.plan.code,
+          subscription_status: team.subscriptionStatus,
+        });
+      }
+
+      captureServerEvent(
+        posthog,
+        data.user.id,
+        'signup_completed',
+        { method: 'email' },
+        team ? { team: team.id } : undefined
+      );
       await posthog.shutdown();
     }
 
