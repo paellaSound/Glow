@@ -26,7 +26,7 @@ const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   priorityReconnectWindowSeconds: 60,
   // v2 — Visuals surface
   visualsSurface: true,
-  availableVisualArts: ['glow-branded'],
+  availableVisualArts: ['audio-shader'],
   maxRigs: 1,
   effectLayering: false,
   maxPatternSequences: 1,

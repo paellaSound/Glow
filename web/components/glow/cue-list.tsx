@@ -23,8 +23,6 @@ interface CueListProps {
 }
 
 const ART_LABELS: Record<string, string> = {
-  'glow-branded': 'Glow Branded',
-  'pulse-grid': 'Pulse Grid',
   'audio-shader': 'Audio Shader',
 };
 

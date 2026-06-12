@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Monitor,
   Pause,
@@ -159,7 +159,8 @@ export function VisualsPreview({
     controllerRef.current = definition.mount(canvas, () => inputRef.current);
   }, []);
 
-  useEffect(() => {
+  // useLayoutEffect: canvas ref is set during commit, before this runs.
+  useLayoutEffect(() => {
     mountArt(artId);
   }, [artId, mountArt]);
 
@@ -266,13 +267,7 @@ export function VisualsPreview({
         >
           {/* Canvas */}
           <canvas
-            ref={(el) => {
-              canvasRef.current = el;
-              if (el) {
-                mountArt(artId);
-                controllerRef.current?.resize();
-              }
-            }}
+            ref={canvasRef}
             className="absolute inset-0 h-full w-full object-cover"
           />
 

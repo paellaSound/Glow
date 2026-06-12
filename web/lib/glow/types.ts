@@ -12,6 +12,9 @@ export type {
   VisualPresetEvent,
 } from 'glow-presets';
 
+/** Rendering pipeline of the visuals surface. Mirrors realtime/src/types.ts VisualsMode. */
+export type VisualsMode = 'standard' | 'youtube' | 'custom-video' | '3d' | 'pptt';
+
 export type PlanEntitlements = {
   maxDevices: number;
   adsEnabled: boolean;

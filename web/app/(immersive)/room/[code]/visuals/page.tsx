@@ -1,8 +1,11 @@
 'use client';
 
-import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { getVisualArt, EMOJI_GLYPHS } from 'glow-visuals';
+import { getVisualArt, DEFAULT_VISUAL_ART_ID, EMOJI_GLYPHS } from 'glow-visuals';
+import type { VisualsMode } from '@/lib/glow/types';
+import { YoutubeSurface, type YoutubeVisualsState } from '@/components/visuals/youtube-surface';
+import { ThreeDSurface, type ThreeDAction } from '@/components/visuals/three-d-surface';
 import type { VisualArtController, VisualArtInput, VisualArtId, ReactionEmoji } from 'glow-visuals';
 import type { AudioFeatures } from 'glow-visuals';
 import QRCode from 'qrcode';
@@ -82,7 +85,12 @@ function VisualsContent({ code }: { code: string }) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
 
   // Current art id
-  const [artId, setArtId] = useState<VisualArtId>('glow-branded');
+  const [artId, setArtId] = useState<VisualArtId>('audio-shader');
+  // Rendering pipeline — 'standard' = 2D arts canvas; other modes swap the base layer
+  const [visualsMode, setVisualsMode] = useState<VisualsMode>('standard');
+  const [youtubeState, setYoutubeState] = useState<YoutubeVisualsState | null>(null);
+  const [threeDEnergy, setThreeDEnergy] = useState(0);
+  const [threeDAction, setThreeDAction] = useState<ThreeDAction>(null);
   // Live input for the art (updated by realtime events)
   const inputRef = useRef<VisualArtInput>(makeDefaultInput(roomCode));
 
@@ -218,7 +226,8 @@ function VisualsContent({ code }: { code: string }) {
     controllerRef.current?.destroy();
     controllerRef.current = null;
 
-    const definition = getVisualArt(id);
+    // Unknown/removed art ids (e.g. legacy rigs) fall back to the default art
+    const definition = getVisualArt(id) ?? getVisualArt(DEFAULT_VISUAL_ART_ID);
     if (!definition) {
       console.warn(`[visuals] Unknown art id: ${id}`);
       return;
@@ -226,17 +235,17 @@ function VisualsContent({ code }: { code: string }) {
     controllerRef.current = definition.mount(canvas, () => inputRef.current);
   }, []);
 
-  const canvasCallbackRef = useCallback(
-    (el: HTMLCanvasElement | null) => {
-      canvasRef.current = el;
-      if (el) mountArt(artId);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+  const canvasCallbackRef = useCallback((el: HTMLCanvasElement | null) => {
+    canvasRef.current = el;
+    if (!el) {
+      // Canvas unmounted (mode switch) — tear down the active art
+      controllerRef.current?.destroy();
+      controllerRef.current = null;
+    }
+  }, []);
 
-  // Swap art when artId changes
-  useEffect(() => {
+  // Swap art when artId changes (layout effect: ref is set during commit, before this runs)
+  useLayoutEffect(() => {
     if (canvasRef.current) mountArt(artId);
   }, [artId, mountArt]);
 
@@ -285,6 +294,15 @@ function VisualsContent({ code }: { code: string }) {
 
     if (state.artId) {
       setArtId(prev => state.artId && state.artId !== prev ? (state.artId as VisualArtId) : prev);
+    }
+    if (state.mode) {
+      setVisualsMode(state.mode as VisualsMode);
+    }
+    if (state.youtube !== undefined) {
+      setYoutubeState(state.youtube);
+    }
+    if (state.threeD?.energy !== undefined) {
+      setThreeDEnergy(state.threeD.energy);
     }
     if (state.qrConfig !== undefined) {
       setQrConfig(state.qrConfig);
@@ -364,6 +382,28 @@ function VisualsContent({ code }: { code: string }) {
     socket.on('visuals:scene', (payload: ScenePayload) => {
       applyVisualsState(payload);
     });
+
+    // ── visuals:mode ──────────────────────────────────────────────────────
+    socket.on('visuals:mode', (payload: { mode: VisualsMode }) => {
+      setVisualsMode(payload.mode);
+    });
+
+    // ── visuals:youtube ───────────────────────────────────────────────────
+    socket.on('visuals:youtube', (payload: { youtube: YoutubeVisualsState | null }) => {
+      setYoutubeState(payload.youtube);
+    });
+
+    // ── visuals:3d ────────────────────────────────────────────────────────
+    socket.on(
+      'visuals:3d',
+      (payload: { kind: 'energy'; level: number } | { kind: 'action'; action: 'shockwave' | 'burst' }) => {
+        if (payload.kind === 'energy') {
+          setThreeDEnergy(payload.level);
+        } else {
+          setThreeDAction({ action: payload.action, nonce: Date.now() });
+        }
+      },
+    );
 
     // ── visuals:palette ───────────────────────────────────────────────────
     socket.on('visuals:palette', (payload: { palette: string[] }) => {
@@ -577,12 +617,24 @@ function VisualsContent({ code }: { code: string }) {
         </div>
       )}
 
-      {/* ── Art canvas ── */}
-      <canvas
-        ref={canvasCallbackRef}
-        className="absolute inset-0 h-full w-full"
-        style={{ display: 'block' }}
-      />
+      {/* ── Base layer: art canvas (standard) or alternate pipeline ── */}
+      {visualsMode === 'standard' ? (
+        <canvas
+          ref={canvasCallbackRef}
+          className="absolute inset-0 h-full w-full"
+          style={{ display: 'block' }}
+        />
+      ) : visualsMode === 'youtube' ? (
+        <YoutubeSurface state={youtubeState} />
+      ) : visualsMode === '3d' ? (
+        <ThreeDSurface inputRef={inputRef} energy={threeDEnergy} pendingAction={threeDAction} />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-black">
+          <p className="font-mono text-xs uppercase tracking-widest text-zinc-600">
+            {visualsMode} mode — coming soon
+          </p>
+        </div>
+      )}
 
       {/* ── Live-call mosaic tiles ── */}
       {liveCall.tiles.length > 0 ? (

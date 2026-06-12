@@ -31,15 +31,23 @@ What the surface shows and what the phones show are **not the same content** and
 
 ### Registry & plan gating
 
-Three registered arts today (`web/packages/glow-visuals/src/registry.ts`):
+One registered art today (`web/packages/glow-visuals/src/registry.ts`) — `glow-branded`
+and `pulse-grid` were removed (2026-06-12, migration `0006_remove_legacy_visual_arts.sql`
+remaps legacy rig/cue references):
 
 | Art id | Label | Min tier | Mount |
 | --- | --- | --- | --- |
-| `glow-branded` | Glow Branded (splash + room code + join link) | `free` | `mountGlowBranded` |
-| `pulse-grid` | Pulse Grid (palette grid waving to music) | `plus_25` | `mountPulseGrid` |
-| `audio-shader` | Audio Shader (WebGL, bass/treble reactive) | `plus_25` | `mountAudioShader` |
+| `audio-shader` | Audio Shader (WebGL, bass/treble reactive, palette-driven) | `free` | `mountAudioShader` |
 
 `visualArtsForPlan(planCode)` filters by tier order `free < plus_25 < plus_50 < pro`.
+`DEFAULT_VISUAL_ART_ID = 'audio-shader'` is the fallback for unknown/removed art ids.
+
+### Visuals mode
+
+`VisualsState.mode: 'standard' | 'youtube' | 'custom-video' | '3d' | 'pptt'` selects the
+surface's base rendering pipeline (desk emits `orchestrator:visuals_set_mode` →
+`visuals:mode`). `standard` renders the art canvas; other modes swap the base layer while
+the DOM overlays (text/QR/logo/reactions/live-call) stay unchanged on top.
 
 ### Art contract
 

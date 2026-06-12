@@ -1,31 +1,18 @@
-import { mountGlowBranded } from './arts/glow-branded.js';
-import { mountPulseGrid } from './arts/pulse-grid.js';
 import { mountAudioShader } from './arts/audio-shader.js';
 import type { PlanTier, VisualArtDefinition, VisualArtId } from './types.js';
 
 export const VISUAL_ART_REGISTRY: Record<VisualArtId, VisualArtDefinition> = {
-  'glow-branded': {
-    id: 'glow-branded',
-    label: 'Glow Branded',
-    description: 'Animated branded splash with room code and join link — always available',
-    minTier: 'free',
-    mount: mountGlowBranded,
-  },
-  'pulse-grid': {
-    id: 'pulse-grid',
-    label: 'Pulse Grid',
-    description: 'Palette-coloured grid that waves with the music',
-    minTier: 'plus_25',
-    mount: mountPulseGrid,
-  },
   'audio-shader': {
     id: 'audio-shader',
     label: 'Audio Shader',
     description: 'Music-reactive WebGL shader driven by bass and treble',
-    minTier: 'plus_25',
+    minTier: 'free',
     mount: mountAudioShader,
   },
 };
+
+/** Default art for new rooms/rigs and fallback for removed/unknown art ids. */
+export const DEFAULT_VISUAL_ART_ID: VisualArtId = 'audio-shader';
 
 const TIER_ORDER: PlanTier[] = ['free', 'plus_25', 'plus_50', 'pro'];
 

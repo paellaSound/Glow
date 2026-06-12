@@ -132,8 +132,6 @@ const SOCIAL_KINDS = [
 ];
 
 const VISUAL_ART_LABELS: Record<string, string> = {
-  'glow-branded': 'Glow Branded Splash',
-  'pulse-grid': 'Pulse Grid Wave',
   'audio-shader': 'WebGL Audio Shader',
 };
 
@@ -153,7 +151,7 @@ export default function RigsPage() {
   // Form states
   const [formName, setFormName] = useState('');
   const [formDisplayName, setFormDisplayName] = useState('');
-  const [formDefaultArt, setFormDefaultArt] = useState('glow-branded');
+  const [formDefaultArt, setFormDefaultArt] = useState('audio-shader');
   const [formPalette, setFormPalette] = useState<string[]>(['#FF0055', '#00FFCC']);
   const [formLogoEnabled, setFormLogoEnabled] = useState(false);
   const [formIsDefault, setFormIsDefault] = useState(false);
@@ -231,7 +229,7 @@ export default function RigsPage() {
     const vals = draftData.values;
     setFormName(vals.name || '');
     setFormDisplayName(vals.displayName || '');
-    setFormDefaultArt(vals.defaultVisualArtId || 'glow-branded');
+    setFormDefaultArt(vals.defaultVisualArtId || 'audio-shader');
     setFormPalette(vals.palette || ['#FF0055', '#00FFCC']);
     setFormLogoEnabled(vals.logoEnabled ?? false);
     setFormIsDefault(vals.isDefault ?? false);
@@ -251,7 +249,7 @@ export default function RigsPage() {
       setOriginalValues({
         name: 'New Rig Set',
         displayName: '',
-        defaultVisualArtId: 'glow-branded',
+        defaultVisualArtId: 'audio-shader',
         palette: ['#FF0055', '#00FFCC'],
         logoEnabled: false,
         isDefault: false,
@@ -608,7 +606,7 @@ export default function RigsPage() {
 
   const entitlements = userData?.entitlements;
   const maxRigs = entitlements?.maxRigs ?? 1;
-  const availableArts = entitlements?.availableVisualArts ?? ['glow-branded'];
+  const availableArts = entitlements?.availableVisualArts ?? ['audio-shader'];
 
   const openEdit = (rig: Rig) => {
     setEditingRig(rig);
@@ -689,7 +687,7 @@ export default function RigsPage() {
     setIsCreating(true);
     setFormName('New Rig Set');
     setFormDisplayName('');
-    setFormDefaultArt('glow-branded');
+    setFormDefaultArt('audio-shader');
     setFormPalette(['#FF0055', '#00FFCC']);
     setFormLogoEnabled(false);
     
@@ -712,7 +710,7 @@ export default function RigsPage() {
     setOriginalValues({
       name: 'New Rig Set',
       displayName: '',
-      defaultVisualArtId: 'glow-branded',
+      defaultVisualArtId: 'audio-shader',
       palette: ['#FF0055', '#00FFCC'],
       logoEnabled: false,
       isDefault: isFirstRig,
@@ -744,7 +742,7 @@ export default function RigsPage() {
 
   // Cue Helpers
   const addCue = () => {
-    const defaultArt = availableArts[0] || 'glow-branded';
+    const defaultArt = availableArts[0] || 'audio-shader';
     setFormCues([...formCues, {
       visualArtId: defaultArt,
       sortOrder: formCues.length,

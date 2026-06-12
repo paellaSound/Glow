@@ -12,7 +12,7 @@ export type AudioFeatures = {
 };
 
 /** All registered visual art identifiers. */
-export type VisualArtId = 'glow-branded' | 'pulse-grid' | 'audio-shader';
+export type VisualArtId = 'audio-shader';
 
 /**
  * The input snapshot passed to a visual art each animation frame.

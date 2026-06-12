@@ -65,12 +65,21 @@ function hexToVec3(hex: string): [number, number, number] {
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
+function shaderTypeLabel(gl: WebGLRenderingContext, type: number): string {
+  return type === gl.VERTEX_SHADER ? 'vertex' : 'fragment';
+}
+
 function createShader(gl: WebGLRenderingContext, type: number, src: string) {
-  const s = gl.createShader(type)!;
+  const s = gl.createShader(type);
+  if (!s) {
+    console.error('[audio-shader] failed to create shader object');
+    return null;
+  }
   gl.shaderSource(s, src);
   gl.compileShader(s);
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    console.error('[audio-shader] shader compile error:', gl.getShaderInfoLog(s));
+    const log = gl.getShaderInfoLog(s) ?? '(no compile log — context may be lost)';
+    console.error(`[audio-shader] ${shaderTypeLabel(gl, type)} shader compile error:`, log);
     gl.deleteShader(s);
     return null;
   }
@@ -173,8 +182,10 @@ export function mountAudioShader(
     resize,
     destroy: () => {
       cancelAnimationFrame(rafId);
-      const ext = glCtx.getExtension('WEBGL_lose_context');
-      ext?.loseContext();
+      glCtx.deleteProgram(program);
+      glCtx.deleteShader(vs);
+      glCtx.deleteShader(fs);
+      glCtx.deleteBuffer(buf);
     },
   };
 }

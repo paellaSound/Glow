@@ -135,7 +135,11 @@ export type RoomState = {
   rigSocials?: RigSocial[];
 };
 
+export type VisualsMode = 'standard' | 'youtube' | 'custom-video' | '3d' | 'pptt';
+
 export type VisualsState = {
+  /** Which rendering pipeline the surface uses. Defaults to 'standard' (2D arts). */
+  mode: VisualsMode;
   artId: string;
   params?: Record<string, unknown>;
   palette: string[];
@@ -161,6 +165,26 @@ export type VisualsState = {
     colorHex?: string;
     fontSize?: number;
     loop: boolean;
+  } | null;
+  /** YouTube mode state — null until a video is loaded. */
+  youtube?: {
+    videoId: string | null;
+    queue: { videoId: string; title?: string }[];
+    queueIndex: number;
+    playing: boolean;
+    muted: boolean;
+    /** 0–100 */
+    volume: number;
+    /** One-shot seek target in seconds — surface consumes it. */
+    seekToSec?: number | null;
+    updatedAt: number;
+  } | null;
+  /** 3D mode state — persisted energy level so reloads restore it. */
+  threeD?: {
+    assetId: 'energy-orb';
+    /** 0–5 */
+    energy: number;
+    updatedAt: number;
   } | null;
   version: number;
   updatedAt: number;

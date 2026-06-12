@@ -13,9 +13,9 @@ export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   maxRoomDurationMinutes: 60,
   manualFallbackMode: true,
   priorityReconnectWindowSeconds: 60,
-  // v2 — Visuals surface (safe defaults = branded-only)
+  // v2 — Visuals surface
   visualsSurface: true,
-  availableVisualArts: ['glow-branded'],
+  availableVisualArts: ['audio-shader'],
   maxRigs: 1,
   effectLayering: false,
   maxPatternSequences: 1,

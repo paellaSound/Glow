@@ -1,4 +1,5 @@
 export {
+  DEFAULT_VISUAL_ART_ID,
   getVisualArt,
   isValidVisualArtId,
   VISUAL_ART_LABELS,

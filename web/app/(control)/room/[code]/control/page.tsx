@@ -87,7 +87,8 @@ function ControlContent({ code }: { code: string }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>(normalizedTab);
 
   const [workingState, setWorkingState] = useState<VisualsWorkingState>({
-    artId: 'glow-branded',
+    mode: 'standard',
+    artId: 'audio-shader',
     palette: ['#FF0055', '#00FFCC'],
     logoEnabled: false,
     cueIndex: 0,
@@ -147,7 +148,7 @@ function ControlContent({ code }: { code: string }) {
         setInitialSequenceDraft(createDefaultDraft(rigPalette));
         setWorkingState((prev) => ({
           ...prev,
-          artId: rig.default_visual_art_id || 'glow-branded',
+          artId: rig.default_visual_art_id || 'audio-shader',
           palette: rigPalette,
           logoEnabled: rig.logo_enabled ?? false,
           cueIndex: 0,

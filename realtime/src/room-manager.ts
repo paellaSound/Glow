@@ -297,6 +297,11 @@ async function refreshRoomEntitlementsFromTeam(room: RoomState): Promise<void> {
   room.planCode = teamContext.planCode;
 }
 
+/** Art ids removed from the registry — rooms/rigs referencing them fall back to audio-shader. */
+const LEGACY_ART_IDS = new Set(['glow-branded', 'pulse-grid']);
+
+const VISUALS_MODES = new Set(['standard', 'youtube', 'custom-video', '3d', 'pptt']);
+
 function updateVisualsState(room: RoomState, updates: Partial<Omit<VisualsState, 'version' | 'updatedAt'>>) {
   room.visualsState = {
     ...room.visualsState,
@@ -525,7 +530,8 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
 
         // Load VJ settings from selected rig if provided
         const visualsState: VisualsState = {
-          artId: 'glow-branded',
+          mode: 'standard',
+          artId: 'audio-shader',
           params: {},
           palette: payload.paletteSnapshot || ['#7c3aed', '#06b6d4'],
           logo: null,
@@ -560,7 +566,10 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
               effect: (logoConfig?.effect || 'none') as 'none' | 'pulse' | 'spin' | 'float' | 'neon',
             } : null;
 
-            visualsState.artId = rig.default_visual_art_id || 'glow-branded';
+            // Legacy rigs may still reference removed arts (glow-branded, pulse-grid)
+            visualsState.artId = LEGACY_ART_IDS.has(rig.default_visual_art_id || '')
+              ? 'audio-shader'
+              : rig.default_visual_art_id || 'audio-shader';
             if (rig.palette) {
               visualsState.palette = rig.palette;
             }
@@ -1706,6 +1715,135 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       room.lastActivityAt = Date.now();
     }
   );
+
+  // ── Visuals surface: set mode (standard | youtube | custom-video | 3d | pptt) ──
+  socket.on(
+    'orchestrator:visuals_set_mode',
+    async (payload: { roomCode: string; mode: VisualsState['mode'] }) => {
+      const room = rooms.get(payload.roomCode?.toUpperCase());
+      if (!room || room.orchestratorSocketId !== socket.id) return;
+      if (!VISUALS_MODES.has(payload.mode)) return;
+      await refreshRoomEntitlementsFromTeam(room);
+      if (!room.entitlements.visualsSurface) return;
+
+      const updatedState = updateVisualsState(room, { mode: payload.mode });
+
+      io.to(`visuals:${room.code}`).emit('visuals:mode', { mode: updatedState.mode });
+      room.lastActivityAt = Date.now();
+    }
+  );
+
+  // ── Visuals surface: YouTube mode controls ────────────────────────────────
+  const YT_DEFAULT = {
+    videoId: null as string | null,
+    queue: [] as { videoId: string; title?: string }[],
+    queueIndex: 0,
+    playing: false,
+    muted: true,
+    volume: 80,
+    seekToSec: null as number | null,
+  };
+
+  async function withYoutubeRoom(
+    roomCode: string | undefined,
+    fn: (room: RoomState, yt: NonNullable<VisualsState['youtube']>) => Partial<NonNullable<VisualsState['youtube']>> | null,
+  ) {
+    const room = rooms.get(roomCode?.toUpperCase() ?? '');
+    if (!room || room.orchestratorSocketId !== socket.id) return;
+    await refreshRoomEntitlementsFromTeam(room);
+    if (!room.entitlements.visualsSurface) return;
+
+    const current = room.visualsState.youtube ?? { ...YT_DEFAULT, updatedAt: Date.now() };
+    const patch = fn(room, current);
+    if (!patch) return;
+    const youtube = { ...current, ...patch, updatedAt: Date.now() };
+    const updatedState = updateVisualsState(room, { youtube });
+    io.to(`visuals:${room.code}`).emit('visuals:youtube', { youtube: updatedState.youtube });
+    room.lastActivityAt = Date.now();
+  }
+
+  socket.on('orchestrator:visuals_youtube_load', (payload: { roomCode: string; videoId: string; title?: string }) => {
+    if (typeof payload.videoId !== 'string' || !/^[\w-]{6,16}$/.test(payload.videoId)) return;
+    void withYoutubeRoom(payload.roomCode, (_room, yt) => {
+      const inQueue = yt.queue.findIndex((q) => q.videoId === payload.videoId);
+      const queue = inQueue === -1 ? [...yt.queue, { videoId: payload.videoId, title: payload.title }] : yt.queue;
+      return {
+        videoId: payload.videoId,
+        queue,
+        queueIndex: inQueue === -1 ? queue.length - 1 : inQueue,
+        playing: true,
+        seekToSec: null,
+      };
+    });
+  });
+
+  socket.on('orchestrator:visuals_youtube_play', (payload: { roomCode: string }) => {
+    void withYoutubeRoom(payload.roomCode, () => ({ playing: true }));
+  });
+
+  socket.on('orchestrator:visuals_youtube_pause', (payload: { roomCode: string }) => {
+    void withYoutubeRoom(payload.roomCode, () => ({ playing: false }));
+  });
+
+  socket.on('orchestrator:visuals_youtube_set_volume', (payload: { roomCode: string; volume?: number; muted?: boolean }) => {
+    void withYoutubeRoom(payload.roomCode, (_room, yt) => ({
+      volume: typeof payload.volume === 'number' ? Math.max(0, Math.min(100, payload.volume)) : yt.volume,
+      muted: typeof payload.muted === 'boolean' ? payload.muted : yt.muted,
+    }));
+  });
+
+  socket.on('orchestrator:visuals_youtube_seek', (payload: { roomCode: string; sec: number }) => {
+    if (typeof payload.sec !== 'number' || payload.sec < 0) return;
+    void withYoutubeRoom(payload.roomCode, () => ({ seekToSec: payload.sec }));
+  });
+
+  socket.on('orchestrator:visuals_youtube_queue_set', (payload: { roomCode: string; items: { videoId: string; title?: string }[] }) => {
+    if (!Array.isArray(payload.items)) return;
+    const items = payload.items
+      .filter((i) => typeof i?.videoId === 'string' && /^[\w-]{6,16}$/.test(i.videoId))
+      .slice(0, 50)
+      .map((i) => ({ videoId: i.videoId, title: typeof i.title === 'string' ? i.title.slice(0, 200) : undefined }));
+    void withYoutubeRoom(payload.roomCode, (_room, yt) => ({
+      queue: items,
+      queueIndex: Math.min(yt.queueIndex, Math.max(0, items.length - 1)),
+    }));
+  });
+
+  socket.on('orchestrator:visuals_youtube_queue_jump', (payload: { roomCode: string; index: number }) => {
+    void withYoutubeRoom(payload.roomCode, (_room, yt) => {
+      const item = yt.queue[payload.index];
+      if (!item) return null;
+      return { queueIndex: payload.index, videoId: item.videoId, playing: true, seekToSec: null };
+    });
+  });
+
+  // ── Visuals surface: 3D mode controls ─────────────────────────────────────
+  socket.on('orchestrator:visuals_3d_set_energy', async (payload: { roomCode: string; level: number }) => {
+    const room = rooms.get(payload.roomCode?.toUpperCase());
+    if (!room || room.orchestratorSocketId !== socket.id) return;
+    if (typeof payload.level !== 'number') return;
+    await refreshRoomEntitlementsFromTeam(room);
+    if (!room.entitlements.visualsSurface) return;
+
+    const energy = Math.max(0, Math.min(5, Math.round(payload.level)));
+    const updatedState = updateVisualsState(room, {
+      threeD: { assetId: 'energy-orb', energy, updatedAt: Date.now() },
+    });
+    io.to(`visuals:${room.code}`).emit('visuals:3d', { kind: 'energy', level: energy, threeD: updatedState.threeD });
+    room.lastActivityAt = Date.now();
+  });
+
+  socket.on('orchestrator:visuals_3d_trigger_action', async (payload: { roomCode: string; action: string }) => {
+    const room = rooms.get(payload.roomCode?.toUpperCase());
+    if (!room || room.orchestratorSocketId !== socket.id) return;
+    if (payload.action !== 'shockwave' && payload.action !== 'burst') return;
+    await refreshRoomEntitlementsFromTeam(room);
+    if (!room.entitlements.visualsSurface) return;
+
+    // One-shot — broadcast without persisting in state
+    io.to(`visuals:${room.code}`).emit('visuals:3d', { kind: 'action', action: payload.action });
+    room.lastActivityAt = Date.now();
+  });
 
   // ── Visuals surface: set scene ─────────────────────────────────────────────
   socket.on(

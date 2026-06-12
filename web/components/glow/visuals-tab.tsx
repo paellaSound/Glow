@@ -19,17 +19,19 @@ import { NeonButton, NeonCard, NeonTitle } from '@/components/ui/neon';
 import { PaletteEditor } from '@/components/glow/palette-editor';
 import { CueList, type RigCue } from '@/components/glow/cue-list';
 import type { Socket } from 'socket.io-client';
-import type { RoomStatePayload } from '@/lib/glow/types';
+import type { RoomStatePayload, VisualsMode } from '@/lib/glow/types';
 import { VISUAL_ART_REGISTRY } from 'glow-visuals';
 import { LiveCallControls } from '@/components/glow/live-call-controls';
 import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
 import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import { cn } from '@/lib/utils';
 import { VisualsPreview } from '@/components/glow/visuals-preview';
+import { parseYoutubeVideoId } from '@/lib/youtube';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type VisualsWorkingState = {
+  mode: VisualsMode;
   artId: string;
   palette: string[];
   logoEnabled: boolean;
@@ -68,6 +70,16 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 function rigLogoUrl(path: string): string {
   return `${SUPABASE_URL}/storage/v1/object/public/rig-logos/${path}`;
 }
+
+// ── Visuals modes ──────────────────────────────────────────────────────────
+
+const VISUALS_MODES: { id: VisualsMode; label: string; description: string; implemented: boolean }[] = [
+  { id: 'standard', label: 'Standard', description: 'Palette-driven audio-reactive arts', implemented: true },
+  { id: 'youtube', label: 'YouTube', description: 'Fullscreen YouTube video with overlays on top', implemented: true },
+  { id: 'custom-video', label: 'Custom Video', description: 'Your own clip sequence with transitions', implemented: false },
+  { id: '3d', label: '3D Visuals', description: 'Music-reactive 3D scenes with energy levels', implemented: true },
+  { id: 'pptt', label: 'PPTT Mode', description: 'Google Slides presentation with live QR', implemented: false },
+];
 
 // ── Section header ─────────────────────────────────────────────────────────
 
@@ -113,6 +125,7 @@ export function VisualsTab({
     output: false,
     liveCall: false,
     cues: false,
+    visualsMode: false,
     art: false,
     palette: false,
     showName: false,
@@ -318,6 +331,96 @@ export function VisualsTab({
     await navigator.clipboard.writeText(url);
     setCopyDone(true);
     setTimeout(() => setCopyDone(false), 2500);
+  }
+
+  // ── Visuals mode selector ─────────────────────────────────────────────────
+
+  function handleModeChange(mode: VisualsMode) {
+    if (mode === workingState.mode) return;
+    onWorkingStateChange({ mode, dirty: true });
+    socket.current?.emit('orchestrator:visuals_set_mode', { roomCode, mode });
+  }
+
+  // ── YouTube mode controls ─────────────────────────────────────────────────
+
+  const [ytUrlInput, setYtUrlInput] = useState('');
+  const [ytUrlError, setYtUrlError] = useState<string | null>(null);
+  const [ytQueue, setYtQueue] = useState<{ videoId: string; title?: string }[]>([]);
+  const [ytQueueIndex, setYtQueueIndex] = useState(0);
+  const [ytPlaying, setYtPlaying] = useState(false);
+  const [ytMuted, setYtMuted] = useState(true);
+  const [ytVolume, setYtVolume] = useState(80);
+  const [ytSeekInput, setYtSeekInput] = useState('');
+
+  function handleYtLoad() {
+    const videoId = parseYoutubeVideoId(ytUrlInput);
+    if (!videoId) {
+      setYtUrlError('Invalid YouTube URL or video id');
+      return;
+    }
+    setYtUrlError(null);
+    socket.current?.emit('orchestrator:visuals_youtube_load', { roomCode, videoId });
+    setYtQueue((prev) => {
+      const idx = prev.findIndex((q) => q.videoId === videoId);
+      if (idx !== -1) {
+        setYtQueueIndex(idx);
+        return prev;
+      }
+      setYtQueueIndex(prev.length);
+      return [...prev, { videoId }];
+    });
+    setYtPlaying(true);
+    setYtUrlInput('');
+  }
+
+  function handleYtPlayPause() {
+    const next = !ytPlaying;
+    setYtPlaying(next);
+    socket.current?.emit(
+      next ? 'orchestrator:visuals_youtube_play' : 'orchestrator:visuals_youtube_pause',
+      { roomCode }
+    );
+  }
+
+  function handleYtVolume(volume: number, muted: boolean) {
+    setYtVolume(volume);
+    setYtMuted(muted);
+    socket.current?.emit('orchestrator:visuals_youtube_set_volume', { roomCode, volume, muted });
+  }
+
+  function handleYtSeek() {
+    const parts = ytSeekInput.split(':').map((p) => Number(p.trim()));
+    if (parts.some((n) => Number.isNaN(n) || n < 0)) return;
+    const sec = parts.length === 2 ? parts[0]! * 60 + parts[1]! : parts[0] ?? 0;
+    socket.current?.emit('orchestrator:visuals_youtube_seek', { roomCode, sec });
+  }
+
+  function handleYtQueueJump(index: number) {
+    const item = ytQueue[index];
+    if (!item) return;
+    setYtQueueIndex(index);
+    setYtPlaying(true);
+    socket.current?.emit('orchestrator:visuals_youtube_queue_jump', { roomCode, index });
+  }
+
+  function handleYtQueueRemove(index: number) {
+    const next = ytQueue.filter((_, i) => i !== index);
+    setYtQueue(next);
+    if (index < ytQueueIndex) setYtQueueIndex(ytQueueIndex - 1);
+    socket.current?.emit('orchestrator:visuals_youtube_queue_set', { roomCode, items: next });
+  }
+
+  // ── 3D mode controls ──────────────────────────────────────────────────────
+
+  const [energy3d, setEnergy3d] = useState(0);
+
+  function handle3dEnergy(level: number) {
+    setEnergy3d(level);
+    socket.current?.emit('orchestrator:visuals_3d_set_energy', { roomCode, level });
+  }
+
+  function handle3dAction(action: 'shockwave' | 'burst') {
+    socket.current?.emit('orchestrator:visuals_3d_trigger_action', { roomCode, action });
   }
 
   // ── Art picker ────────────────────────────────────────────────────────────
@@ -669,7 +772,268 @@ export function VisualsTab({
         </div>
       </NeonCard>
 
+      {/* ── 4a. Visuals Mode ──────────────────────────────────────────── */}
+      <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-5">
+        <div
+          className="flex items-center justify-between cursor-pointer select-none"
+          onClick={() => toggleCollapse('visualsMode')}
+        >
+          <SectionHeader title="VISUALS MODE" color="violet" />
+          <button className="text-zinc-400 hover:text-white p-1">
+            {collapsedSections.visualsMode ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+          </button>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateRows: collapsedSections.visualsMode ? '0fr' : '1fr',
+            transition: 'grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
+          <div className="overflow-hidden">
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {VISUALS_MODES.map((m) => {
+                  const active = m.id === workingState.mode;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleModeChange(m.id)}
+                      disabled={!connected || !m.implemented}
+                      title={m.description}
+                      className={cn(
+                        'flex flex-col items-center gap-1 rounded-xl border px-3 py-3 text-center transition-all duration-150',
+                        active
+                          ? 'border-neon-violet/50 bg-neon-violet/10 text-white'
+                          : m.implemented
+                            ? 'border-white/10 hover:border-white/20 hover:bg-white/5 text-zinc-400 hover:text-zinc-200'
+                            : 'border-white/5 text-zinc-600 cursor-not-allowed opacity-60'
+                      )}
+                      id={`visuals-mode-${m.id}`}
+                    >
+                      <span className="text-xs font-cyber">{m.label}</span>
+                      {!m.implemented && (
+                        <span className="text-[8px] font-cyber uppercase tracking-widest text-zinc-600">
+                          Coming soon
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </NeonCard>
+
+      {/* ── 4b. YouTube controls ──────────────────────────────────────── */}
+      {workingState.mode === 'youtube' && (
+        <NeonCard glowColor="magenta" borderVariant="magenta" hoverEffect={false} className="p-5">
+          <SectionHeader title="YOUTUBE" color="magenta" />
+          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+            {/* URL loader */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={ytUrlInput}
+                onChange={(e) => setYtUrlInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleYtLoad()}
+                placeholder="Paste YouTube URL or video id…"
+                className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-neon-magenta/50 focus:outline-none focus:ring-1 focus:ring-neon-magenta/50 font-cyber"
+              />
+              <NeonButton
+                color="magenta"
+                variant="solid"
+                onClick={handleYtLoad}
+                disabled={!connected || !ytUrlInput.trim()}
+                className="text-xs uppercase tracking-widest h-9 px-4"
+              >
+                Load
+              </NeonButton>
+            </div>
+            {ytUrlError && <p className="text-xs text-red-400">{ytUrlError}</p>}
+
+            {/* Transport */}
+            <div className="flex flex-wrap items-center gap-3">
+              <NeonButton
+                color="magenta"
+                variant={ytPlaying ? 'outline' : 'solid'}
+                onClick={handleYtPlayPause}
+                disabled={!connected || ytQueue.length === 0}
+                className="text-xs uppercase tracking-widest h-9 px-4"
+              >
+                {ytPlaying ? 'Pause' : 'Play'}
+              </NeonButton>
+
+              <button
+                type="button"
+                onClick={() => handleYtVolume(ytVolume, !ytMuted)}
+                disabled={!connected}
+                className="focus:outline-none"
+                aria-label="Toggle mute"
+              >
+                {ytMuted ? (
+                  <ToggleLeft className="w-7 h-7 text-zinc-500" />
+                ) : (
+                  <ToggleRight className="w-7 h-7 text-neon-magenta" />
+                )}
+              </button>
+              <span className="text-[10px] font-cyber text-zinc-400 uppercase tracking-widest">
+                {ytMuted ? 'Muted' : 'Sound on'}
+              </span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={ytVolume}
+                onChange={(e) => handleYtVolume(Number(e.target.value), ytMuted)}
+                disabled={!connected || ytMuted}
+                className="flex-1 min-w-[120px] accent-neon-magenta"
+              />
+              <span className="text-[10px] font-cyber text-zinc-500 w-8 text-right">{ytVolume}%</span>
+            </div>
+
+            {/* Seek */}
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-cyber text-zinc-400 uppercase tracking-widest">
+                Seek to
+              </label>
+              <input
+                type="text"
+                value={ytSeekInput}
+                onChange={(e) => setYtSeekInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleYtSeek()}
+                placeholder="mm:ss"
+                className="w-20 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-center text-xs text-white placeholder-zinc-600 focus:border-neon-magenta/50 focus:outline-none font-cyber"
+              />
+              <NeonButton
+                color="magenta"
+                variant="outline"
+                onClick={handleYtSeek}
+                disabled={!connected || !ytSeekInput.trim()}
+                className="text-xs uppercase tracking-widest h-8 px-3"
+              >
+                Go
+              </NeonButton>
+            </div>
+
+            {/* Queue */}
+            {ytQueue.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-cyber text-zinc-400 uppercase tracking-widest">
+                  Queue
+                </p>
+                {ytQueue.map((item, i) => (
+                  <div
+                    key={`${item.videoId}-${i}`}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg border px-3 py-2',
+                      i === ytQueueIndex
+                        ? 'border-neon-magenta/50 bg-neon-magenta/10'
+                        : 'border-white/10 bg-black/30'
+                    )}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleYtQueueJump(i)}
+                      disabled={!connected}
+                      className="flex-1 text-left text-xs font-mono text-zinc-300 hover:text-white truncate"
+                    >
+                      {item.title || item.videoId}
+                    </button>
+                    {i === ytQueueIndex && (
+                      <span className="text-[8px] font-cyber uppercase tracking-widest text-neon-magenta">
+                        Now
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleYtQueueRemove(i)}
+                      disabled={!connected}
+                      className="text-zinc-600 hover:text-red-400 text-xs px-1"
+                      aria-label="Remove from queue"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </NeonCard>
+      )}
+
+      {/* ── 4c. 3D Visuals controls ───────────────────────────────────── */}
+      {workingState.mode === '3d' && (
+        <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5">
+          <SectionHeader title="3D VISUALS — ENERGY ORB" color="cyan" />
+          <div className="mt-4 pt-4 border-t border-white/5 space-y-5">
+            {/* Energy level */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[10px] font-cyber text-zinc-400 uppercase tracking-widest">
+                  Energy Level
+                </label>
+                <span className="text-xs font-cyber text-neon-cyan">{energy3d} / 5</span>
+              </div>
+              <div className="grid grid-cols-6 gap-1.5">
+                {[0, 1, 2, 3, 4, 5].map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    onClick={() => handle3dEnergy(level)}
+                    disabled={!connected}
+                    className={cn(
+                      'rounded-lg border py-2.5 text-xs font-cyber transition-all',
+                      level === energy3d
+                        ? 'border-neon-cyan/60 bg-neon-cyan/15 text-neon-cyan shadow-[0_0_10px_rgba(0,229,255,0.2)]'
+                        : level < energy3d
+                          ? 'border-neon-cyan/20 bg-neon-cyan/5 text-zinc-400'
+                          : 'border-white/10 bg-black/30 text-zinc-500 hover:border-white/20 hover:text-zinc-300'
+                    )}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-1.5">
+                0 = floor · 5 = space. The orb rises, glows and spins faster with each level.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div>
+              <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-2">
+                Actions
+              </label>
+              <div className="flex gap-3">
+                <NeonButton
+                  color="cyan"
+                  variant="solid"
+                  onClick={() => handle3dAction('shockwave')}
+                  disabled={!connected}
+                  className="flex-1 text-xs uppercase tracking-widest h-9"
+                >
+                  Shockwave
+                </NeonButton>
+                <NeonButton
+                  color="cyan"
+                  variant="outline"
+                  onClick={() => handle3dAction('burst')}
+                  disabled={!connected}
+                  className="flex-1 text-xs uppercase tracking-widest h-9"
+                >
+                  Burst
+                </NeonButton>
+              </div>
+            </div>
+          </div>
+        </NeonCard>
+      )}
+
       {/* ── 4. Visual Art ─────────────────────────────────────────────── */}
+      {workingState.mode === 'standard' && (
       <NeonCard glowColor="magenta" borderVariant="magenta" hoverEffect={false} className="p-5">
         <div
           className="flex items-center justify-between cursor-pointer select-none"
@@ -726,6 +1090,7 @@ export function VisualsTab({
           </div>
         </div>
       </NeonCard>
+      )}
 
       {/* ── 5. Palette ────────────────────────────────────────────────── */}
       <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5">

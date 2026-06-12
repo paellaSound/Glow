@@ -136,7 +136,7 @@ export const PLAN_SEED_DATA = [
       priority_reconnect_window_seconds: 60,
       // v2
       visuals_surface: true,
-      available_visual_arts: ['glow-branded'],
+      available_visual_arts: ['audio-shader'],
       max_rigs: 1,
       effect_layering: false,
       max_pattern_sequences: 1,
@@ -170,7 +170,7 @@ export const PLAN_SEED_DATA = [
       priority_reconnect_window_seconds: 120,
       // v2
       visuals_surface: true,
-      available_visual_arts: ['glow-branded', 'pulse-grid', 'audio-shader'],
+      available_visual_arts: ['audio-shader'],
       max_rigs: 3,
       effect_layering: false,
       max_pattern_sequences: 3,
@@ -204,7 +204,7 @@ export const PLAN_SEED_DATA = [
       priority_reconnect_window_seconds: 180,
       // v2
       visuals_surface: true,
-      available_visual_arts: ['glow-branded', 'pulse-grid', 'audio-shader'],
+      available_visual_arts: ['audio-shader'],
       max_rigs: 10,
       effect_layering: true,
       max_pattern_sequences: 10,
@@ -238,7 +238,7 @@ export const PLAN_SEED_DATA = [
       priority_reconnect_window_seconds: 300,
       // v2
       visuals_surface: true,
-      available_visual_arts: ['glow-branded', 'pulse-grid', 'audio-shader'],
+      available_visual_arts: ['audio-shader'],
       max_rigs: 50,
       effect_layering: true,
       max_pattern_sequences: 50,

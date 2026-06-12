@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
         ownerUserId: user.id,
         teamId: team.id,
         name: name || 'Unnamed Rig',
-        defaultVisualArtId: defaultVisualArtId || 'glow-branded',
+        defaultVisualArtId: defaultVisualArtId || 'audio-shader',
         palette: palette || ['#FF0055', '#00FFCC'],
         logoAssetPath: logoAssetPath || null,
         logoEnabled: logoEnabled ?? false,
