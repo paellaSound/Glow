@@ -9,6 +9,8 @@ import { parseMatrixParam } from '@/lib/glow/join-url';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { DeviceCapBanner } from '@/components/glow/device-cap-banner';
 import { DeviceList } from '@/components/glow/device-list';
+import { FirstPartyOnboarding } from '@/components/glow/first-party-onboarding';
+import type { OnboardingStepId } from '@/lib/onboarding/constants';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
 import { RoomShareControls } from '@/components/glow/room-share-controls';
 import {
@@ -69,6 +71,15 @@ function ControlContent({ code }: { code: string }) {
   const [fallbackSeed, setFallbackSeed] = useState(() => Date.now());
   const [mobileQrUrl, setMobileQrUrl] = useState<string | null>(null);
   const [showMobileModal, setShowMobileModal] = useState(false);
+  const [hasRunPreset, setHasRunPreset] = useState(false);
+  const [shareAcknowledged, setShareAcknowledged] = useState(false);
+  const [onboardingActiveStep, setOnboardingActiveStep] = useState<OnboardingStepId | null>(null);
+
+  useEffect(() => {
+    if (onboardingActiveStep === 2) {
+      setDevicesOpen(true);
+    }
+  }, [onboardingActiveStep]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -268,6 +279,7 @@ function ControlContent({ code }: { code: string }) {
 
       if (markLive) {
         setLiveDraftName(draft.name);
+        setHasRunPreset(true);
         captureClientEvent('pattern_sent_live', {
           room_code: code.toUpperCase(),
           sequence_name: draft.name,
@@ -403,13 +415,19 @@ function ControlContent({ code }: { code: string }) {
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div
+                className={cn(
+                  'flex flex-wrap items-center gap-2 rounded-xl transition-shadow',
+                  onboardingActiveStep === 1 && 'ring-2 ring-neon-cyan/50 ring-offset-2 ring-offset-background'
+                )}
+              >
                 <RoomShareControls
                   roomCode={code}
                   matrixEnabled={shareMatrixEnabled}
                   onMatrixEnabledChange={setShareMatrixEnabled}
                   showMatrixOption={roomHasMatrix}
                   compact
+                  onShareAction={() => setShareAcknowledged(true)}
                 />
                 <NeonButton
                   color="cyan"
@@ -482,7 +500,16 @@ function ControlContent({ code }: { code: string }) {
           {activeTab === 'patterns' && visibleTabs.includes('patterns') ? (
             <div className="flex flex-col gap-6">
               {!isButtonHidden('preset-sequences') ? (
-                <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-5 sm:p-6">
+                <NeonCard
+                  glowColor="violet"
+                  borderVariant="violet"
+                  hoverEffect={false}
+                  className={cn(
+                    'p-5 sm:p-6 transition-shadow',
+                    onboardingActiveStep === 3 && 'ring-2 ring-neon-violet/50 ring-offset-2 ring-offset-background'
+                  )}
+                  data-onboarding="preset"
+                >
                   <div className="mb-5">
                     <NeonTitle as="h2" color="violet" className="text-lg font-black tracking-widest">
                       Rave Pattern Sequences
@@ -533,7 +560,16 @@ function ControlContent({ code }: { code: string }) {
                 />
               ) : null}
 
-              <NeonCard glowColor="none" borderVariant="default" hoverEffect={false} className="overflow-hidden">
+              <NeonCard
+                glowColor="none"
+                borderVariant="default"
+                hoverEffect={false}
+                className={cn(
+                  'overflow-hidden transition-shadow',
+                  onboardingActiveStep === 2 && 'ring-2 ring-neon-cyan/40 ring-offset-2 ring-offset-background'
+                )}
+                data-onboarding="devices"
+              >
                 <button
                   type="button"
                   className="flex w-full items-center justify-between px-5 py-4 text-left"
@@ -554,6 +590,7 @@ function ControlContent({ code }: { code: string }) {
                   <div className="border-t border-white/10 px-5 pb-5">
                     <DeviceList
                       roomState={roomState}
+                      showOnboardingHint={onboardingActiveStep !== null}
                       onIdentify={(publicId) =>
                         socket.current?.emit('orchestrator:identify_device', {
                           roomCode: code.toUpperCase(),
@@ -594,6 +631,15 @@ function ControlContent({ code }: { code: string }) {
             />
           ) : null}
 
+          <FirstPartyOnboarding
+            roomCode={code}
+            deviceCount={roomState?.devices.length ?? 0}
+            hasRunPreset={hasRunPreset}
+            visualsTabActive={activeTab === 'visuals'}
+            shareAcknowledged={shareAcknowledged}
+            onRequestVisualsTab={() => switchTab('visuals')}
+            onActiveStepChange={setOnboardingActiveStep}
+          />
 
           {/* Mobile Phone Control QR Modal */}
           {showMobileModal && (

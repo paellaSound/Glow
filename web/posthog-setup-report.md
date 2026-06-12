@@ -109,13 +109,36 @@ POSTHOG_HOST=https://eu.i.posthog.com
 | `subscription_cancelled` | Webhook cancelled/downgrade | `lib/payments/stripe.ts` |
 | `$exception` | JS errors (client + realtime) | `capture_exceptions`, error boundary, realtime handlers |
 
-### Pending (PlanGate / Part 02)
+---
+
+## Onboarding person properties (Part 06)
+
+Define these **boolean** person properties in PostHog → Settings → Person properties:
+
+| Property | Purpose |
+| --- | --- |
+| `onboarding_step_1_completed` | Shared QR / link |
+| `onboarding_step_2_completed` | First device connected |
+| `onboarding_step_3_completed` | First preset sent live |
+| `onboarding_step_4_completed` | Visuals tab (optional) |
+| `first_device_connected` | Milestone — once per user |
+| `first_preset_run` | Milestone — once per user |
+| `onboarding_checklist_complete` | User finished tour |
+| `onboarding_checklist_dismissed` | User chose "Don't show again" |
+
+Code reads them after `identify` via `posthog.get_property()` and sets them with
+`posthog.setPersonProperties()` in `web/lib/onboarding/person-properties.ts`.
+When PostHog is off (local dev), `localStorage` keys `glow_onboarding_v1` / `glow_ph_*` are used instead.
+
+---
 
 | Event | Priority |
 | --- | --- |
 | `billing_upgrade_modal_shown` / `_dismissed` | High — Part 02 PlanGate |
 | `billing_page_viewed` | Medium |
-| `onboarding_step_completed` | Medium — Part 06 |
+| `onboarding_step_completed` | Checklist step done (1–4) | `first-party-onboarding` → person prop `onboarding_step_N_completed` |
+| `first_device_connected` | First guest device (once per user) | person prop `first_device_connected` |
+| `first_preset_run` | First Send Live (once per user) | person prop `first_preset_run` |
 
 ---
 

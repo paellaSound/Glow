@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import Link from 'next/link';
+import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { captureClientEvent } from '@/lib/posthog-client';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { Input } from '@/components/ui/input';
@@ -46,6 +47,7 @@ export default function CreateRoomPage() {
   const [showAd, setShowAd] = useState(false);
   const [pendingCreate, setPendingCreate] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [firstPartyTipOpen, setFirstPartyTipOpen] = useState(false);
   const searchParams = useSearchParams();
   const { team, mutate: mutateEntitlements } = useTeamEntitlements();
 
@@ -242,6 +244,44 @@ export default function CreateRoomPage() {
                   </span>
                 </span>
               </label>
+            </div>
+
+            <div className="rounded-xl border border-neon-cyan/15 bg-neon-cyan/5">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
+                onClick={() => setFirstPartyTipOpen((open) => !open)}
+              >
+                <span className="flex items-center gap-2 text-xs font-cyber font-semibold uppercase tracking-wide text-neon-cyan">
+                  <HelpCircle className="size-3.5 shrink-0" />
+                  First party?
+                </span>
+                {firstPartyTipOpen ? (
+                  <ChevronUp className="size-4 shrink-0 text-zinc-400" />
+                ) : (
+                  <ChevronDown className="size-4 shrink-0 text-zinc-400" />
+                )}
+              </button>
+              {firstPartyTipOpen ? (
+                <div className="border-t border-neon-cyan/10 px-4 pb-4 pt-3 text-xs leading-relaxed text-muted-foreground">
+                  <p>
+                    <strong className="font-cyber text-[10px] uppercase tracking-wide text-foreground">
+                      Unified strobe (recommended)
+                    </strong>
+                    {' — '}
+                    Leave matrix off. Guests join, pick a nickname, and every phone flashes the same
+                    color in sync. Simplest for your first hangout.
+                  </p>
+                  <p className="mt-2">
+                    <strong className="font-cyber text-[10px] uppercase tracking-wide text-foreground">
+                      Grid matrix
+                    </strong>
+                    {' — '}
+                    Enable the checkbox and set rows × columns. Each phone picks a grid cell — best
+                    for waves and spatial patterns once you know the flow.
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             {positionRequired ? (

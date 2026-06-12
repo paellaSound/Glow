@@ -26,6 +26,9 @@ export async function checkoutAction(formData: FormData) {
     redirect(returnUrl ?? '/billing');
   }
 
+  const checkoutSource =
+    typeof formData.get('source') === 'string' ? formData.get('source') : 'billing';
+
   if (team) {
     const posthog = getPostHogClient();
     posthog.capture({
@@ -36,6 +39,7 @@ export async function checkoutAction(formData: FormData) {
         plan_code: plan.code,
         plan_name: plan.name,
         return_url: returnUrl,
+        source: checkoutSource,
       },
     });
     await posthog.shutdown();

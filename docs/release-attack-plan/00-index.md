@@ -66,7 +66,7 @@ Each part is scoped to **one focused implementation session** (roughly 1–2 day
 | 03 | done | Billing marketing rewrite + Venue white-label |
 | 04 | done | freemium depth shipped |
 | 05 | in progress (~70%) | Web + kill switch OK; see web/posthog-setup-report.md for optimization pass |
-| 06 | pending | next after 05 optimization (or parallel if PostHog events stubbed) |
+| 06 | done | FirstPartyOnboarding checklist, device empty state, /room/new tip, PostHog events |
 | 07 | pending | blocked by 04 |
 
 ---

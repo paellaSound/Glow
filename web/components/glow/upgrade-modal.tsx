@@ -51,6 +51,7 @@ export function UpgradeModal({
       const formData = new FormData();
       formData.set('planCode', requiredPlan);
       formData.set('returnUrl', returnUrl);
+      formData.set('source', 'modal');
       if (hasActiveSubscription) {
         void customerPortalAction(formData);
       } else {

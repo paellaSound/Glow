@@ -1,6 +1,6 @@
 # Release Attack Plan — Part 06: Onboarding
 
-**Status:** pending  
+**Status:** done  
 **Prerequisites:** [05-posthog.md](./05-posthog.md) recommended (track funnel)  
 **Blocks:** public release polish  
 **Related:** [onboarding-first-party.md](../onboarding-first-party.md)
@@ -29,39 +29,39 @@ Optional embed for AI video when ready.
 
 ### A. Control desk checklist
 
-- [ ] Component `FirstPartyOnboarding` — 4 steps:
+- [x] Component `FirstPartyOnboarding` — 4 steps:
   1. Share QR / link
   2. Wait for first device
   3. Trigger a preset
   4. (Optional) Open Visuals tab
-- [ ] Show when `localStorage` flag `glow_onboarding_v1` not complete
-- [ ] Dismiss / complete persists flag
-- [ ] Highlight `RoomShareControls` on step 1
+- [x] Show when `localStorage` flag `glow_onboarding_v1` not complete
+- [x] Dismiss / complete persists flag
+- [x] Highlight `RoomShareControls` on step 1
 
 ### B. Empty states
 
-- [ ] Device list empty: “Share the QR — waiting for first phone”
-- [ ] Auto-advance step 2 when `device_count >= 1`
+- [x] Device list empty: “Share the QR — waiting for first phone”
+- [x] Auto-advance step 2 when `device_count >= 1`
 
 ### C. Create room
 
-- [ ] Collapsible “First party?” tip under matrix checkbox (copy from onboarding doc)
-- [ ] Link to `/help` or external Notion if exists — else tooltip only
+- [x] Collapsible “First party?” tip under matrix checkbox (copy from onboarding doc)
+- [x] Link to `/help` or external Notion if exists — else tooltip only
 
 ### D. Landing (light)
 
-- [ ] Ensure home CTAs match onboarding language (“Glow Your Rave” / “Sync Your Screen”)
-- [ ] Optional: “How it works” accordion with 3 bullets from doc
+- [x] Ensure home CTAs match onboarding language (“Glow Your Rave” / “Sync Your Screen”)
+- [x] “How it works” panel with 3 bullets from onboarding doc
 
 ### E. Analytics
 
-- [ ] Fire PostHog events per step completion
-- [ ] `first_device_connected` once per team or per user (decide)
+- [x] Fire PostHog events per step completion
+- [x] `first_device_connected` once per team or per user (decide)
 
 ### F. Video (optional)
 
-- [ ] Constant `ONBOARDING_VIDEO_URL` — empty until Gemini export ready
-- [ ] If set, show in onboarding drawer
+- [x] Constant `ONBOARDING_VIDEO_URL` — empty until Gemini export ready
+- [x] If set, show in onboarding drawer
 
 ---
 
@@ -69,11 +69,14 @@ Optional embed for AI video when ready.
 
 | Path | Change |
 | --- | --- |
-| `web/components/glow/first-party-onboarding.tsx` | new |
+| `web/components/glow/first-party-onboarding.tsx` | new checklist drawer |
+| `web/lib/onboarding/constants.ts` | steps, storage keys, video URL |
+| `web/lib/onboarding/storage.ts` | localStorage helpers |
+| `web/lib/onboarding/analytics.ts` | PostHog event helpers |
 | `web/app/(control)/room/[code]/control/page.tsx` | mount checklist |
 | `web/app/(control)/room/new/page.tsx` | matrix tip |
-| `web/components/glow/device-list.tsx` or equivalent | empty state |
-| `web/lib/analytics/events.ts` | onboarding events |
+| `web/components/glow/device-list.tsx` | empty state |
+| `web/components/glow/room-share-controls.tsx` | `data-onboarding`, share callback |
 
 ---
 

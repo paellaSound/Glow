@@ -14,6 +14,7 @@ type RoomShareControlsProps = {
   onMatrixEnabledChange: (enabled: boolean) => void;
   showMatrixOption?: boolean;
   compact?: boolean;
+  onShareAction?: () => void;
 };
 
 type ShareInfo = {
@@ -29,6 +30,7 @@ export function RoomShareControls({
   onMatrixEnabledChange,
   showMatrixOption = true,
   compact = false,
+  onShareAction,
 }: RoomShareControlsProps) {
   const [copied, setCopied] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
@@ -55,6 +57,7 @@ export function RoomShareControls({
   async function copyJoinLink() {
     await navigator.clipboard.writeText(joinUrl);
     setCopied(true);
+    onShareAction?.();
     window.setTimeout(() => setCopied(false), 2000);
   }
 
@@ -87,7 +90,7 @@ export function RoomShareControls({
         <Share2 className="mr-2 h-4 w-4" />
         {copied ? 'Copied!' : 'Share'}
       </Button>
-      <Button type="button" variant="outline" size="sm" onClick={() => setQrModalOpen(true)}>
+      <Button type="button" variant="outline" size="sm" onClick={() => { setQrModalOpen(true); onShareAction?.(); }}>
         <QrCode className="mr-2 h-4 w-4" />
         View QR
       </Button>
@@ -105,7 +108,7 @@ export function RoomShareControls({
   return (
     <>
       {compact ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2" data-onboarding="share">
           {actions}
           {showMatrixOption ? (
             <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
@@ -120,7 +123,7 @@ export function RoomShareControls({
           ) : null}
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3" data-onboarding="share">
           {actions}
           {showMatrixOption ? (
             <>
