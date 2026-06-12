@@ -3,13 +3,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const projectRoot = path.dirname(fileURLToPath(import.meta.url));
-const isVercel = process.env.VERCEL === '1';
-// Vercel Root Directory is `web/`: tracing from the parent causes `web/web/.next` doubling.
-// Local dev keeps the monorepo parent for workspace resolution.
-const monorepoRoot = isVercel ? projectRoot : path.resolve(projectRoot, '..');
+// Monorepo root (Glow/). Required for pnpm workspace tracing and Turbopack.
+const monorepoRoot = path.resolve(projectRoot, '..');
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['glow-presets', 'glow-visuals'],
+  transpilePackages: ['glow-presets', 'glow-visuals', 'glow-visuals-3d'],
   outputFileTracingRoot: monorepoRoot,
   turbopack: {
     root: monorepoRoot,
