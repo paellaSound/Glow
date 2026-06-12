@@ -18,7 +18,7 @@ import {
   PatternSequenceEditor,
   toDistributionEffects,
 } from '@/components/glow/pattern-sequence-editor';
-import { VisualsTab, type VisualsWorkingState, type RigWithCues } from '@/components/glow/visuals-tab';
+import { VisualsTab, normalizeRigResponse, type VisualsWorkingState, type RigWithCues } from '@/components/glow/visuals-tab';
 import { MediaPanel } from '@/components/glow/media-panel';
 import { TorchControls } from '@/components/glow/torch-controls';
 import { ORCHESTRATOR_SCHEDULE_MS } from '@/lib/glow/orchestrator-delay';
@@ -167,10 +167,10 @@ function ControlContent({ code }: { code: string }) {
       try {
         const res = await fetch('/api/rigs');
         if (!res.ok) return;
-        const rigs: RigWithCues[] = await res.json();
+        const rigs: RigWithCues[] = ((await res.json()) as unknown[]).map(normalizeRigResponse);
         if (!rigs.length) return;
 
-        const rig = rigs.find((r) => (r as RigWithCues & { is_default?: boolean }).is_default) ?? rigs[0];
+        const rig = rigs.find((r) => r.is_default) ?? rigs[0];
         if (!rig) return;
 
         setLoadedRig(rig);

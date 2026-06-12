@@ -69,8 +69,37 @@ export type RigWithCues = {
   logo_asset_path: string | null;
   logo_enabled: boolean;
   console_config: Record<string, unknown>;
+  is_default?: boolean;
   cues: RigCue[];
 };
+
+/**
+ * GET /api/rigs returns drizzle camelCase rows (logoAssetPath, consoleConfig…)
+ * while the desk works with the snake_case RigWithCues shape. Without this
+ * mapping the desk silently loses the logo, console config and default art.
+ */
+export function normalizeRigResponse(raw: any): RigWithCues {
+  return {
+    id: raw.id,
+    name: raw.name,
+    default_visual_art_id: raw.defaultVisualArtId ?? raw.default_visual_art_id ?? '',
+    palette: Array.isArray(raw.palette) ? raw.palette : [],
+    logo_asset_path: raw.logoAssetPath ?? raw.logo_asset_path ?? null,
+    logo_enabled: raw.logoEnabled ?? raw.logo_enabled ?? false,
+    console_config: raw.consoleConfig ?? raw.console_config ?? {},
+    is_default: raw.isDefault ?? raw.is_default ?? false,
+    cues: Array.isArray(raw.cues)
+      ? raw.cues.map((c: any) => ({
+          id: c.id,
+          visualArtId: c.visualArtId ?? c.visual_art_id,
+          sortOrder: c.sortOrder ?? c.sort_order ?? 0,
+          params: c.params ?? undefined,
+          transition: c.transition ?? undefined,
+          label: c.label ?? undefined,
+        }))
+      : [],
+  };
+}
 
 interface VisualsTabProps {
   code: string;
@@ -280,11 +309,24 @@ export function VisualsTab({
   }, [loadedRig]);
 
   // Handle display name change
+  const [displayNamePosition, setDisplayNamePosition] = useState<
+    'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  >('center');
+
   function handleDisplayNameChange(name: string) {
     onWorkingStateChange({ displayName: name, dirty: true });
     socket.current?.emit('orchestrator:visuals_set_display', {
       roomCode,
       displayName: name,
+      displayNamePosition,
+    });
+  }
+
+  function handleDisplayNamePosition(position: typeof displayNamePosition) {
+    setDisplayNamePosition(position);
+    socket.current?.emit('orchestrator:visuals_set_display', {
+      roomCode,
+      displayNamePosition: position,
     });
   }
 
@@ -1665,6 +1707,28 @@ export function VisualsTab({
                     placeholder="Glow"
                     className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-neon-cyan/50 focus:outline-none focus:ring-1 focus:ring-neon-cyan/50 font-cyber"
                   />
+                </div>
+
+                {/* Name position — independent from the logo so they never collide */}
+                <div>
+                  <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                    Name Position
+                  </label>
+                  <select
+                    value={displayNamePosition}
+                    onChange={(e) => handleDisplayNamePosition(e.target.value as any)}
+                    disabled={!connected}
+                    className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-neon-cyan/50 focus:outline-none focus:ring-1 focus:ring-neon-cyan/50 font-cyber"
+                  >
+                    <option value="center">Center</option>
+                    <option value="top-left">Top-Left corner</option>
+                    <option value="top-right">Top-Right corner</option>
+                    <option value="bottom-left">Bottom-Left corner</option>
+                    <option value="bottom-right">Bottom-Right corner</option>
+                  </select>
+                  <p className="text-[10px] text-zinc-600 mt-1">
+                    If it matches the logo position they stack instead of overlapping.
+                  </p>
                 </div>
 
                 {entitlements.customRigLogo ? (

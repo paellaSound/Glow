@@ -137,8 +137,8 @@ export function FirstPartyOnboarding({
     onActiveStepChange?.(null);
   }
 
-  function handleShareAction() {
-    markStepComplete(1);
+  function handleStepContinue(step: OnboardingStepId) {
+    markStepComplete(step);
   }
 
   if (!ready || !shouldShow || dismissed) return null;
@@ -148,7 +148,11 @@ export function FirstPartyOnboarding({
 
   return (
     <>
-      <OnboardingSpotlight activeStep={activeStep} enabled={showSpotlight} />
+      <OnboardingSpotlight
+        activeStep={activeStep}
+        enabled={showSpotlight}
+        onContinueStep={handleStepContinue}
+      />
     <div
       className="fixed z-[50] bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))] left-4 right-4 sm:left-auto sm:right-20 sm:max-w-sm"
       role="region"
@@ -240,7 +244,7 @@ export function FirstPartyOnboarding({
                 color="cyan"
                 variant="outline"
                 className="mt-3 h-8 w-full text-[10px] uppercase tracking-widest"
-                onClick={handleShareAction}
+                onClick={() => handleStepContinue(1)}
               >
                 I shared the link
               </NeonButton>

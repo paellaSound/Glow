@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ONBOARDING_STEPS, type OnboardingStepId } from '@/lib/onboarding/constants';
+import { NeonButton } from '@/components/ui/neon';
 import { cn } from '@/lib/utils';
 
 const SPOTLIGHT_PADDING = 10;
 const SPOTLIGHT_RADIUS = 14;
 const OVERLAY_Z = 45;
-const CALLOUT_Z = 46;
+const TARGET_Z = 47;
+const CALLOUT_Z = 48;
+
+const SPOTLIGHT_TARGET_CLASS = 'onboarding-spotlight-target';
 
 type SpotlightRect = {
   top: number;
@@ -47,7 +51,7 @@ function OverlayPanels({ hole }: OverlayPanelsProps) {
   const right = left + width;
 
   const panelClass =
-    'fixed bg-black/72 backdrop-blur-[3px] transition-[top,left,width,height] duration-300 ease-out';
+    'fixed bg-black/45 backdrop-blur-[1px] transition-[top,left,width,height] duration-300 ease-out pointer-events-auto';
 
   return (
     <>
@@ -68,14 +72,15 @@ function OverlayPanels({ hole }: OverlayPanelsProps) {
 type StepCalloutProps = {
   step: OnboardingStepId;
   hole: SpotlightRect;
+  onContinue?: (step: OnboardingStepId) => void;
 };
 
-function StepCallout({ step, hole }: StepCalloutProps) {
+function StepCallout({ step, hole, onContinue }: StepCalloutProps) {
   const meta = ONBOARDING_STEPS.find((s) => s.id === step);
   if (!meta) return null;
 
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const calloutEstimatedHeight = 88;
+  const calloutEstimatedHeight = step === 1 ? 140 : 100;
   const checklistReserve = 280;
   const spaceBelow = viewportHeight - (hole.top + hole.height) - checklistReserve;
   const placeAbove = spaceBelow < calloutEstimatedHeight && hole.top > calloutEstimatedHeight + 16;
@@ -91,15 +96,32 @@ function StepCallout({ step, hole }: StepCalloutProps) {
 
   return (
     <div
-      className="pointer-events-none fixed max-w-[min(20rem,calc(100vw-1.5rem))] animate-in fade-in slide-in-from-bottom-2 duration-300"
+      className="fixed max-w-[min(20rem,calc(100vw-1.5rem))] animate-in fade-in slide-in-from-bottom-2 duration-300"
       style={{ zIndex: CALLOUT_Z, top: calloutTop, left: clampedLeft }}
     >
-      <div className="rounded-xl border border-neon-cyan/40 bg-zinc-950/95 px-4 py-3 shadow-[0_0_32px_rgba(0,255,255,0.12)]">
+      <div className="rounded-xl border border-neon-cyan/40 bg-zinc-950/95 px-4 py-3 shadow-[0_0_24px_rgba(0,255,255,0.1)]">
         <p className="text-[10px] font-cyber uppercase tracking-widest text-neon-cyan">
           Step {step} of {ONBOARDING_STEPS.length}
         </p>
         <p className="mt-1 text-sm font-semibold text-foreground">{meta.title}</p>
         <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{meta.description}</p>
+
+        {step === 1 && onContinue ? (
+          <NeonButton
+            color="cyan"
+            variant="solid"
+            className="mt-3 h-8 w-full text-[10px] uppercase tracking-widest"
+            onClick={() => onContinue(1)}
+          >
+            I shared the link — continue
+          </NeonButton>
+        ) : null}
+
+        {step === 2 ? (
+          <p className="mt-2 text-[10px] leading-snug text-zinc-500">
+            Opens automatically when a guest joins. Use Share or View QR above, then join from another phone.
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -108,9 +130,14 @@ function StepCallout({ step, hole }: StepCalloutProps) {
 type OnboardingSpotlightProps = {
   activeStep: OnboardingStepId | null;
   enabled: boolean;
+  onContinueStep?: (step: OnboardingStepId) => void;
 };
 
-export function OnboardingSpotlight({ activeStep, enabled }: OnboardingSpotlightProps) {
+export function OnboardingSpotlight({
+  activeStep,
+  enabled,
+  onContinueStep,
+}: OnboardingSpotlightProps) {
   const [mounted, setMounted] = useState(false);
   const [hole, setHole] = useState<SpotlightRect | null>(null);
 
@@ -137,6 +164,40 @@ export function OnboardingSpotlight({ activeStep, enabled }: OnboardingSpotlight
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Keep highlighted target above the dim overlay so Share / QR buttons stay clickable.
+  useEffect(() => {
+    if (!enabled || activeStep === null) return;
+
+    const selector = selectorForStep(activeStep);
+    const element = selector ? document.querySelector(selector) : null;
+    if (!element || !(element instanceof HTMLElement)) return;
+
+    element.classList.add(SPOTLIGHT_TARGET_CLASS);
+    element.style.setProperty('position', 'relative');
+    element.style.setProperty('z-index', String(TARGET_Z));
+
+    return () => {
+      element.classList.remove(SPOTLIGHT_TARGET_CLASS);
+      element.style.removeProperty('position');
+      element.style.removeProperty('z-index');
+    };
+  }, [activeStep, enabled]);
+
+  // Auto-advance step 1 when user clicks Share or View QR inside the target.
+  useEffect(() => {
+    if (!enabled || activeStep !== 1 || !onContinueStep) return;
+
+    const element = document.querySelector('[data-onboarding="share"]');
+    if (!element) return;
+
+    const onClick = () => {
+      window.setTimeout(() => onContinueStep(1), 0);
+    };
+
+    element.addEventListener('click', onClick, true);
+    return () => element.removeEventListener('click', onClick, true);
+  }, [activeStep, enabled, onContinueStep]);
 
   useEffect(() => {
     updateHole();
@@ -178,11 +239,11 @@ export function OnboardingSpotlight({ activeStep, enabled }: OnboardingSpotlight
         aria-hidden
         className={cn(
           'pointer-events-none fixed rounded-[14px] border-2 border-neon-cyan',
-          'shadow-[0_0_0_1px_rgba(0,255,255,0.25),0_0_28px_rgba(0,255,255,0.35)]',
+          'shadow-[0_0_0_1px_rgba(0,255,255,0.2),0_0_20px_rgba(0,255,255,0.25)]',
           'transition-[top,left,width,height] duration-300 ease-out'
         )}
         style={{
-          zIndex: CALLOUT_Z,
+          zIndex: TARGET_Z,
           top: hole.top,
           left: hole.left,
           width: hole.width,
@@ -190,11 +251,11 @@ export function OnboardingSpotlight({ activeStep, enabled }: OnboardingSpotlight
           borderRadius: SPOTLIGHT_RADIUS,
         }}
       />
-      <StepCallout step={activeStep} hole={hole} />
+      <StepCallout step={activeStep} hole={hole} onContinue={onContinueStep} />
     </>
   ) : (
     <div
-      className="fixed inset-0 bg-black/72 backdrop-blur-[3px]"
+      className="fixed inset-0 bg-black/45 backdrop-blur-[1px] pointer-events-auto"
       style={{ zIndex: OVERLAY_Z }}
       aria-hidden
     />

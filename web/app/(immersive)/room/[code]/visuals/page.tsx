@@ -97,6 +97,9 @@ function VisualsContent({ code }: { code: string }) {
   const [roomClosedReason, setRoomClosedReason] = useState<string>('The DJ has ended the session.');
 
   const [displayName, setDisplayName] = useState<string>('Glow');
+  const [displayNamePosition, setDisplayNamePosition] = useState<
+    'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  >('center');
 
   const [liveText, setLiveText] = useState<{
     text: string;
@@ -285,6 +288,9 @@ function VisualsContent({ code }: { code: string }) {
     }
     if (state.displayName !== undefined) {
       setDisplayName(state.displayName || 'Glow');
+    }
+    if (state.displayNamePosition !== undefined) {
+      setDisplayNamePosition(state.displayNamePosition || 'center');
     }
     if (state.text !== undefined) {
       setLiveText(state.text || null);
@@ -704,43 +710,67 @@ function VisualsContent({ code }: { code: string }) {
         ))}
       </div>
 
-      {/* ── Branding / Show Name Overlay ── */}
-      {((logo && logo.url) || displayName) && (
-        <div
-          className={`absolute pointer-events-none z-10 transition-all duration-500 flex flex-col items-center gap-2 ${
-            logo?.position === 'center' || (!logo && displayName) ? 'inset-0 flex items-center justify-center' :
-            logo?.position === 'top-left' ? 'top-8 left-8 items-start max-w-[20%] max-h-[20%]' :
-            logo?.position === 'top-right' ? 'top-8 right-8 items-end max-w-[20%] max-h-[20%]' :
-            logo?.position === 'bottom-left' ? 'bottom-8 left-8 items-start max-w-[20%] max-h-[20%]' :
-            'bottom-8 right-8 items-end max-w-[20%] max-h-[20%]'
-          }`}
-          style={{ opacity: logo ? logo.opacity : 0.8 }}
-        >
-          {logo && logo.url && (
-            <img
-              src={logo.url}
-              alt="Branding Logo"
-              className={`object-contain ${
-                logo.position === 'center' ? 'max-w-[30%] max-h-[30%]' : 'w-24 h-24'
-              } ${
-                logo.effect === 'pulse' ? 'animate-[pulse_2s_ease-in-out_infinite]' :
-                logo.effect === 'spin' ? 'animate-[spin_8s_linear_infinite]' :
-                logo.effect === 'float' ? 'animate-[float_4s_ease-in-out_infinite]' :
-                logo.effect === 'neon' ? 'animate-[neon-glow_3s_ease-in-out_infinite]' :
-                ''
-              }`}
-            />
-          )}
-          {displayName && (
-            <span className={cn(
-              "font-cyber font-black tracking-widest uppercase text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] text-center",
-              logo?.position === 'center' || (!logo && displayName) ? "text-3xl md:text-5xl neon-text-magenta" : "text-sm md:text-base neon-text-cyan"
-            )}>
-              {displayName}
-            </span>
-          )}
-        </div>
-      )}
+      {/* ── Branding / Show Name Overlays ──
+          Logo and show name position independently; when they share a
+          position they stack in one container so they never overlap. */}
+      {(() => {
+        const positionClasses = (pos: string) =>
+          pos === 'center' ? 'inset-0 flex items-center justify-center' :
+          pos === 'top-left' ? 'top-8 left-8 items-start max-w-[30%]' :
+          pos === 'top-right' ? 'top-8 right-8 items-end max-w-[30%]' :
+          pos === 'bottom-left' ? 'bottom-8 left-8 items-start max-w-[30%]' :
+          'bottom-8 right-8 items-end max-w-[30%]';
+
+        const logoPos = logo?.position ?? 'center';
+        const stacked = Boolean(logo?.url) && displayName && logoPos === displayNamePosition;
+
+        const logoImg = logo?.url ? (
+          <img
+            src={logo.url}
+            alt="Branding Logo"
+            className={`object-contain ${
+              logoPos === 'center' ? 'max-w-[30%] max-h-[30%]' : 'w-24 h-24'
+            } ${
+              logo.effect === 'pulse' ? 'animate-[pulse_2s_ease-in-out_infinite]' :
+              logo.effect === 'spin' ? 'animate-[spin_8s_linear_infinite]' :
+              logo.effect === 'float' ? 'animate-[float_4s_ease-in-out_infinite]' :
+              logo.effect === 'neon' ? 'animate-[neon-glow_3s_ease-in-out_infinite]' :
+              ''
+            }`}
+          />
+        ) : null;
+
+        const nameSpan = displayName ? (
+          <span className={cn(
+            'font-cyber font-black tracking-widest uppercase text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] text-center',
+            displayNamePosition === 'center' ? 'text-3xl md:text-5xl neon-text-magenta' : 'text-sm md:text-base neon-text-cyan'
+          )}>
+            {displayName}
+          </span>
+        ) : null;
+
+        return (
+          <>
+            {logoImg && (
+              <div
+                className={`absolute pointer-events-none z-10 transition-all duration-500 flex flex-col items-center gap-2 ${positionClasses(logoPos)}`}
+                style={{ opacity: logo!.opacity }}
+              >
+                {logoImg}
+                {stacked && nameSpan}
+              </div>
+            )}
+            {nameSpan && !stacked && (
+              <div
+                className={`absolute pointer-events-none z-10 transition-all duration-500 flex flex-col items-center gap-2 ${positionClasses(displayNamePosition)}`}
+                style={{ opacity: 0.85 }}
+              >
+                {nameSpan}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── QR Code Overlay ── */}
       {showQrOverlay && qrDataUrl && (

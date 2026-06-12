@@ -175,6 +175,8 @@ export type VisualsState = {
     size?: 'small' | 'medium' | 'large';
   } | null;
   displayName?: string;
+  /** Where the show name renders. When it matches the logo position they stack. */
+  displayNamePosition?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   text?: {
     text: string;
     mode: 'marquee' | 'word_by_word' | 'spread_grid';

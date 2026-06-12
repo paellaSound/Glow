@@ -57,7 +57,7 @@ function SignUpForm() {
       >
         <div className="space-y-2">
           <Label htmlFor="fullName">Name</Label>
-          <Input id="fullName" name="fullName" autoComplete="name" placeholder="Test User" />
+          <Input id="fullName" name="fullName" autoComplete="name" placeholder="Paquito el chocolatero" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
@@ -66,7 +66,7 @@ function SignUpForm() {
             name="email"
             type="email"
             autoComplete="email"
-            placeholder="you@example.com"
+            placeholder="paquito@chocolatero.com"
             required
           />
         </div>

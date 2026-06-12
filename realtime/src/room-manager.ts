@@ -2188,6 +2188,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
     async (payload: {
       roomCode: string;
       displayName?: string;
+      displayNamePosition?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
       logo?: {
         url: string;
         opacity: number;
@@ -2203,6 +2204,9 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       const updates: Partial<VisualsState> = {};
       if (payload.displayName !== undefined) {
         updates.displayName = payload.displayName;
+      }
+      if (payload.displayNamePosition !== undefined) {
+        updates.displayNamePosition = payload.displayNamePosition;
       }
       if (payload.logo !== undefined) {
         updates.logo = payload.logo
