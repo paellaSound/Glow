@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getPostHogClient } from '@/lib/posthog-server';
 import { captureServerEvent, identifyOrchestrator } from '@/lib/posthog-analytics';
 import { getTeamForUser } from '@/lib/db/queries';
+import { isEmailAuthEnabled } from '@/lib/auth/email-auth-enabled';
 
 function authRedirect(path: string, redirectTo?: string) {
   const target = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/room/new';
@@ -50,6 +51,10 @@ export async function signInWithGoogle(redirectTo?: string) {
 }
 
 export async function signInWithPassword(formData: FormData) {
+  if (!isEmailAuthEnabled) {
+    authRedirect('/auth/signin?error=oauth_only');
+  }
+
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
   const redirectTo = String(formData.get('redirect') ?? '/room/new');
@@ -97,6 +102,10 @@ export async function signInWithPassword(formData: FormData) {
 }
 
 export async function signUpWithPassword(formData: FormData) {
+  if (!isEmailAuthEnabled) {
+    authRedirect('/auth/signup?error=oauth_only');
+  }
+
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
   const confirmPassword = String(formData.get('confirmPassword') ?? '');

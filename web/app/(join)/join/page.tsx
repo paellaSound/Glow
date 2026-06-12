@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { captureClientEvent } from '@/lib/posthog-client';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MockAd } from '@/components/glow/mock-ad';
 import { getStoredNickname } from '@/lib/glow/player-session';
+import { captureClientEvent } from '@/lib/posthog-client';
 
 export default function JoinPage() {
   const router = useRouter();
@@ -16,7 +16,7 @@ export default function JoinPage() {
   const [nickname, setNickname] = useState('');
   const [showAd, setShowAd] = useState(false);
   const [joining, setJoining] = useState(false);
-
+  
   function handleRoomCodeChange(val: string) {
     const upper = val.toUpperCase();
     setRoomCode(upper);
@@ -114,8 +114,8 @@ export default function JoinPage() {
               />
             </div>
             
-            <NeonButton onClick={handleJoin} color="cyan" variant="solid" className="w-full text-xs uppercase tracking-widest h-11 mt-2" disabled={!roomCode.trim() || joining}>
-              {joining ? 'Connecting...' : 'Connect Device'}
+            <NeonButton onClick={handleJoin} color="cyan" variant="solid" className="w-full text-xs uppercase tracking-widest h-11 mt-2" disabled={!roomCode.trim()}>
+              Connect Device
             </NeonButton>
             
             <Link href="/" className="text-center text-xs font-cyber uppercase tracking-widest text-zinc-500 hover:text-white transition-colors pt-2">
