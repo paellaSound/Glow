@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { Manrope, Syne, Space_Grotesk } from 'next/font/google';
 import { getProfile, getTeamForUser } from '@/lib/db/queries';
 import { ThemeProvider } from '@/components/theme-provider';
+import { PostHogIdentify } from '@/components/posthog-identify';
 import { SWRConfig } from 'swr';
 
 export const metadata: Metadata = {
@@ -51,6 +52,7 @@ export default function RootLayout({
     >
       <body className="min-h-[100dvh] bg-background text-foreground font-sans">
         <ThemeProvider>
+          <PostHogIdentify />
           <SWRConfig
             value={{
               fallback: {

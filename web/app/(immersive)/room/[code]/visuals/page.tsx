@@ -309,6 +309,22 @@ function VisualsContent({ code }: { code: string }) {
     }
   }, [roomCode]);
 
+  // Relay playback position to the server so the desk seek slider has duration
+  const reportYoutubeStatus = useCallback(
+    (status: { currentTime: number; duration: number }) => {
+      socketRef.current?.emit('visuals:youtube_status', { roomCode, ...status });
+    },
+    [roomCode],
+  );
+
+  // Tell the server the current video finished so it can auto-advance the queue
+  const reportYoutubeEnded = useCallback(
+    (videoId: string) => {
+      socketRef.current?.emit('visuals:youtube_ended', { roomCode, videoId });
+    },
+    [roomCode],
+  );
+
   const resync = useCallback((socket: Socket) => {
     socket.emit('visuals:resync', { roomCode }, (response: { ok: boolean; visualsState?: any; reason?: string }) => {
       if (response.ok && response.visualsState) {
@@ -625,7 +641,7 @@ function VisualsContent({ code }: { code: string }) {
           style={{ display: 'block' }}
         />
       ) : visualsMode === 'youtube' ? (
-        <YoutubeSurface state={youtubeState} />
+        <YoutubeSurface state={youtubeState} onStatus={reportYoutubeStatus} onEnded={reportYoutubeEnded} />
       ) : visualsMode === '3d' ? (
         <ThreeDSurface inputRef={inputRef} energy={threeDEnergy} pendingAction={threeDAction} />
       ) : (

@@ -746,6 +746,11 @@ The MVP should not require a cron job for active room cleanup.
 
 ## Plans And Monetization
 
+> **Release sprint (2026-06):** marketing positioning and release backlog live in
+> [plans-marketing-strategy.md](./plans-marketing-strategy.md) and
+> [Last-sprint-for-release.md](./Last-sprint-for-release.md). This section keeps the
+> original v1 intent; update it when entitlements ship.
+
 The app has four initial plans.
 
 ### Free

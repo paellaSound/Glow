@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import posthog from 'posthog-js';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,11 @@ export default function JoinPage() {
   async function handleJoin() {
     if (!roomCode.trim() || joining) return;
     setJoining(true);
+
+    posthog.capture('room_joined', {
+      room_code: roomCode.toUpperCase(),
+      has_nickname: Boolean(nickname.trim()),
+    });
 
     try {
       const res = await fetch(`/api/rooms/${roomCode.toUpperCase()}/share-info`);

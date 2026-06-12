@@ -1,5 +1,8 @@
+export type GifSearchMode = 'featured_page1' | 'full';
+
 export type PlanEntitlements = {
   maxDevices: number;
+  maxMatrixCells: number;
   adsEnabled: boolean;
   availablePresets: string[];
   audioReactive: boolean;
@@ -11,6 +14,9 @@ export type PlanEntitlements = {
   maxRoomDurationMinutes: number;
   manualFallbackMode: boolean;
   priorityReconnectWindowSeconds: number;
+  customRigLogo: boolean;
+  customQrBranding: boolean;
+  gifSearchMode: GifSearchMode;
   // v2 — Visuals surface
   visualsSurface: boolean;
   availableVisualArts: string[];
@@ -137,6 +143,12 @@ export type RoomState = {
 
 export type VisualsMode = 'standard' | 'youtube' | 'custom-video' | '3d' | 'pptt';
 
+export type YoutubeTransitionEffect = 'glitch' | 'dip-black' | 'pixel-melt';
+
+export type YoutubeQueueItem =
+  | { kind: 'video'; videoId: string; title?: string; thumbnail?: string }
+  | { kind: 'transition'; effect: YoutubeTransitionEffect };
+
 export type VisualsState = {
   /** Which rendering pipeline the surface uses. Defaults to 'standard' (2D arts). */
   mode: VisualsMode;
@@ -169,7 +181,8 @@ export type VisualsState = {
   /** YouTube mode state — null until a video is loaded. */
   youtube?: {
     videoId: string | null;
-    queue: { videoId: string; title?: string }[];
+    queue: YoutubeQueueItem[];
+    /** Index into `queue` of the playing video item. */
     queueIndex: number;
     playing: boolean;
     muted: boolean;
@@ -177,6 +190,8 @@ export type VisualsState = {
     volume: number;
     /** One-shot seek target in seconds — surface consumes it. */
     seekToSec?: number | null;
+    /** Transition effect the surface plays while the next video loads (one-shot). */
+    pendingTransition?: YoutubeTransitionEffect | null;
     updatedAt: number;
   } | null;
   /** 3D mode state — persisted energy level so reloads restore it. */

@@ -13,8 +13,7 @@ import { ColorPaletteField } from '@/components/glow/color-palette-field';
 import { PatternSequencePreview } from '@/components/glow/pattern-sequence-preview';
 import { PresetPicker } from '@/components/glow/preset-picker';
 import { GifSearch } from './gif-search';
-import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
-import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
+import { PlanGate, PlanGateBanner } from '@/components/glow/plan-gate';
 import type { RoomStatePayload } from '@/lib/glow/types';
 import {
   createDefaultDraft,
@@ -74,20 +73,6 @@ export function PatternSequenceEditor({
   roomState,
   mode = 'edit',
 }: PatternSequenceEditorProps) {
-  const { teamEntitlements } = useTeamEntitlements();
-  const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
-
-  const renderGatedOverlay = (minTierName: string) => (
-    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-xl bg-black/85 p-6 text-center backdrop-blur-xs">
-      <span className="text-2xl">🔒</span>
-      <h4 className="mt-2 font-display font-black text-sm text-white uppercase tracking-widest">
-        Feature Gated
-      </h4>
-      <p className="mt-1 text-xs text-zinc-400 max-w-[240px]">
-        This feature requires a <span className="text-neon-magenta font-bold">{minTierName}</span> plan upgrade.
-      </p>
-    </div>
-  );
   const { data: savedSequences = [], mutate } = useSWR<PatternSequenceRecord[]>(
     '/api/pattern-sequences',
     fetchPatternSequences
@@ -543,12 +528,7 @@ export function PatternSequenceEditor({
 
         {status ? <p className="text-xs text-muted-foreground">{status}</p> : null}
         {!effectLayering ? (
-          <p className="rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-xs text-violet-200">
-            Multi-effect audience split is available on Plus 50.{' '}
-            <Link href="/billing" className="underline">
-              Upgrade plan
-            </Link>
-          </p>
+          <PlanGateBanner feature="effect_layering" roomEntitlements={roomState?.entitlements} />
         ) : null}
       </div>
 
@@ -877,8 +857,8 @@ export function PatternSequenceEditor({
               </div>
 
               {draft.media.kind === 'text' && (
+                <PlanGate feature="sequencedText" roomEntitlements={roomState?.entitlements}>
                 <div className="relative space-y-4">
-                  {!entitlements.sequencedText && renderGatedOverlay('Plus 25')}
                   
                   {/* EXPANDED FORM: PLOTTED VERTICALLY FOR PLENTY OF SPACE */}
                   <div className="space-y-1.5">
@@ -1101,11 +1081,12 @@ export function PatternSequenceEditor({
                     </Label>
                   </div>
                 </div>
+                </PlanGate>
               )}
 
               {draft.media.kind === 'gif' && (
+                <PlanGate feature="gifBroadcast" roomEntitlements={roomState?.entitlements}>
                 <div className="relative space-y-3 min-h-[150px]">
-                  {!entitlements.gifBroadcast && renderGatedOverlay('Plus 50')}
                   <GifSearch
                     onSelect={(gif) => {
                       const updatedMedia = {
@@ -1123,6 +1104,7 @@ export function PatternSequenceEditor({
                     selectedSlug={draft.media.gifSlug}
                   />
                 </div>
+                </PlanGate>
               )}
             </div>
           )}

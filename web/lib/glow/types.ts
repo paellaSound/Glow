@@ -15,8 +15,18 @@ export type {
 /** Rendering pipeline of the visuals surface. Mirrors realtime/src/types.ts VisualsMode. */
 export type VisualsMode = 'standard' | 'youtube' | 'custom-video' | '3d' | 'pptt';
 
+/** Mirrors realtime/src/types.ts — YouTube mode queue. */
+export type YoutubeTransitionEffect = 'glitch' | 'dip-black' | 'pixel-melt';
+
+export type YoutubeQueueItem =
+  | { kind: 'video'; videoId: string; title?: string; thumbnail?: string }
+  | { kind: 'transition'; effect: YoutubeTransitionEffect };
+
+export type GifSearchMode = 'featured_page1' | 'full';
+
 export type PlanEntitlements = {
   maxDevices: number;
+  maxMatrixCells: number;
   adsEnabled: boolean;
   availablePresets: string[];
   audioReactive: boolean;
@@ -28,6 +38,10 @@ export type PlanEntitlements = {
   maxRoomDurationMinutes: number;
   manualFallbackMode: boolean;
   priorityReconnectWindowSeconds: number;
+  // Branding (Venue+)
+  customRigLogo: boolean;
+  customQrBranding: boolean;
+  gifSearchMode: GifSearchMode;
   // v2 — Visuals surface
   visualsSurface: boolean;
   availableVisualArts: string[];

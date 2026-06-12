@@ -13,6 +13,7 @@ function getSql() {
 
 const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   maxDevices: 10,
+  maxMatrixCells: 10,
   adsEnabled: true,
   availablePresets: ['solid', 'flash', 'pulse', 'audio'],
   audioReactive: true,
@@ -24,6 +25,9 @@ const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   maxRoomDurationMinutes: 60,
   manualFallbackMode: true,
   priorityReconnectWindowSeconds: 60,
+  customRigLogo: false,
+  customQrBranding: false,
+  gifSearchMode: 'featured_page1',
   // v2 — Visuals surface
   visualsSurface: true,
   availableVisualArts: ['audio-shader'],
@@ -41,6 +45,7 @@ const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
 
 const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   max_devices: 'maxDevices',
+  max_matrix_cells: 'maxMatrixCells',
   ads_enabled: 'adsEnabled',
   available_presets: 'availablePresets',
   audio_reactive: 'audioReactive',
@@ -52,6 +57,9 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   max_room_duration_minutes: 'maxRoomDurationMinutes',
   manual_fallback_mode: 'manualFallbackMode',
   priority_reconnect_window_seconds: 'priorityReconnectWindowSeconds',
+  custom_rig_logo: 'customRigLogo',
+  custom_qr_branding: 'customQrBranding',
+  gif_search_mode: 'gifSearchMode',
   // v2
   visuals_surface: 'visualsSurface',
   available_visual_arts: 'availableVisualArts',

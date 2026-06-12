@@ -3,8 +3,11 @@ import { db } from '@/lib/db/drizzle';
 import { planEntitlements, plans, teams } from '@/lib/db/schema';
 import { DEFAULT_ENTITLEMENTS } from '@/lib/entitlements-defaults';
 
+export type GifSearchMode = 'featured_page1' | 'full';
+
 export type PlanEntitlements = {
   maxDevices: number;
+  maxMatrixCells: number;
   adsEnabled: boolean;
   availablePresets: string[];
   audioReactive: boolean;
@@ -16,6 +19,9 @@ export type PlanEntitlements = {
   maxRoomDurationMinutes: number;
   manualFallbackMode: boolean;
   priorityReconnectWindowSeconds: number;
+  customRigLogo: boolean;
+  customQrBranding: boolean;
+  gifSearchMode: GifSearchMode;
   // v2 — Visuals surface
   visualsSurface: boolean;
   availableVisualArts: string[];
@@ -35,6 +41,7 @@ export { DEFAULT_ENTITLEMENTS };
 
 const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   max_devices: 'maxDevices',
+  max_matrix_cells: 'maxMatrixCells',
   ads_enabled: 'adsEnabled',
   available_presets: 'availablePresets',
   audio_reactive: 'audioReactive',
@@ -46,6 +53,9 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   max_room_duration_minutes: 'maxRoomDurationMinutes',
   manual_fallback_mode: 'manualFallbackMode',
   priority_reconnect_window_seconds: 'priorityReconnectWindowSeconds',
+  custom_rig_logo: 'customRigLogo',
+  custom_qr_branding: 'customQrBranding',
+  gif_search_mode: 'gifSearchMode',
   // v2
   visuals_surface: 'visualsSurface',
   available_visual_arts: 'availableVisualArts',
@@ -123,6 +133,7 @@ export const PLAN_SEED_DATA = [
     sortOrder: 0,
     entitlements: {
       max_devices: 10,
+      max_matrix_cells: 10,
       ads_enabled: true,
       available_presets: ['solid', 'flash', 'pulse', 'audio'],
       audio_reactive: true,
@@ -134,6 +145,9 @@ export const PLAN_SEED_DATA = [
       max_room_duration_minutes: 60,
       manual_fallback_mode: true,
       priority_reconnect_window_seconds: 60,
+      custom_rig_logo: false,
+      custom_qr_branding: false,
+      gif_search_mode: 'featured_page1',
       // v2
       visuals_surface: true,
       available_visual_arts: ['audio-shader'],
@@ -153,21 +167,25 @@ export const PLAN_SEED_DATA = [
     code: 'plus_25',
     name: 'Plus 25',
     description: 'Up to 25 devices, no ads',
-    monthlyPriceCents: 100,
+    monthlyPriceCents: 299,
     sortOrder: 1,
     entitlements: {
       max_devices: 25,
+      max_matrix_cells: 25,
       ads_enabled: false,
       available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow'],
-      audio_reactive: false,
+      audio_reactive: true,
       matrix_mode: true,
       advanced_matrix: true,
       custom_grid_size: false,
-      max_grid_rows: 10,
-      max_grid_cols: 10,
+      max_grid_rows: 5,
+      max_grid_cols: 5,
       max_room_duration_minutes: 180,
       manual_fallback_mode: true,
       priority_reconnect_window_seconds: 120,
+      custom_rig_logo: false,
+      custom_qr_branding: false,
+      gif_search_mode: 'featured_page1',
       // v2
       visuals_surface: true,
       available_visual_arts: ['audio-shader'],
@@ -191,17 +209,21 @@ export const PLAN_SEED_DATA = [
     sortOrder: 2,
     entitlements: {
       max_devices: 50,
+      max_matrix_cells: 50,
       ads_enabled: false,
       available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow', 'diagonal', 'audio'],
       audio_reactive: true,
       matrix_mode: true,
       advanced_matrix: true,
       custom_grid_size: true,
-      max_grid_rows: 15,
-      max_grid_cols: 15,
+      max_grid_rows: 10,
+      max_grid_cols: 10,
       max_room_duration_minutes: 360,
       manual_fallback_mode: true,
       priority_reconnect_window_seconds: 180,
+      custom_rig_logo: true,
+      custom_qr_branding: true,
+      gif_search_mode: 'full',
       // v2
       visuals_surface: true,
       available_visual_arts: ['audio-shader'],
@@ -225,17 +247,21 @@ export const PLAN_SEED_DATA = [
     sortOrder: 3,
     entitlements: {
       max_devices: 999,
+      max_matrix_cells: 999,
       ads_enabled: false,
       available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow', 'diagonal', 'strobe', 'audio'],
       audio_reactive: true,
       matrix_mode: true,
       advanced_matrix: true,
       custom_grid_size: true,
-      max_grid_rows: 25,
-      max_grid_cols: 25,
+      max_grid_rows: 31,
+      max_grid_cols: 31,
       max_room_duration_minutes: 720,
       manual_fallback_mode: true,
       priority_reconnect_window_seconds: 300,
+      custom_rig_logo: true,
+      custom_qr_branding: true,
+      gif_search_mode: 'full',
       // v2
       visuals_surface: true,
       available_visual_arts: ['audio-shader'],

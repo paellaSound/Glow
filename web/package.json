@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
+    "posthog-js": "^1.257.2",
+    "posthog-node": "^4.13.0",
     "@supabase/supabase-js": "^2.107.0",
     "@tailwindcss/postcss": "4.1.7",
     "@types/node": "^22.15.18",

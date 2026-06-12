@@ -13,6 +13,8 @@ Use this doc when:
 Related:
 
 - [product-intent.md](./product-intent.md) — plan intent (Free / Plus 25 / Plus 50 / Pro).
+- [plans-marketing-strategy.md](./plans-marketing-strategy.md) — positioning, copy, upgrade UX.
+- [Last-sprint-for-release.md](./Last-sprint-for-release.md) — release sprint backlog (scale / branding / depth).
 - [architecture.md](./architecture.md) §4.1 — new entitlement keys.
 
 ---
@@ -22,15 +24,16 @@ Related:
 The four plans stay as defined in `product-intent.md`. v2 does not add a new plan;
 it adds new entitlement keys onto the existing tiers.
 
-| Plan | Code | Price (cents/mo) | Devices | Ads | Intent |
-| --- | --- | --- | --- | --- | --- |
-| Free | `free` | 0 | 10 | yes | Try the core experience |
-| Plus 25 | `plus_25` | 100 | 25 | no | Small parties |
-| Plus 50 | `plus_50` | 500 | 50 | no | Venues, advanced effects |
-| Pro | `pro` | 2500 | 999 | no | Events, all effects, live call |
+| Plan | Code | Price (cents/mo) | Devices | Matrix cells | Ads | Intent |
+| --- | --- | --- | --- | --- | --- | --- |
+| Free | `free` | 0 | 10 | 10 (`rows×cols ≤ 10`, grid UI cap 5×5) | yes | Try the core experience |
+| Party | `plus_25` | 299 | 25 | 25 (max grid 5×5) | no | Small parties |
+| Venue | `plus_50` | 500 | 50 | 50 (max grid 10×10, custom sizes) | no | Venues, advanced effects |
+| Pro | `pro` | 2500 | 999 | 999 (max grid 31×31) | no | Events, all effects, live call |
 
-> Prices are the current seed values in `web/lib/entitlements.ts`. Adjust there;
-> this table is descriptive, the seed is authoritative.
+> Prices and limits are the current seed values in `web/lib/entitlements.ts`. Adjust there;
+> this table is descriptive, the seed is authoritative. **`max_matrix_cells` always equals
+> `max_devices`** — billing copy must never imply more slots than device cap.
 
 ---
 
@@ -51,12 +54,13 @@ This is the same ordering already implemented in `presetsForPlan()`
 | Key | Free | Plus 25 | Plus 50 | Pro |
 | --- | --- | --- | --- | --- |
 | `max_devices` | 10 | 25 | 50 | 999 |
+| `max_matrix_cells` | 10 | 25 | 50 | 999 |
 | `ads_enabled` | true | false | false | false |
-| `audio_reactive` | true | false | true | true |
+| `audio_reactive` | true | true | true | true |
 | `matrix_mode` | true | true | true | true |
 | `advanced_matrix` | false | true | true | true |
 | `custom_grid_size` | false | false | true | true |
-| `max_grid_rows` / `cols` | 5 | 10 | 15 | 25 |
+| `max_grid_rows` / `cols` | 5 / 5 | 5 / 5 | 10 / 10 | 31 / 31 |
 | `max_room_duration_minutes` | 60 | 180 | 360 | 720 |
 | `manual_fallback_mode` | true | true | true | true |
 | `priority_reconnect_window_seconds` | 60 | 120 | 180 | 300 |

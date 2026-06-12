@@ -24,6 +24,8 @@ import type {
   LiveCallStatePayload,
   WebrtcSignal,
   VisualsState,
+  YoutubeQueueItem,
+  YoutubeTransitionEffect,
   PlayerVisualState,
   RigSocial,
 } from './types.js';
@@ -504,8 +506,17 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         }
 
         const { entitlements } = teamContext;
-        const rows = Math.min(payload.matrix.rows, entitlements.maxGridRows);
-        const cols = Math.min(payload.matrix.cols, entitlements.maxGridCols);
+        const rows = Math.min(Math.max(1, payload.matrix.rows), entitlements.maxGridRows);
+        const cols = Math.min(Math.max(1, payload.matrix.cols), entitlements.maxGridCols);
+
+        if (rows * cols > entitlements.maxMatrixCells) {
+          callback({
+            error: 'matrix_too_large',
+            reason: 'matrix_too_large',
+            maxMatrixCells: entitlements.maxMatrixCells,
+          });
+          return;
+        }
 
         let code = generateRoomCode();
         while (rooms.has(code)) {
@@ -721,7 +732,12 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
       }
 
       if (getActivePlayerCount(room) >= room.entitlements.maxDevices) {
-        callback({ accepted: false, reason: 'Room is full' });
+        callback({
+          accepted: false,
+          reason: 'plan_limit_hit',
+          limit: 'max_devices',
+          max: room.entitlements.maxDevices,
+        });
         return;
       }
 
@@ -1734,15 +1750,29 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
   );
 
   // ── Visuals surface: YouTube mode controls ────────────────────────────────
+  const YT_TRANSITION_EFFECTS = new Set(['glitch', 'dip-black', 'pixel-melt']);
+  const YT_DEFAULT_TRANSITION: YoutubeTransitionEffect = 'dip-black';
+
   const YT_DEFAULT = {
     videoId: null as string | null,
-    queue: [] as { videoId: string; title?: string }[],
+    queue: [] as YoutubeQueueItem[],
     queueIndex: 0,
     playing: false,
     muted: true,
     volume: 80,
     seekToSec: null as number | null,
+    pendingTransition: null as YoutubeTransitionEffect | null,
   };
+
+  /** First transition item between two queue positions (used when jumping). */
+  function transitionBetween(queue: YoutubeQueueItem[], from: number, to: number): YoutubeTransitionEffect {
+    const [lo, hi] = from < to ? [from, to] : [to, from];
+    for (let i = lo + 1; i < hi; i++) {
+      const item = queue[i];
+      if (item?.kind === 'transition') return item.effect;
+    }
+    return YT_DEFAULT_TRANSITION;
+  }
 
   async function withYoutubeRoom(
     roomCode: string | undefined,
@@ -1756,26 +1786,55 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
     const current = room.visualsState.youtube ?? { ...YT_DEFAULT, updatedAt: Date.now() };
     const patch = fn(room, current);
     if (!patch) return;
-    const youtube = { ...current, ...patch, updatedAt: Date.now() };
+    // seekToSec and pendingTransition are one-shot commands: they reset on
+    // every update unless the patch sets them, so the surface never replays
+    // a stale seek/transition when unrelated state (volume, queue…) changes.
+    const youtube = { ...current, seekToSec: null, pendingTransition: null, ...patch, updatedAt: Date.now() };
     const updatedState = updateVisualsState(room, { youtube });
     io.to(`visuals:${room.code}`).emit('visuals:youtube', { youtube: updatedState.youtube });
+    // The desk mirrors the authoritative queue state too
+    if (room.orchestratorSocketId) {
+      io.to(room.orchestratorSocketId).emit('visuals:youtube', { youtube: updatedState.youtube });
+    }
     room.lastActivityAt = Date.now();
   }
 
-  socket.on('orchestrator:visuals_youtube_load', (payload: { roomCode: string; videoId: string; title?: string }) => {
-    if (typeof payload.videoId !== 'string' || !/^[\w-]{6,16}$/.test(payload.videoId)) return;
-    void withYoutubeRoom(payload.roomCode, (_room, yt) => {
-      const inQueue = yt.queue.findIndex((q) => q.videoId === payload.videoId);
-      const queue = inQueue === -1 ? [...yt.queue, { videoId: payload.videoId, title: payload.title }] : yt.queue;
-      return {
-        videoId: payload.videoId,
-        queue,
-        queueIndex: inQueue === -1 ? queue.length - 1 : inQueue,
-        playing: true,
-        seekToSec: null,
-      };
-    });
-  });
+  socket.on(
+    'orchestrator:visuals_youtube_load',
+    (payload: { roomCode: string; videoId: string; title?: string; thumbnail?: string }) => {
+      if (typeof payload.videoId !== 'string' || !/^[\w-]{6,16}$/.test(payload.videoId)) return;
+      void withYoutubeRoom(payload.roomCode, (_room, yt) => {
+        const inQueue = yt.queue.findIndex((q) => q.kind === 'video' && q.videoId === payload.videoId);
+        if (inQueue !== -1) {
+          return {
+            videoId: payload.videoId,
+            queueIndex: inQueue,
+            playing: true,
+            seekToSec: null,
+            pendingTransition: yt.videoId ? transitionBetween(yt.queue, yt.queueIndex, inQueue) : null,
+          };
+        }
+        // New video: insert a default transition between the last video and this one
+        const queue = [...yt.queue];
+        const hasVideos = queue.some((q) => q.kind === 'video');
+        if (hasVideos) queue.push({ kind: 'transition', effect: YT_DEFAULT_TRANSITION });
+        queue.push({
+          kind: 'video',
+          videoId: payload.videoId,
+          title: typeof payload.title === 'string' ? payload.title.slice(0, 200) : undefined,
+          thumbnail: typeof payload.thumbnail === 'string' ? payload.thumbnail.slice(0, 500) : undefined,
+        });
+        return {
+          videoId: payload.videoId,
+          queue,
+          queueIndex: queue.length - 1,
+          playing: true,
+          seekToSec: null,
+          pendingTransition: yt.videoId ? YT_DEFAULT_TRANSITION : null,
+        };
+      });
+    }
+  );
 
   socket.on('orchestrator:visuals_youtube_play', (payload: { roomCode: string }) => {
     void withYoutubeRoom(payload.roomCode, () => ({ playing: true }));
@@ -1797,24 +1856,102 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
     void withYoutubeRoom(payload.roomCode, () => ({ seekToSec: payload.sec }));
   });
 
-  socket.on('orchestrator:visuals_youtube_queue_set', (payload: { roomCode: string; items: { videoId: string; title?: string }[] }) => {
-    if (!Array.isArray(payload.items)) return;
-    const items = payload.items
-      .filter((i) => typeof i?.videoId === 'string' && /^[\w-]{6,16}$/.test(i.videoId))
-      .slice(0, 50)
-      .map((i) => ({ videoId: i.videoId, title: typeof i.title === 'string' ? i.title.slice(0, 200) : undefined }));
-    void withYoutubeRoom(payload.roomCode, (_room, yt) => ({
-      queue: items,
-      queueIndex: Math.min(yt.queueIndex, Math.max(0, items.length - 1)),
-    }));
-  });
-
-  socket.on('orchestrator:visuals_youtube_queue_jump', (payload: { roomCode: string; index: number }) => {
+  socket.on('orchestrator:visuals_youtube_queue_jump', (payload: { roomCode: string; index: number; seekSec?: number }) => {
     void withYoutubeRoom(payload.roomCode, (_room, yt) => {
       const item = yt.queue[payload.index];
-      if (!item) return null;
-      return { queueIndex: payload.index, videoId: item.videoId, playing: true, seekToSec: null };
+      if (!item || item.kind !== 'video') return null;
+      return {
+        queueIndex: payload.index,
+        videoId: item.videoId,
+        playing: true,
+        seekToSec: typeof payload.seekSec === 'number' && payload.seekSec >= 0 ? payload.seekSec : null,
+        pendingTransition: yt.videoId ? transitionBetween(yt.queue, yt.queueIndex, payload.index) : null,
+      };
     });
+  });
+
+  socket.on('orchestrator:visuals_youtube_queue_move', (payload: { roomCode: string; from: number; to: number }) => {
+    void withYoutubeRoom(payload.roomCode, (_room, yt) => {
+      const { from, to } = payload;
+      if (
+        typeof from !== 'number' || typeof to !== 'number' ||
+        from === to || !yt.queue[from] || to < 0 || to >= yt.queue.length
+      ) return null;
+      const queue = [...yt.queue];
+      const [moved] = queue.splice(from, 1);
+      queue.splice(to, 0, moved!);
+      // Keep queueIndex pointing at the same playing video
+      let queueIndex = yt.queueIndex;
+      if (from === yt.queueIndex) queueIndex = to;
+      else {
+        if (from < yt.queueIndex) queueIndex--;
+        if (to <= queueIndex) queueIndex++;
+      }
+      return { queue, queueIndex };
+    });
+  });
+
+  socket.on('orchestrator:visuals_youtube_queue_remove', (payload: { roomCode: string; index: number }) => {
+    void withYoutubeRoom(payload.roomCode, (_room, yt) => {
+      if (!yt.queue[payload.index] || payload.index === yt.queueIndex) return null;
+      const queue = yt.queue.filter((_, i) => i !== payload.index);
+      const queueIndex = payload.index < yt.queueIndex ? yt.queueIndex - 1 : yt.queueIndex;
+      return { queue, queueIndex };
+    });
+  });
+
+  socket.on('orchestrator:visuals_youtube_set_transition', (payload: { roomCode: string; index: number; effect: string }) => {
+    if (!YT_TRANSITION_EFFECTS.has(payload.effect)) return;
+    void withYoutubeRoom(payload.roomCode, (_room, yt) => {
+      const item = yt.queue[payload.index];
+      if (!item || item.kind !== 'transition') return null;
+      const queue = [...yt.queue];
+      queue[payload.index] = { kind: 'transition', effect: payload.effect as YoutubeTransitionEffect };
+      return { queue };
+    });
+  });
+
+  // Surface → desk: playback position/duration relay (drives the desk seek slider)
+  socket.on('visuals:youtube_status', (payload: { roomCode: string; currentTime: number; duration: number }) => {
+    const room = rooms.get(payload.roomCode?.toUpperCase() ?? '');
+    if (!room || !room.orchestratorSocketId) return;
+    if (typeof payload.currentTime !== 'number' || typeof payload.duration !== 'number') return;
+    io.to(room.orchestratorSocketId).emit('visuals:youtube_status', {
+      currentTime: payload.currentTime,
+      duration: payload.duration,
+    });
+  });
+
+  // Surface → server: video finished → auto-advance to the next queued video
+  socket.on('visuals:youtube_ended', (payload: { roomCode: string; videoId: string }) => {
+    const room = rooms.get(payload.roomCode?.toUpperCase() ?? '');
+    if (!room) return;
+    const yt = room.visualsState.youtube;
+    // Guard against stale/duplicate ended events (only the playing video counts)
+    if (!yt || yt.videoId !== payload.videoId) return;
+
+    let nextIndex = -1;
+    for (let i = yt.queueIndex + 1; i < yt.queue.length; i++) {
+      if (yt.queue[i]?.kind === 'video') { nextIndex = i; break; }
+    }
+
+    const youtube = nextIndex === -1
+      ? { ...yt, playing: false, seekToSec: null, pendingTransition: null, updatedAt: Date.now() }
+      : {
+          ...yt,
+          queueIndex: nextIndex,
+          videoId: (yt.queue[nextIndex] as { videoId: string }).videoId,
+          playing: true,
+          seekToSec: null,
+          pendingTransition: transitionBetween(yt.queue, yt.queueIndex, nextIndex),
+          updatedAt: Date.now(),
+        };
+    const updatedState = updateVisualsState(room, { youtube });
+    io.to(`visuals:${room.code}`).emit('visuals:youtube', { youtube: updatedState.youtube });
+    if (room.orchestratorSocketId) {
+      io.to(room.orchestratorSocketId).emit('visuals:youtube', { youtube: updatedState.youtube });
+    }
+    room.lastActivityAt = Date.now();
   });
 
   // ── Visuals surface: 3D mode controls ─────────────────────────────────────

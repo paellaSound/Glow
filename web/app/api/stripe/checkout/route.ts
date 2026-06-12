@@ -3,6 +3,7 @@ import { db } from '@/lib/db/drizzle';
 import { teams } from '@/lib/db/schema';
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe, handleSubscriptionChange } from '@/lib/payments/stripe';
+import { getPostHogClient } from '@/lib/posthog-server';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -37,9 +38,35 @@ export async function GET(request: NextRequest) {
       await handleSubscriptionChange(subscription);
     }
 
-    return NextResponse.redirect(new URL('/billing?success=1', request.url));
+    if (teamId) {
+      const posthog = getPostHogClient();
+      posthog.capture({
+        distinctId: teamId,
+        event: 'checkout_completed',
+        properties: {
+          team_id: teamId,
+          stripe_customer_id: customerId,
+          plan_code: session.metadata?.plan_code,
+        },
+      });
+      await posthog.shutdown();
+    }
+
+    const returnUrl = searchParams.get('return_url');
+    const safeReturn =
+      returnUrl && returnUrl.startsWith('/') ? returnUrl : '/billing?success=1';
+    const destination = safeReturn.includes('?')
+      ? `${safeReturn}&checkout=success`
+      : `${safeReturn}?checkout=success`;
+
+    return NextResponse.redirect(new URL(destination, request.url));
   } catch (error) {
     console.error('Error handling successful checkout:', error);
-    return NextResponse.redirect(new URL('/billing?error=checkout', request.url));
+    const returnUrl = searchParams.get('return_url');
+    const fallback =
+      returnUrl && returnUrl.startsWith('/')
+        ? `${returnUrl}${returnUrl.includes('?') ? '&' : '?'}checkout=error`
+        : '/billing?error=checkout';
+    return NextResponse.redirect(new URL(fallback, request.url));
   }
 }

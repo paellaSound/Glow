@@ -2,6 +2,7 @@ import type { PlanEntitlements } from '@/lib/glow/types';
 
 export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   maxDevices: 10,
+  maxMatrixCells: 10,
   adsEnabled: true,
   availablePresets: ['solid', 'flash', 'pulse', 'audio'],
   audioReactive: true,
@@ -13,6 +14,9 @@ export const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   maxRoomDurationMinutes: 60,
   manualFallbackMode: true,
   priorityReconnectWindowSeconds: 60,
+  customRigLogo: false,
+  customQrBranding: false,
+  gifSearchMode: 'featured_page1',
   // v2 — Visuals surface
   visualsSurface: true,
   availableVisualArts: ['audio-shader'],

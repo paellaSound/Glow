@@ -81,7 +81,7 @@ async function syncStripeProducts() {
   console.log('Syncing Stripe products for paid plans...');
 
   const paidPlans = [
-    { code: 'plus_25', name: 'Plus 25', amount: 100 },
+    { code: 'plus_25', name: 'Plus 25', amount: 299 },
     { code: 'plus_50', name: 'Plus 50', amount: 500 },
     { code: 'pro', name: 'Pro', amount: 2500 },
   ];

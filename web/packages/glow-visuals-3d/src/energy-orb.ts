@@ -1,23 +1,26 @@
 /**
  * energy-orb — 3D Visuals MVP scene.
  *
- * Procedural three.js implementation of the energy orb: core sphere +
- * translucent shell + two orbiting rings over a floor grid, with a starfield
- * that fades in as the energy level climbs (floor → space).
+ * Loads the Blender-authored asset (web/public/visuals3d/energy-orb.glb,
+ * Draco-compressed) and drives its named actions with an AnimationMixer:
+ * `idle` loops; `shockwave` / `burst` are one-shots that blend back to idle.
+ * The floor grid, starfield, lights, camera and background remain web-side —
+ * the glb only provides the orb geometry + actions (see
+ * docs/mcp_blender/01-asset-pipeline.md).
  *
- * The geometry is currently built in code; once the Blender MCP asset
- * (web/public/visuals3d/energy-orb.glb) is produced, this module can swap the
- * procedural parts for the glTF without changing the controller contract.
- *
- * Energy levels 0–5 ramp: orb altitude, rotation speed, emissive intensity,
+ * Energy levels 0–5 ramp: orb altitude, idle speed, emissive intensity,
  * scale, and background (ground ambience → deep space). `audio.bass`
- * modulates the core within the level; `audio.treble` speeds up the rings.
+ * modulates the orb scale within the level; `audio.treble` speeds up idle.
  */
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import type { OrbAction, Visuals3DController, Visuals3DInput } from './types.js';
 
 const MAX_ENERGY = 5;
+const GLB_URL = '/visuals3d/energy-orb.glb';
+const DRACO_DECODER_PATH = '/draco/';
 
 type ActionState = {
   action: OrbAction;
@@ -52,42 +55,65 @@ export function mountEnergyOrb(
   key.position.set(4, 6, 4);
   scene.add(ambient, key);
 
-  // ── Orb group (rises with energy) ────────────────────────────────────────
+  // ── Orb group (rises with energy; populated when the glb resolves) ───────
   const orb = new THREE.Group();
   scene.add(orb);
 
-  const coreMat = new THREE.MeshStandardMaterial({
-    color: 0x00e3ff,
-    emissive: 0x00e3ff,
-    emissiveIntensity: 0.8,
-    roughness: 0.25,
-    metalness: 0.1,
-  });
-  const core = new THREE.Mesh(new THREE.SphereGeometry(0.6, 48, 48), coreMat);
-  orb.add(core);
+  let mixer: THREE.AnimationMixer | null = null;
+  let idleAction: THREE.AnimationAction | null = null;
+  const oneShots = new Map<OrbAction, THREE.AnimationAction>();
+  let coreMat: THREE.MeshStandardMaterial | null = null;
+  let ringMat: THREE.MeshStandardMaterial | null = null;
+  let shockRing: THREE.Object3D | null = null;
 
-  const shellMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.12,
-    roughness: 0.1,
-    metalness: 0.0,
-    depthWrite: false,
-  });
-  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.85, 48, 48), shellMat);
-  orb.add(shell);
+  const dracoLoader = new DRACOLoader();
+  dracoLoader.setDecoderPath(DRACO_DECODER_PATH);
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(dracoLoader);
 
-  const ringMat = new THREE.MeshStandardMaterial({
-    color: 0xff00c8,
-    emissive: 0xff00c8,
-    emissiveIntensity: 0.6,
-    roughness: 0.4,
-  });
-  const ring1 = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.035, 16, 96), ringMat);
-  ring1.rotation.x = Math.PI / 2.4;
-  const ring2 = new THREE.Mesh(new THREE.TorusGeometry(1.35, 0.025, 16, 96), ringMat.clone());
-  ring2.rotation.x = -Math.PI / 3;
-  orb.add(ring1, ring2);
+  loader.load(
+    GLB_URL,
+    (gltf) => {
+      if (destroyed) return;
+      orb.add(gltf.scene);
+
+      const core = gltf.scene.getObjectByName('Core') as THREE.Mesh | null;
+      const ring = gltf.scene.getObjectByName('Ring1') as THREE.Mesh | null;
+      shockRing = gltf.scene.getObjectByName('ShockRing') ?? null;
+      coreMat = (core?.material as THREE.MeshStandardMaterial) ?? null;
+      ringMat = (ring?.material as THREE.MeshStandardMaterial) ?? null;
+      if (shockRing) shockRing.visible = false;
+
+      mixer = new THREE.AnimationMixer(gltf.scene);
+      for (const clip of gltf.animations) {
+        if (clip.name === 'idle') {
+          // The exported idle holds ShockRing at scale ~0 (rest-state safety
+          // for generic viewers). At runtime we hide it via `visible` instead,
+          // so the shockwave one-shot owns that property exclusively.
+          clip.tracks = clip.tracks.filter((t) => !t.name.startsWith('ShockRing'));
+          idleAction = mixer.clipAction(clip);
+          idleAction.setLoop(THREE.LoopRepeat, Infinity);
+          idleAction.play();
+        } else if (clip.name === 'shockwave' || clip.name === 'burst') {
+          const action = mixer.clipAction(clip);
+          action.setLoop(THREE.LoopOnce, 1);
+          action.clampWhenFinished = false;
+          oneShots.set(clip.name, action);
+        }
+      }
+      mixer.addEventListener('finished', (e) => {
+        if (e.action === oneShots.get('shockwave') && shockRing) {
+          shockRing.visible = false;
+        }
+        // Restore idle's full influence once any one-shot ends.
+        idleAction?.setEffectiveWeight(1);
+      });
+    },
+    undefined,
+    (err) => {
+      console.error('[visuals-3d] failed to load energy-orb.glb:', err);
+    },
+  );
 
   // ── Floor grid (fades out with altitude) ─────────────────────────────────
   const grid = new THREE.GridHelper(40, 40, 0x224455, 0x112233);
@@ -117,24 +143,13 @@ export function mountEnergyOrb(
   const stars = new THREE.Points(starGeo, starMat);
   scene.add(stars);
 
-  // ── One-shot action FX ────────────────────────────────────────────────────
-  const shockMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-  const shockRing = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.05, 96), shockMat);
-  shockRing.visible = false;
-  orb.add(shockRing);
-
   // ── State ─────────────────────────────────────────────────────────────────
   let energy = 0;          // target level (0–5)
   let energySmooth = 0;    // eased value used for rendering
   let activeAction: ActionState = null;
   let rafId = 0;
   let destroyed = false;
+  let lastMs = performance.now();
   const startTime = performance.now();
 
   const groundColor = new THREE.Color(0x0a1228);
@@ -153,6 +168,8 @@ export function mountEnergyOrb(
     if (destroyed) return;
     const input = getInput();
     const t = (nowMs - startTime) / 1000;
+    const dt = Math.min(0.1, (nowMs - lastMs) / 1000);
+    lastMs = nowMs;
 
     // Ease toward the target energy level
     energySmooth += (energy - energySmooth) * 0.04;
@@ -162,29 +179,27 @@ export function mountEnergyOrb(
     const bass = input.audio ? Math.min(1, Math.max(0, input.audio.bass)) : 0.3 + 0.3 * Math.sin(t * 2.5);
     const treble = input.audio ? Math.min(1, Math.max(0, input.audio.treble)) : 0.2 + 0.2 * Math.cos(t * 5.0);
 
-    // Palette → core / rings
+    // Palette → core / rings (materials come from the glb once loaded)
     const palette = input.palette;
-    coreMat.color.copy(hexColor(palette[0], 0x00e3ff));
-    coreMat.emissive.copy(coreMat.color);
-    const ringColor = hexColor(palette[1] ?? palette[0], 0xff00c8);
-    ringMat.color.copy(ringColor);
-    ringMat.emissive.copy(ringColor);
-    (ring2.material as THREE.MeshStandardMaterial).color.copy(ringColor);
-    (ring2.material as THREE.MeshStandardMaterial).emissive.copy(ringColor);
+    if (coreMat) {
+      coreMat.color.copy(hexColor(palette[0], 0x00e3ff));
+      coreMat.emissive.copy(coreMat.color);
+      coreMat.emissiveIntensity = 0.6 + e * 2.2 + bass * 1.2;
+    }
+    if (ringMat) {
+      const ringColor = hexColor(palette[1] ?? palette[0], 0xff00c8);
+      ringMat.color.copy(ringColor);
+      ringMat.emissive.copy(ringColor);
+      ringMat.emissiveIntensity = 0.4 + e * 1.6;
+    }
 
-    // Energy ramp: altitude (floor → space), scale, emissive, speed
+    // Energy ramp: altitude (floor → space), scale, idle speed
     const altitude = 0.9 + e * 6.5;
     orb.position.y = altitude + Math.sin(t * 1.2) * 0.08;
-    const scale = 1 + e * 0.6 + bass * 0.18;
-    core.scale.setScalar(scale);
-    shell.scale.setScalar(1 + e * 0.5 + bass * 0.1);
-    coreMat.emissiveIntensity = 0.6 + e * 2.2 + bass * 1.2;
-    ringMat.emissiveIntensity = 0.4 + e * 1.6;
-
-    const spin = 0.3 + e * 2.2 + treble * 1.5;
-    ring1.rotation.z += spin * 0.01;
-    ring2.rotation.z -= spin * 0.013;
-    core.rotation.y += 0.002 + e * 0.01;
+    orb.scale.setScalar(1 + e * 0.6 + bass * 0.18);
+    if (idleAction) {
+      idleAction.timeScale = 0.5 + e * 2.0 + treble * 1.2;
+    }
 
     // Camera follows the orb up
     camera.position.y = 1.6 + e * 5.8;
@@ -199,37 +214,18 @@ export function mountEnergyOrb(
     (grid.material as THREE.Material).opacity = Math.max(0, 1 - e * 1.6);
     grid.visible = (grid.material as THREE.Material).opacity > 0.01;
 
-    // One-shot actions
+    // One-shot extras the clips don't carry (emissive flash on burst)
     if (activeAction) {
       const elapsed = (nowMs - activeAction.startMs) / 1000;
-      if (activeAction.action === 'shockwave') {
-        const dur = 1.2;
-        if (elapsed >= dur) {
-          activeAction = null;
-          shockRing.visible = false;
-        } else {
-          const p = elapsed / dur;
-          shockRing.visible = true;
-          shockRing.scale.setScalar(1 + p * 7);
-          shockRing.rotation.x = Math.PI / 2;
-          shockMat.opacity = (1 - p) * 0.85;
-        }
-      } else if (activeAction.action === 'burst') {
-        const dur = 0.8;
-        if (elapsed >= dur) {
-          activeAction = null;
-        } else {
-          const p = elapsed / dur;
-          const flash = Math.sin(p * Math.PI);
-          coreMat.emissiveIntensity += flash * 5;
-          shell.scale.multiplyScalar(1 + flash * 0.45);
-          shellMat.opacity = 0.12 + flash * 0.3;
-        }
+      const dur = activeAction.action === 'shockwave' ? 1.2 : 0.8;
+      if (elapsed >= dur) {
+        activeAction = null;
+      } else if (activeAction.action === 'burst' && coreMat) {
+        coreMat.emissiveIntensity += Math.sin((elapsed / dur) * Math.PI) * 5;
       }
-    } else {
-      shellMat.opacity = 0.12;
     }
 
+    mixer?.update(dt);
     renderer.render(scene, camera);
     rafId = requestAnimationFrame(render);
   }
@@ -243,11 +239,20 @@ export function mountEnergyOrb(
     },
     triggerAction: (action: OrbAction) => {
       activeAction = { action, startMs: performance.now() };
+      const oneShot = oneShots.get(action);
+      if (!oneShot) return;
+      if (action === 'shockwave' && shockRing) shockRing.visible = true;
+      // Soften idle on the properties both clips touch (Shell scale during
+      // burst); single-contributor channels are unaffected by the weight.
+      idleAction?.setEffectiveWeight(0.35);
+      oneShot.reset().play();
     },
     resize,
     destroy: () => {
       destroyed = true;
       cancelAnimationFrame(rafId);
+      mixer?.stopAllAction();
+      dracoLoader.dispose();
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
           obj.geometry.dispose();

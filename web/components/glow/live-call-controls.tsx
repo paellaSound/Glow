@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { DeviceTargetSlider } from './device-target-slider';
+import { PlanGateUpsell } from '@/components/glow/plan-gate';
 import { NeonButton, NeonCard, NeonTitle } from '@/components/ui/neon';
 import { cn } from '@/lib/utils';
 import { buildLayoutPreset, type LiveLayoutPreset } from '@/lib/glow/webrtc';
@@ -110,10 +111,7 @@ export function LiveCallControls({
           <NeonTitle as="h3" color="violet" className="text-sm font-black tracking-widest mt-3 mb-2">
             LIVE CALL MOSAIC
           </NeonTitle>
-          <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            Show player cameras on the visuals surface. Upgrade to{' '}
-            <strong className="text-white">Pro</strong> to unlock live call.
-          </p>
+          <PlanGateUpsell feature="webrtcLiveCall" />
         </div>
       </NeonCard>
     );

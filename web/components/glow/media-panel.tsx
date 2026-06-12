@@ -9,8 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { NeonButton, NeonTitle } from '@/components/ui/neon';
 import { cn } from '@/lib/utils';
-import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
-import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
+import { PlanGate } from '@/components/glow/plan-gate';
 import type { DeviceTarget, RoomStatePayload } from '@/lib/glow/types';
 
 type MediaPanelProps = {
@@ -25,9 +24,6 @@ type ActiveSubTab = 'image' | 'text' | 'gif';
 export function MediaPanel({ roomCode, roomState, socket, disabled = false }: MediaPanelProps) {
   const [activeSubTab, setActiveSubTab] = useState<ActiveSubTab>('image');
   const [target, setTarget] = useState<DeviceTarget>({ kind: 'all' });
-  const { teamEntitlements } = useTeamEntitlements();
-  const entitlements = mergeEntitlementsForUi(roomState.entitlements, teamEntitlements);
-
   // Image states
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -162,18 +158,6 @@ export function MediaPanel({ roomCode, roomState, socket, disabled = false }: Me
     });
   };
 
-  const renderGatedOverlay = (minTierName: string) => (
-    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-xl bg-black/85 p-6 text-center backdrop-blur-xs">
-      <span className="text-2xl">🔒</span>
-      <h4 className="mt-2 font-display font-black text-sm text-white uppercase tracking-widest">
-        Feature Gated
-      </h4>
-      <p className="mt-1 text-xs text-zinc-400 max-w-[240px]">
-        This feature requires a <span className="text-neon-magenta font-bold">{minTierName}</span> plan upgrade.
-      </p>
-    </div>
-  );
-
   return (
     <div className="flex flex-col gap-5 sm:gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -208,8 +192,8 @@ export function MediaPanel({ roomCode, roomState, socket, disabled = false }: Me
       <div className="grid gap-6 md:grid-cols-5">
         <div className="relative min-h-[340px] rounded-xl border border-white/10 bg-black/20 p-5 md:col-span-3">
           {activeSubTab === 'image' && (
+            <PlanGate feature="customMediaUpload" roomEntitlements={roomState.entitlements}>
             <div className="flex flex-col gap-4 h-full">
-              {!entitlements.customMediaUpload && renderGatedOverlay('Plus 50')}
               <div className="space-y-2">
                 <Label className="font-cyber text-[10px] uppercase tracking-wider text-zinc-300">
                   Custom Image (Mime: PNG/JPG/WEBP/GIF, Size ≤ 1 MB)
@@ -289,11 +273,12 @@ export function MediaPanel({ roomCode, roomState, socket, disabled = false }: Me
                 </div>
               </div>
             </div>
+            </PlanGate>
           )}
 
           {activeSubTab === 'text' && (
+            <PlanGate feature="sequencedText" roomEntitlements={roomState.entitlements}>
             <div className="flex flex-col gap-4 h-full">
-              {!entitlements.sequencedText && renderGatedOverlay('Plus 25')}
               <div className="space-y-2">
                 <Label htmlFor="message" className="font-cyber text-[10px] uppercase tracking-wider text-zinc-300">
                   Broadcast Text
@@ -399,16 +384,18 @@ export function MediaPanel({ roomCode, roomState, socket, disabled = false }: Me
                 </Label>
               </div>
             </div>
+            </PlanGate>
           )}
 
           {activeSubTab === 'gif' && (
+            <PlanGate feature="gifBroadcast" roomEntitlements={roomState.entitlements}>
             <div className="flex flex-col gap-4 h-full">
-              {!entitlements.gifBroadcast && renderGatedOverlay('Plus 50')}
               <GifSearch
                 onSelect={(gif) => setSelectedGif(gif)}
                 selectedSlug={selectedGif?.slug}
               />
             </div>
+            </PlanGate>
           )}
         </div>
 

@@ -41,6 +41,8 @@ Turn the phases into a plan and execute one doc per chat.
 | 06 | Pattern sequence live sync & preview parity | [06](./06-pattern-sequence-live-sync.md) | Control desk · Play Devices | `pattern-sequence-editor.tsx`, preview, visual-engine | Medium |
 | 07 | Orchestrator auth hardening (rejoin) | [07](./07-orchestrator-auth-hardening.md) | Realtime · Control desk | `room-manager.ts`, `types.ts`, control desks | Medium · **security** |
 | 08 | QA / regression checklist (post-demo) | [08](./08-qa-regression-checklist.md) | All | end-to-end verification | — |
+| 10 | PlanGate + upgrade modal (monetization UX) | [10](./10-plan-gate-wrapper.md) | Control desk + billing | `plan-gate.tsx`, `upgrade-modal.tsx`, `plan-meta.ts` | Medium |
+| 11 | PostHog analytics & error tracking (production gate) | [../posthog-production-analytics.md](../posthog-production-analytics.md) | Web + Realtime | `web/lib/analytics/*`, `realtime/src/analytics/*` | Medium |
 
 ---
 

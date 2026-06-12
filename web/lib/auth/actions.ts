@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getPostHogClient } from '@/lib/posthog-server';
 
 function authRedirect(path: string, redirectTo?: string) {
   const target = redirectTo && redirectTo.startsWith('/') ? redirectTo : '/room/new';
@@ -66,6 +67,22 @@ export async function signInWithPassword(formData: FormData) {
   }
 
   await bootstrapFromSession();
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    const posthog = getPostHogClient();
+    posthog.identify({
+      distinctId: session.user.id,
+      properties: { email: session.user.email },
+    });
+    posthog.capture({
+      distinctId: session.user.id,
+      event: 'signin_completed',
+      properties: { method: 'email', email: session.user.email },
+    });
+    await posthog.shutdown();
+  }
+
   redirect(redirectTo.startsWith('/') ? redirectTo : '/room/new');
 }
 
@@ -99,6 +116,28 @@ export async function signUpWithPassword(formData: FormData) {
 
   if (data.session) {
     await bootstrapFromSession();
+
+    if (data.user) {
+      const posthog = getPostHogClient();
+      posthog.identify({
+        distinctId: data.user.id,
+        properties: {
+          email: data.user.email,
+          name: fullName || data.user.user_metadata?.full_name,
+          created_at: data.user.created_at,
+        },
+      });
+      posthog.capture({
+        distinctId: data.user.id,
+        event: 'signup_completed',
+        properties: {
+          method: 'email',
+          email: data.user.email,
+        },
+      });
+      await posthog.shutdown();
+    }
+
     redirect(redirectTo.startsWith('/') ? redirectTo : '/room/new');
   }
 

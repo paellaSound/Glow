@@ -8,6 +8,7 @@ import { NeonButton, NeonTitle } from '@/components/ui/neon';
 import { cn } from '@/lib/utils';
 import { ORCHESTRATOR_SCHEDULE_MS } from '@/lib/glow/orchestrator-delay';
 import { TORCH_MAX_INTERVAL_MS } from '@/lib/glow/torch';
+import { PlanGate } from '@/components/glow/plan-gate';
 import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
 import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import type { DeviceTarget, RoomStatePayload, TorchCommand } from '@/lib/glow/types';
@@ -121,16 +122,6 @@ export function TorchControls({
     };
   }, [releaseHold]);
 
-  function renderGatedOverlay() {
-    return (
-      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-black/70 backdrop-blur-sm">
-        <p className="px-4 text-center text-xs font-cyber uppercase tracking-widest text-zinc-300">
-          Device flash control requires Plus 25 or higher
-        </p>
-      </div>
-    );
-  }
-
   function bindHoldHandlers(mode: HoldMode) {
     return {
       onPointerDown: (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -150,9 +141,8 @@ export function TorchControls({
   }
 
   return (
-    <div className="relative">
-      {gated ? renderGatedOverlay() : null}
-      <div className={cn('flex flex-col gap-5', gated && 'pointer-events-none opacity-50')}>
+    <PlanGate feature="deviceFlashControl" roomEntitlements={roomState.entitlements}>
+      <div className="flex flex-col gap-5">
         <div>
           <NeonTitle as="h3" color="white" className="text-base font-black tracking-widest">
             Device Flash / Torch
@@ -232,6 +222,6 @@ export function TorchControls({
           </div>
         </div>
       </div>
-    </div>
+    </PlanGate>
   );
 }

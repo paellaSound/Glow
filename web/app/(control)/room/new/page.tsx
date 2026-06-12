@@ -1,14 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import Link from 'next/link';
+import posthog from 'posthog-js';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MockAd } from '@/components/glow/mock-ad';
+import { UpgradeModal } from '@/components/glow/upgrade-modal';
 import { useGlowSocket } from '@/lib/glow/socket';
+import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
+import {
+  buildLimitBody,
+  buildLimitTitle,
+  getRequiredPlanForFeature,
+} from '@/lib/plans/plan-meta';
 import { createClient } from '@/lib/supabase/client';
 import type { PlanEntitlements } from '@/lib/glow/types';
 
@@ -23,10 +31,10 @@ type Rig = {
 
 export default function CreateRoomPage() {
   const router = useRouter();
-  const { data, isLoading } = useSWR<{ team: { id: string }; entitlements: PlanEntitlements }>(
-    '/api/team',
-    fetcher
-  );
+  const { data, isLoading, mutate: mutateTeam } = useSWR<{
+    team: { id: string };
+    entitlements: PlanEntitlements;
+  }>('/api/team', fetcher);
   const { data: rigsList } = useSWR<Rig[]>('/api/rigs', fetcher);
   
   const { emitWithCallback, connected } = useGlowSocket();
@@ -37,9 +45,36 @@ export default function CreateRoomPage() {
   const [creating, setCreating] = useState(false);
   const [showAd, setShowAd] = useState(false);
   const [pendingCreate, setPendingCreate] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const searchParams = useSearchParams();
+  const { team, mutate: mutateEntitlements } = useTeamEntitlements();
 
   const entitlements = data?.entitlements;
   const adsEnabled = entitlements?.adsEnabled ?? true;
+  const maxGridRows = entitlements?.maxGridRows ?? 5;
+  const maxGridCols = entitlements?.maxGridCols ?? 5;
+  const maxMatrixCells = entitlements?.maxMatrixCells ?? entitlements?.maxDevices ?? 10;
+  const matrixCells = positionRequired ? rows * cols : 1;
+  const matrixTooLarge = positionRequired && matrixCells > maxMatrixCells;
+
+  function clampRows(value: number) {
+    return Math.min(Math.max(1, value), maxGridRows);
+  }
+
+  function clampCols(value: number) {
+    return Math.min(Math.max(1, value), maxGridCols);
+  }
+
+  useEffect(() => {
+    if (searchParams.get('checkout') === 'success') {
+      void mutateEntitlements();
+      void mutateTeam();
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('checkout');
+      const next = params.toString();
+      router.replace(next ? `/room/new?${next}` : '/room/new', { scroll: false });
+    }
+  }, [searchParams, mutateEntitlements, mutateTeam, router]);
 
   // Auto-select default rig on load
   useEffect(() => {
@@ -67,6 +102,8 @@ export default function CreateRoomPage() {
       const response = await emitWithCallback<{
         roomCode?: string;
         error?: string;
+        reason?: string;
+        maxMatrixCells?: number;
       }>('orchestrator:create_room', {
         accessToken: session.access_token,
         matrix: positionRequired ? { rows, cols } : { rows: 1, cols: 1 },
@@ -85,9 +122,21 @@ export default function CreateRoomPage() {
       }
 
       if (response.error || !response.roomCode) {
-        alert(response.error ?? 'Failed to create room');
+        if (response.reason === 'matrix_too_large' || response.error === 'matrix_too_large') {
+          setUpgradeOpen(true);
+        } else {
+          alert(response.error ?? 'Failed to create room');
+        }
         return;
       }
+
+      posthog.capture('room_created', {
+        room_code: response.roomCode,
+        matrix_enabled: positionRequired,
+        matrix_rows: positionRequired ? rows : 1,
+        matrix_cols: positionRequired ? cols : 1,
+        rig_id: selectedRigId,
+      });
 
       const matrixQuery = positionRequired ? 'matrix=1' : 'matrix=0';
       router.push(`/room/${response.roomCode}/control?${matrixQuery}`);
@@ -101,6 +150,10 @@ export default function CreateRoomPage() {
   }
 
   function handleCreateClick() {
+    if (matrixTooLarge) {
+      setUpgradeOpen(true);
+      return;
+    }
     if (adsEnabled) {
       setShowAd(true);
       setPendingCreate(true);
@@ -109,9 +162,24 @@ export default function CreateRoomPage() {
     void createRoom();
   }
 
+  const matrixPlan = getRequiredPlanForFeature('matrix_too_large');
+  const hasActiveSubscription =
+    team?.subscriptionStatus === 'active' || team?.subscriptionStatus === 'trialing';
+
   return (
     <main className="relative mx-auto max-w-lg px-6 py-12 min-h-[100dvh] flex flex-col justify-center overflow-hidden">
       <SectionGlow glowColor="magenta" position="center" />
+
+      <UpgradeModal
+        open={upgradeOpen}
+        onOpenChange={setUpgradeOpen}
+        title={buildLimitTitle('matrix_too_large', { rows, cols, matrixCells })}
+        body={buildLimitBody('matrix_too_large', matrixPlan)}
+        requiredPlan={matrixPlan}
+        returnUrl="/room/new"
+        hasActiveSubscription={hasActiveSubscription}
+        secondaryLabel="Adjust grid size"
+      />
 
       {showAd && pendingCreate ? (
         <MockAd
@@ -169,9 +237,9 @@ export default function CreateRoomPage() {
                     id="rows"
                     type="number"
                     min={1}
-                    max={entitlements?.maxGridRows ?? 5}
+                    max={maxGridRows}
                     value={rows}
-                    onChange={(e) => setRows(Number(e.target.value))}
+                    onChange={(e) => setRows(clampRows(Number(e.target.value)))}
                     className="font-cyber tracking-wide text-center"
                   />
                 </div>
@@ -181,9 +249,9 @@ export default function CreateRoomPage() {
                     id="cols"
                     type="number"
                     min={1}
-                    max={entitlements?.maxGridCols ?? 5}
+                    max={maxGridCols}
                     value={cols}
-                    onChange={(e) => setCols(Number(e.target.value))}
+                    onChange={(e) => setCols(clampCols(Number(e.target.value)))}
                     className="font-cyber tracking-wide text-center"
                   />
                 </div>
@@ -220,9 +288,14 @@ export default function CreateRoomPage() {
             <p className="text-xs font-cyber tracking-wide text-muted-foreground text-center">
               Rave Limit: Up to {entitlements?.maxDevices ?? 10} synced screens
               {positionRequired
-                ? ` · ${entitlements?.maxGridRows ?? 5}x${entitlements?.maxGridCols ?? 5} max grid`
+                ? ` · max ${maxMatrixCells} matrix cells · grid up to ${maxGridRows}×${maxGridCols}`
                 : ''}
             </p>
+            {matrixTooLarge ? (
+              <p className="text-xs font-cyber tracking-wide text-red-400 text-center">
+                {rows}×{cols} = {matrixCells} cells — exceeds your plan limit of {maxMatrixCells}
+              </p>
+            ) : null}
             
             <NeonButton
               onClick={handleCreateClick}

@@ -19,14 +19,25 @@ import { NeonButton, NeonCard, NeonTitle } from '@/components/ui/neon';
 import { PaletteEditor } from '@/components/glow/palette-editor';
 import { CueList, type RigCue } from '@/components/glow/cue-list';
 import type { Socket } from 'socket.io-client';
-import type { RoomStatePayload, VisualsMode } from '@/lib/glow/types';
+import type { RoomStatePayload, VisualsMode, YoutubeQueueItem, YoutubeTransitionEffect } from '@/lib/glow/types';
 import { VISUAL_ART_REGISTRY } from 'glow-visuals';
 import { LiveCallControls } from '@/components/glow/live-call-controls';
+import { PlanGateUpsell } from '@/components/glow/plan-gate';
 import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
 import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import { cn } from '@/lib/utils';
 import { VisualsPreview } from '@/components/glow/visuals-preview';
 import { parseYoutubeVideoId } from '@/lib/youtube';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -80,6 +91,69 @@ const VISUALS_MODES: { id: VisualsMode; label: string; description: string; impl
   { id: '3d', label: '3D Visuals', description: 'Music-reactive 3D scenes with energy levels', implemented: true },
   { id: 'pptt', label: 'PPTT Mode', description: 'Google Slides presentation with live QR', implemented: false },
 ];
+
+// ── YouTube transitions ────────────────────────────────────────────────────
+
+const YT_TRANSITIONS: { id: YoutubeTransitionEffect; label: string }[] = [
+  { id: 'dip-black', label: 'Dip to black' },
+  { id: 'glitch', label: 'Glitch' },
+  { id: 'pixel-melt', label: 'Pixel melt' },
+];
+
+// Same keyframes the surface uses, scoped to the desk preview chips
+const YT_DESK_CSS = `
+@keyframes yt-dip-black {
+  0% { opacity: 0; } 25% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; }
+}
+@keyframes yt-glitch-shift {
+  0% { transform: translate(0,0); clip-path: inset(0 0 85% 0); }
+  20% { transform: translate(3px,-2px); clip-path: inset(60% 0 20% 0); }
+  40% { transform: translate(-4px,1px); clip-path: inset(45% 0 35% 0); }
+  60% { transform: translate(3px,-1px); clip-path: inset(20% 0 60% 0); }
+  80% { transform: translate(-3px,2px); clip-path: inset(5% 0 80% 0); }
+  100% { transform: translate(0,0); clip-path: inset(0 0 85% 0); }
+}
+@keyframes yt-pixel-melt {
+  0% { filter: blur(0px); opacity: 0; }
+  30% { filter: blur(6px); opacity: 1; }
+  70% { filter: blur(6px); opacity: 1; }
+  100% { filter: blur(0px); opacity: 0; }
+}
+`;
+
+function YtTransitionPreview({ effect }: { effect: YoutubeTransitionEffect }) {
+  const [playing, setPlaying] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setPlaying(true);
+        setTimeout(() => setPlaying(false), 1500);
+      }}
+      className="relative ml-auto h-6 w-12 overflow-hidden rounded border border-white/10 bg-gradient-to-r from-cyan-900/60 to-fuchsia-900/60"
+      title="Preview transition"
+      aria-label="Preview transition"
+    >
+      {playing && effect === 'dip-black' && (
+        <span className="absolute inset-0 bg-black" style={{ animation: 'yt-dip-black 1.4s ease-in-out' }} />
+      )}
+      {playing && effect === 'glitch' && (
+        <>
+          <span className="absolute inset-0 bg-cyan-400/70 mix-blend-screen" style={{ animation: 'yt-glitch-shift 0.18s steps(2) infinite' }} />
+          <span className="absolute inset-0 bg-fuchsia-500/70 mix-blend-screen" style={{ animation: 'yt-glitch-shift 0.22s steps(3) infinite reverse' }} />
+        </>
+      )}
+      {playing && effect === 'pixel-melt' && (
+        <span className="absolute inset-0 bg-black/70" style={{ animation: 'yt-pixel-melt 1.4s ease-in-out' }} />
+      )}
+      {!playing && (
+        <span className="absolute inset-0 flex items-center justify-center text-[8px] font-cyber uppercase text-zinc-300">
+          ▶
+        </span>
+      )}
+    </button>
+  );
+}
 
 // ── Section header ─────────────────────────────────────────────────────────
 
@@ -342,34 +416,74 @@ export function VisualsTab({
   }
 
   // ── YouTube mode controls ─────────────────────────────────────────────────
+  // The realtime server owns the queue: every command is acked back via the
+  // `visuals:youtube` event, which the desk mirrors into local state.
 
   const [ytUrlInput, setYtUrlInput] = useState('');
   const [ytUrlError, setYtUrlError] = useState<string | null>(null);
-  const [ytQueue, setYtQueue] = useState<{ videoId: string; title?: string }[]>([]);
+  const [ytLoading, setYtLoading] = useState(false);
+  const [ytQueue, setYtQueue] = useState<YoutubeQueueItem[]>([]);
   const [ytQueueIndex, setYtQueueIndex] = useState(0);
   const [ytPlaying, setYtPlaying] = useState(false);
   const [ytMuted, setYtMuted] = useState(true);
   const [ytVolume, setYtVolume] = useState(80);
-  const [ytSeekInput, setYtSeekInput] = useState('');
+  const [ytDuration, setYtDuration] = useState(0);
+  const [ytCurrentTime, setYtCurrentTime] = useState(0);
+  const [ytSeekDragging, setYtSeekDragging] = useState<number | null>(null);
+  const [ytExpandedItem, setYtExpandedItem] = useState<number | null>(null);
+  const [ytItemSeek, setYtItemSeek] = useState('');
+  const ytDragFrom = useRef<number | null>(null);
 
-  function handleYtLoad() {
+  // Mirror authoritative queue state from the server
+  useEffect(() => {
+    const s = socket.current;
+    if (!s) return;
+    const onYoutube = (payload: { youtube: {
+      queue: YoutubeQueueItem[]; queueIndex: number; playing: boolean; muted: boolean; volume: number;
+    } | null }) => {
+      const yt = payload.youtube;
+      if (!yt) return;
+      setYtQueue(yt.queue);
+      setYtQueueIndex(yt.queueIndex);
+      setYtPlaying(yt.playing);
+      setYtMuted(yt.muted);
+      setYtVolume(yt.volume);
+    };
+    const onStatus = (payload: { currentTime: number; duration: number }) => {
+      setYtDuration(payload.duration);
+      setYtCurrentTime((prev) => (ytSeekDragging !== null ? prev : payload.currentTime));
+    };
+    s.on('visuals:youtube', onYoutube);
+    s.on('visuals:youtube_status', onStatus);
+    return () => {
+      s.off('visuals:youtube', onYoutube);
+      s.off('visuals:youtube_status', onStatus);
+    };
+  }, [socket, connected, ytSeekDragging]);
+
+  async function handleYtLoad() {
     const videoId = parseYoutubeVideoId(ytUrlInput);
     if (!videoId) {
       setYtUrlError('Invalid YouTube URL or video id');
       return;
     }
     setYtUrlError(null);
-    socket.current?.emit('orchestrator:visuals_youtube_load', { roomCode, videoId });
-    setYtQueue((prev) => {
-      const idx = prev.findIndex((q) => q.videoId === videoId);
-      if (idx !== -1) {
-        setYtQueueIndex(idx);
-        return prev;
+    setYtLoading(true);
+    // Server-side oEmbed lookup so the queue shows rich titles + thumbnails
+    let title: string | undefined;
+    let thumbnail: string | undefined;
+    try {
+      const res = await fetch(`/api/youtube/oembed?id=${videoId}`);
+      if (res.ok) {
+        const meta = await res.json();
+        title = meta.title ?? undefined;
+        thumbnail = meta.thumbnail ?? undefined;
       }
-      setYtQueueIndex(prev.length);
-      return [...prev, { videoId }];
-    });
-    setYtPlaying(true);
+    } catch {
+      // metadata is best-effort — load the video regardless
+    }
+    setYtLoading(false);
+    socket.current?.emit('orchestrator:visuals_youtube_load', { roomCode, videoId, title, thumbnail });
     setYtUrlInput('');
   }
 
@@ -388,26 +502,50 @@ export function VisualsTab({
     socket.current?.emit('orchestrator:visuals_youtube_set_volume', { roomCode, volume, muted });
   }
 
-  function handleYtSeek() {
-    const parts = ytSeekInput.split(':').map((p) => Number(p.trim()));
-    if (parts.some((n) => Number.isNaN(n) || n < 0)) return;
-    const sec = parts.length === 2 ? parts[0]! * 60 + parts[1]! : parts[0] ?? 0;
+  function handleYtSeekCommit(sec: number) {
+    setYtSeekDragging(null);
+    setYtCurrentTime(sec);
     socket.current?.emit('orchestrator:visuals_youtube_seek', { roomCode, sec });
   }
 
-  function handleYtQueueJump(index: number) {
-    const item = ytQueue[index];
-    if (!item) return;
-    setYtQueueIndex(index);
-    setYtPlaying(true);
-    socket.current?.emit('orchestrator:visuals_youtube_queue_jump', { roomCode, index });
+  function handleYtQueueJump(index: number, seekSec?: number) {
+    socket.current?.emit('orchestrator:visuals_youtube_queue_jump', { roomCode, index, seekSec });
   }
 
   function handleYtQueueRemove(index: number) {
-    const next = ytQueue.filter((_, i) => i !== index);
-    setYtQueue(next);
-    if (index < ytQueueIndex) setYtQueueIndex(ytQueueIndex - 1);
-    socket.current?.emit('orchestrator:visuals_youtube_queue_set', { roomCode, items: next });
+    socket.current?.emit('orchestrator:visuals_youtube_queue_remove', { roomCode, index });
+  }
+
+  const [ytConfirmMove, setYtConfirmMove] = useState<{ from: number; to: number } | null>(null);
+
+  function emitYtQueueMove(from: number, to: number) {
+    socket.current?.emit('orchestrator:visuals_youtube_queue_move', { roomCode, from, to });
+  }
+
+  function handleYtQueueMove(from: number, to: number) {
+    if (from === to || to < 0 || to >= ytQueue.length) return;
+    // Reordering around the live video deserves a second look
+    if (from === ytQueueIndex || to === ytQueueIndex) {
+      setYtConfirmMove({ from, to });
+      return;
+    }
+    emitYtQueueMove(from, to);
+  }
+
+  function handleYtSetTransition(index: number, effect: YoutubeTransitionEffect) {
+    socket.current?.emit('orchestrator:visuals_youtube_set_transition', { roomCode, index, effect });
+  }
+
+  function parseSeekInput(value: string): number | null {
+    const parts = value.split(':').map((p) => Number(p.trim()));
+    if (parts.some((n) => Number.isNaN(n) || n < 0)) return null;
+    return parts.length === 2 ? parts[0]! * 60 + parts[1]! : parts[0] ?? 0;
+  }
+
+  function formatTime(sec: number): string {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
   // ── 3D mode controls ──────────────────────────────────────────────────────
@@ -549,13 +687,10 @@ export function VisualsTab({
         <NeonTitle as="h3" color="violet" className="text-lg font-black tracking-widest mb-2">
           VISUALS SURFACE
         </NeonTitle>
-        <p className="text-sm text-muted-foreground leading-relaxed mb-6">
-          Drive a full-screen projection surface from this desk. Upgrade to{' '}
-          <strong className="text-white">Plus 25</strong> to unlock the visual arts engine.
+        <p className="text-sm text-muted-foreground leading-relaxed mb-2">
+          Drive a full-screen projection surface from this desk.
         </p>
-        <NeonButton color="violet" variant="solid" className="text-xs uppercase tracking-widest" disabled>
-          Upgrade Plan
-        </NeonButton>
+        <PlanGateUpsell feature="visualsSurface" roomEntitlements={roomState?.entitlements} />
       </NeonCard>
     );
   }
@@ -566,6 +701,85 @@ export function VisualsTab({
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-300">
+      {/* Queue-reorder confirmation (move touches the video in mix) */}
+      <AlertDialog open={ytConfirmMove !== null} onOpenChange={(open) => !open && setYtConfirmMove(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reorder the live video?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This reorder affects the video currently playing on the surface.
+              The playback won&apos;t be interrupted, but its position in the queue will change.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (ytConfirmMove) emitYtQueueMove(ytConfirmMove.from, ytConfirmMove.to);
+                setYtConfirmMove(null);
+              }}
+            >
+              Reorder
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── 0. Visuals Mode (the active mode gates everything below) ──── */}
+      <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-5">
+        <div
+          className="flex items-center justify-between cursor-pointer select-none"
+          onClick={() => toggleCollapse('visualsMode')}
+        >
+          <SectionHeader title="VISUALS MODE" color="violet" />
+          <button className="text-zinc-400 hover:text-white p-1">
+            {collapsedSections.visualsMode ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+          </button>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateRows: collapsedSections.visualsMode ? '0fr' : '1fr',
+            transition: 'grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
+          <div className="overflow-hidden">
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {VISUALS_MODES.map((m) => {
+                  const active = m.id === workingState.mode;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleModeChange(m.id)}
+                      disabled={!connected || !m.implemented}
+                      title={m.description}
+                      className={cn(
+                        'flex flex-col items-center gap-1 rounded-xl border px-3 py-3 text-center transition-all duration-150',
+                        active
+                          ? 'border-neon-violet/50 bg-neon-violet/10 text-white'
+                          : m.implemented
+                            ? 'border-white/10 hover:border-white/20 hover:bg-white/5 text-zinc-400 hover:text-zinc-200'
+                            : 'border-white/5 text-zinc-600 cursor-not-allowed opacity-60'
+                      )}
+                      id={`visuals-mode-${m.id}`}
+                    >
+                      <span className="text-xs font-cyber">{m.label}</span>
+                      {!m.implemented && (
+                        <span className="text-[8px] font-cyber uppercase tracking-widest text-zinc-600">
+                          Coming soon
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </NeonCard>
+
       {/* ── 0. Visuals Preview ────────────────────────────────────────── */}
       <NeonCard glowColor="none" borderVariant="default" hoverEffect={false} className="p-4">
         <div
@@ -772,64 +986,11 @@ export function VisualsTab({
         </div>
       </NeonCard>
 
-      {/* ── 4a. Visuals Mode ──────────────────────────────────────────── */}
-      <NeonCard glowColor="violet" borderVariant="violet" hoverEffect={false} className="p-5">
-        <div
-          className="flex items-center justify-between cursor-pointer select-none"
-          onClick={() => toggleCollapse('visualsMode')}
-        >
-          <SectionHeader title="VISUALS MODE" color="violet" />
-          <button className="text-zinc-400 hover:text-white p-1">
-            {collapsedSections.visualsMode ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-          </button>
-        </div>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateRows: collapsedSections.visualsMode ? '0fr' : '1fr',
-            transition: 'grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1)',
-          }}
-        >
-          <div className="overflow-hidden">
-            <div className="mt-4 pt-4 border-t border-white/5">
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {VISUALS_MODES.map((m) => {
-                  const active = m.id === workingState.mode;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => handleModeChange(m.id)}
-                      disabled={!connected || !m.implemented}
-                      title={m.description}
-                      className={cn(
-                        'flex flex-col items-center gap-1 rounded-xl border px-3 py-3 text-center transition-all duration-150',
-                        active
-                          ? 'border-neon-violet/50 bg-neon-violet/10 text-white'
-                          : m.implemented
-                            ? 'border-white/10 hover:border-white/20 hover:bg-white/5 text-zinc-400 hover:text-zinc-200'
-                            : 'border-white/5 text-zinc-600 cursor-not-allowed opacity-60'
-                      )}
-                      id={`visuals-mode-${m.id}`}
-                    >
-                      <span className="text-xs font-cyber">{m.label}</span>
-                      {!m.implemented && (
-                        <span className="text-[8px] font-cyber uppercase tracking-widest text-zinc-600">
-                          Coming soon
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </NeonCard>
 
       {/* ── 4b. YouTube controls ──────────────────────────────────────── */}
       {workingState.mode === 'youtube' && (
         <NeonCard glowColor="magenta" borderVariant="magenta" hoverEffect={false} className="p-5">
+          <style>{YT_DESK_CSS}</style>
           <SectionHeader title="YOUTUBE" color="magenta" />
           <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
             {/* URL loader */}
@@ -838,18 +999,18 @@ export function VisualsTab({
                 type="text"
                 value={ytUrlInput}
                 onChange={(e) => setYtUrlInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleYtLoad()}
+                onKeyDown={(e) => e.key === 'Enter' && void handleYtLoad()}
                 placeholder="Paste YouTube URL or video id…"
                 className="flex-1 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-neon-magenta/50 focus:outline-none focus:ring-1 focus:ring-neon-magenta/50 font-cyber"
               />
               <NeonButton
                 color="magenta"
                 variant="solid"
-                onClick={handleYtLoad}
-                disabled={!connected || !ytUrlInput.trim()}
+                onClick={() => void handleYtLoad()}
+                disabled={!connected || !ytUrlInput.trim() || ytLoading}
                 className="text-xs uppercase tracking-widest h-9 px-4"
               >
-                Load
+                {ytLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Load'}
               </NeonButton>
             </div>
             {ytUrlError && <p className="text-xs text-red-400">{ytUrlError}</p>}
@@ -894,28 +1055,32 @@ export function VisualsTab({
               <span className="text-[10px] font-cyber text-zinc-500 w-8 text-right">{ytVolume}%</span>
             </div>
 
-            {/* Seek */}
-            <div className="flex items-center gap-2">
-              <label className="text-[10px] font-cyber text-zinc-400 uppercase tracking-widest">
-                Seek to
-              </label>
+            {/* Seek slider — duration reported live by the surface */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-[10px] font-cyber text-zinc-400 uppercase tracking-widest">
+                  Position
+                </label>
+                <span className="text-[10px] font-cyber text-zinc-500">
+                  {formatTime(ytSeekDragging ?? ytCurrentTime)} / {ytDuration > 0 ? formatTime(ytDuration) : '–:––'}
+                </span>
+              </div>
               <input
-                type="text"
-                value={ytSeekInput}
-                onChange={(e) => setYtSeekInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleYtSeek()}
-                placeholder="mm:ss"
-                className="w-20 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-center text-xs text-white placeholder-zinc-600 focus:border-neon-magenta/50 focus:outline-none font-cyber"
+                type="range"
+                min="0"
+                max={Math.max(1, Math.floor(ytDuration))}
+                value={Math.floor(ytSeekDragging ?? ytCurrentTime)}
+                onChange={(e) => setYtSeekDragging(Number(e.target.value))}
+                onPointerUp={() => ytSeekDragging !== null && handleYtSeekCommit(ytSeekDragging)}
+                onKeyUp={(e) => e.key !== 'Tab' && ytSeekDragging !== null && handleYtSeekCommit(ytSeekDragging)}
+                disabled={!connected || ytDuration <= 0}
+                className="w-full accent-neon-magenta"
               />
-              <NeonButton
-                color="magenta"
-                variant="outline"
-                onClick={handleYtSeek}
-                disabled={!connected || !ytSeekInput.trim()}
-                className="text-xs uppercase tracking-widest h-8 px-3"
-              >
-                Go
-              </NeonButton>
+              {ytDuration <= 0 && (
+                <p className="text-[10px] text-zinc-600 mt-1">
+                  Duration appears once the surface is open and playing.
+                </p>
+              )}
             </div>
 
             {/* Queue */}
@@ -924,40 +1089,187 @@ export function VisualsTab({
                 <p className="text-[10px] font-cyber text-zinc-400 uppercase tracking-widest">
                   Queue
                 </p>
-                {ytQueue.map((item, i) => (
-                  <div
-                    key={`${item.videoId}-${i}`}
-                    className={cn(
-                      'flex items-center gap-2 rounded-lg border px-3 py-2',
-                      i === ytQueueIndex
-                        ? 'border-neon-magenta/50 bg-neon-magenta/10'
-                        : 'border-white/10 bg-black/30'
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleYtQueueJump(i)}
-                      disabled={!connected}
-                      className="flex-1 text-left text-xs font-mono text-zinc-300 hover:text-white truncate"
+                {ytQueue.map((item, i) => {
+                  if (item.kind === 'transition') {
+                    return (
+                      <div
+                        key={`tr-${i}`}
+                        className="ml-6 flex items-center gap-2 rounded-lg border border-dashed border-white/10 bg-black/20 px-3 py-1.5"
+                        draggable
+                        onDragStart={() => { ytDragFrom.current = i; }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (ytDragFrom.current !== null) handleYtQueueMove(ytDragFrom.current, i);
+                          ytDragFrom.current = null;
+                        }}
+                      >
+                        <span className="text-[9px] font-cyber uppercase tracking-widest text-zinc-500">
+                          ↯ Transition
+                        </span>
+                        <select
+                          value={item.effect}
+                          onChange={(e) => handleYtSetTransition(i, e.target.value as YoutubeTransitionEffect)}
+                          disabled={!connected}
+                          className="rounded border border-white/10 bg-black/40 px-2 py-0.5 text-[10px] text-zinc-300 font-cyber focus:outline-none"
+                        >
+                          {YT_TRANSITIONS.map((t) => (
+                            <option key={t.id} value={t.id}>{t.label}</option>
+                          ))}
+                        </select>
+                        <YtTransitionPreview effect={item.effect} />
+                      </div>
+                    );
+                  }
+
+                  const isNow = i === ytQueueIndex;
+                  const expanded = ytExpandedItem === i;
+                  return (
+                    <div
+                      key={`${item.videoId}-${i}`}
+                      draggable
+                      onDragStart={() => { ytDragFrom.current = i; }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (ytDragFrom.current !== null) handleYtQueueMove(ytDragFrom.current, i);
+                        ytDragFrom.current = null;
+                      }}
+                      className={cn(
+                        'grid grid-cols-[90px_1fr] rounded-xl border overflow-hidden transition-all duration-300',
+                        isNow
+                          ? 'border-neon-magenta/60 bg-neon-magenta/5 shadow-[0_0_15px_rgba(255,0,200,0.25)] animate-pulse'
+                          : 'border-white/10 bg-black/30'
+                      )}
                     >
-                      {item.title || item.videoId}
-                    </button>
-                    {i === ytQueueIndex && (
-                      <span className="text-[8px] font-cyber uppercase tracking-widest text-neon-magenta">
-                        Now
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => handleYtQueueRemove(i)}
-                      disabled={!connected}
-                      className="text-zinc-600 hover:text-red-400 text-xs px-1"
-                      aria-label="Remove from queue"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                      {/* In-mix sidebar button (consistent with the other mix layouts) */}
+                      <button
+                        type="button"
+                        disabled={!connected || isNow}
+                        onClick={() => handleYtQueueJump(i)}
+                        className={cn(
+                          'h-full w-full flex flex-col items-center justify-center gap-1 border-r border-white/10 px-2 py-3 text-[9px] font-cyber uppercase tracking-widest transition-all select-none',
+                          isNow
+                            ? 'bg-neon-magenta/20 text-neon-magenta border-r-neon-magenta/30 shadow-[inset_0_0_8px_rgba(255,0,200,0.1)]'
+                            : 'bg-black/40 text-zinc-500 hover:text-zinc-300 cursor-pointer'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'size-2 rounded-full transition-transform duration-300',
+                            isNow ? 'bg-neon-magenta scale-110 shadow-[0_0_8px_#ff00c8]' : 'bg-zinc-600'
+                          )}
+                        />
+                        <span>{isNow ? 'In mix' : 'Play'}</span>
+                      </button>
+
+                      {/* Content */}
+                      <div className="p-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-[10px] font-cyber text-zinc-600 w-4 text-center cursor-grab">
+                            {ytQueue.slice(0, i + 1).filter((q) => q.kind === 'video').length}
+                          </span>
+                          {item.thumbnail ? (
+                            <img
+                              src={item.thumbnail}
+                              alt=""
+                              className="w-16 h-9 rounded object-cover flex-none border border-white/10"
+                            />
+                          ) : (
+                            <div className="w-16 h-9 rounded bg-black/50 border border-white/10 flex-none" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-cyber text-zinc-200 truncate">
+                              {item.title || item.videoId}
+                            </p>
+                            <p className="text-[9px] font-mono text-zinc-600 truncate">{item.videoId}</p>
+                          </div>
+                          {/* Reorder arrows */}
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              onClick={() => handleYtQueueMove(i, Math.max(0, i - 2))}
+                              disabled={!connected || i === 0}
+                              className="text-zinc-500 hover:text-white disabled:opacity-30 p-0.5"
+                              aria-label="Move up"
+                            >
+                              <ChevronUp className="size-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleYtQueueMove(i, Math.min(ytQueue.length - 1, i + 2))}
+                              disabled={!connected || i >= ytQueue.length - 1}
+                              className="text-zinc-500 hover:text-white disabled:opacity-30 p-0.5"
+                              aria-label="Move down"
+                            >
+                              <ChevronDown className="size-3.5" />
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setYtExpandedItem(expanded ? null : i); setYtItemSeek(''); }}
+                            className={cn('p-1', expanded ? 'text-neon-magenta' : 'text-zinc-500 hover:text-white')}
+                            aria-label="Item options"
+                          >
+                            {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                          </button>
+                        </div>
+
+                        {/* Per-item dropdown */}
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateRows: expanded ? '1fr' : '0fr',
+                            transition: 'grid-template-rows 200ms cubic-bezier(0.4, 0, 0.2, 1)',
+                          }}
+                        >
+                          <div className="overflow-hidden">
+                            <div className="mt-2 pt-2 border-t border-white/5 flex flex-wrap items-center gap-2">
+                              <label className="text-[9px] font-cyber text-zinc-500 uppercase tracking-widest">
+                                {isNow ? 'Seek to' : 'Play from'}
+                              </label>
+                              <input
+                                type="text"
+                                value={ytItemSeek}
+                                onChange={(e) => setYtItemSeek(e.target.value)}
+                                placeholder="mm:ss"
+                                className="w-16 rounded border border-white/10 bg-black/40 px-2 py-1 text-center text-[10px] text-white placeholder-zinc-700 focus:border-neon-magenta/50 focus:outline-none font-cyber"
+                              />
+                              <NeonButton
+                                color="magenta"
+                                variant="outline"
+                                onClick={() => {
+                                  const sec = parseSeekInput(ytItemSeek);
+                                  if (sec === null) return;
+                                  if (isNow) handleYtSeekCommit(sec);
+                                  else handleYtQueueJump(i, sec);
+                                }}
+                                disabled={!connected || !ytItemSeek.trim()}
+                                className="text-[10px] uppercase tracking-widest h-7 px-2.5"
+                              >
+                                Go
+                              </NeonButton>
+                              <div className="flex-1" />
+                              <button
+                                type="button"
+                                onClick={() => handleYtQueueRemove(i)}
+                                disabled={!connected || isNow}
+                                title={isNow ? 'Cannot remove the video in mix' : 'Remove from queue'}
+                                className="text-[10px] font-cyber uppercase tracking-widest text-zinc-500 hover:text-red-400 disabled:opacity-30"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-[10px] text-zinc-600 leading-relaxed">
+                  Drag items or use the arrows to reorder. Transitions play on the surface
+                  while the next video loads.
+                </p>
               </div>
             )}
           </div>

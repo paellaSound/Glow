@@ -1,11 +1,13 @@
 'use client';
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import posthog from 'posthog-js';
 import { ChevronDown, ChevronUp, Smartphone } from 'lucide-react';
 import QRCode from 'qrcode';
 import { parseMatrixParam } from '@/lib/glow/join-url';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
+import { DeviceCapBanner } from '@/components/glow/device-cap-banner';
 import { DeviceList } from '@/components/glow/device-list';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
 import { RoomShareControls } from '@/components/glow/room-share-controls';
@@ -109,8 +111,12 @@ function ControlContent({ code }: { code: string }) {
     return roomState.matrix.rows > 1 || roomState.matrix.cols > 1;
   }, [roomState, searchParams]);
 
-  const { teamEntitlements } = useTeamEntitlements();
+  const pathname = usePathname();
+  const { teamEntitlements, mutate: mutateEntitlements } = useTeamEntitlements();
   const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
+  const controlReturnUrl = searchParams.toString()
+    ? `${pathname}?${searchParams.toString()}`
+    : pathname;
 
   function switchTab(tab: ActiveTab) {
     setActiveTab(tab);
@@ -124,6 +130,16 @@ function ControlContent({ code }: { code: string }) {
       setActiveTab(visibleTabs[0] ?? 'patterns');
     }
   }, [activeTab, visibleTabs.join(',')]);
+
+  useEffect(() => {
+    if (searchParams.get('checkout') === 'success') {
+      void mutateEntitlements();
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('checkout');
+      const next = params.toString();
+      router.replace(next ? `?${next}` : pathname, { scroll: false });
+    }
+  }, [searchParams, mutateEntitlements, router, pathname]);
 
   useEffect(() => {
     if (!roomState || rigLoaded.current) return;
@@ -252,6 +268,12 @@ function ControlContent({ code }: { code: string }) {
 
       if (markLive) {
         setLiveDraftName(draft.name);
+        posthog.capture('pattern_sent_live', {
+          room_code: code.toUpperCase(),
+          sequence_name: draft.name,
+          effect_count: effects.length,
+          device_count: roomState?.devices.length ?? 0,
+        });
       }
 
       const targetTimestamp = seedTimestamp + ORCHESTRATOR_SCHEDULE_MS;
@@ -331,6 +353,11 @@ function ControlContent({ code }: { code: string }) {
       setClosingRoom(false);
       return;
     }
+
+    posthog.capture('room_ended', {
+      room_code: code.toUpperCase(),
+      device_count: roomState?.devices.length ?? 0,
+    });
 
     router.push('/');
   }
@@ -496,6 +523,14 @@ function ControlContent({ code }: { code: string }) {
                     disabled={!connected}
                   />
                 </NeonCard>
+              ) : null}
+
+              {roomState ? (
+                <DeviceCapBanner
+                  deviceCount={roomState.devices.length}
+                  maxDevices={entitlements.maxDevices}
+                  returnUrl={controlReturnUrl}
+                />
               ) : null}
 
               <NeonCard glowColor="none" borderVariant="default" hoverEffect={false} className="overflow-hidden">

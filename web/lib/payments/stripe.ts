@@ -9,19 +9,27 @@ import {
   getPlanByStripePriceId,
   getPlanByCode,
 } from '@/lib/db/queries';
+import { getPostHogClient } from '@/lib/posthog-server';
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
 });
 
+function buildCheckoutReturnQuery(returnUrl?: string): string {
+  if (!returnUrl) return '';
+  return `&return_url=${encodeURIComponent(returnUrl)}`;
+}
+
 export async function createCheckoutSession({
   team,
   priceId,
   planCode,
+  returnUrl,
 }: {
   team: Team | null;
   priceId: string;
   planCode: string;
+  returnUrl?: string;
 }) {
   const profile = await getProfile();
 
@@ -39,12 +47,15 @@ export async function createCheckoutSession({
     customerId = customer.id;
   }
 
+  const returnQuery = buildCheckoutReturnQuery(returnUrl);
+  const cancelPath = returnUrl ?? '/billing';
+
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ['card'],
     line_items: [{ price: priceId, quantity: 1 }],
     mode: 'subscription',
-    success_url: `${process.env.BASE_URL}/api/stripe/checkout?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.BASE_URL}/billing`,
+    success_url: `${process.env.BASE_URL}/api/stripe/checkout?session_id={CHECKOUT_SESSION_ID}${returnQuery}`,
+    cancel_url: `${process.env.BASE_URL}${cancelPath}`,
     customer: customerId,
     metadata: {
       team_id: team.id,
@@ -56,9 +67,15 @@ export async function createCheckoutSession({
   redirect(session.url!);
 }
 
-export async function createCustomerPortalSession(team: Team, planCode?: string) {
+export async function createCustomerPortalSession(
+  team: Team,
+  planCode?: string,
+  returnUrl?: string
+) {
+  const portalReturnUrl = `${process.env.BASE_URL}${returnUrl ?? '/billing'}`;
+
   if (!team.stripeCustomerId) {
-    redirect('/billing');
+    redirect(returnUrl ?? '/billing');
   }
 
   if (planCode && team.stripeSubscriptionId) {
@@ -69,10 +86,9 @@ export async function createCustomerPortalSession(team: Team, planCode?: string)
         const subscriptionItemId = subscription.items.data[0]?.id;
 
         if (subscriptionItemId) {
-          // Intenta crear el portal directamente en el flujo de confirmación de actualización
           return await stripe.billingPortal.sessions.create({
             customer: team.stripeCustomerId,
-            return_url: `${process.env.BASE_URL}/billing`,
+            return_url: portalReturnUrl,
             flow_data: {
               type: 'subscription_update_confirm',
               subscription_update_confirm: {
@@ -98,7 +114,7 @@ export async function createCustomerPortalSession(team: Team, planCode?: string)
 
   return stripe.billingPortal.sessions.create({
     customer: team.stripeCustomerId,
-    return_url: `${process.env.BASE_URL}/billing`,
+    return_url: portalReturnUrl,
   });
 }
 
@@ -131,6 +147,20 @@ export async function handleSubscriptionChange(subscription: Stripe.Subscription
       planId: plan.id,
       subscriptionStatus: status,
     });
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: team.id,
+      event: 'subscription_activated',
+      properties: {
+        team_id: team.id,
+        plan_code: plan.code,
+        plan_name: plan.name,
+        subscription_status: status,
+        stripe_subscription_id: subscriptionId,
+      },
+    });
+    await posthog.shutdown();
   } else {
     const freePlan = await getPlanByCode('free');
     if (!freePlan) return;
@@ -142,6 +172,18 @@ export async function handleSubscriptionChange(subscription: Stripe.Subscription
       planId: freePlan.id,
       subscriptionStatus: status === 'canceled' ? 'free' : status,
     });
+
+    const posthog = getPostHogClient();
+    posthog.capture({
+      distinctId: team.id,
+      event: 'subscription_cancelled',
+      properties: {
+        team_id: team.id,
+        subscription_status: status,
+        stripe_subscription_id: subscriptionId,
+      },
+    });
+    await posthog.shutdown();
   }
 }
 

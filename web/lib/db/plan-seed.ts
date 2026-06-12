@@ -31,6 +31,24 @@ export async function ensurePlansSeeded() {
       planId = plan.id;
     } else {
       planId = existing[0].id;
+      const row = existing[0];
+      if (
+        row.name !== planData.name ||
+        row.description !== planData.description ||
+        row.monthlyPriceCents !== planData.monthlyPriceCents ||
+        row.sortOrder !== planData.sortOrder
+      ) {
+        await db
+          .update(plans)
+          .set({
+            name: planData.name,
+            description: planData.description,
+            monthlyPriceCents: planData.monthlyPriceCents,
+            sortOrder: planData.sortOrder,
+            updatedAt: new Date(),
+          })
+          .where(eq(plans.id, planId));
+      }
     }
 
     const existingEnt = await db
