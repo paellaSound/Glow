@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { ONBOARDING_STEPS, type OnboardingStepId } from '@/lib/onboarding/constants';
 import { NeonButton } from '@/components/ui/neon';
 import { cn } from '@/lib/utils';
@@ -41,48 +42,70 @@ function measureTarget(selector: string): SpotlightRect | null {
   };
 }
 
-type OverlayPanelsProps = {
-  hole: SpotlightRect;
-};
-
-function OverlayPanels({ hole }: OverlayPanelsProps) {
+function OverlayPanels({ hole }: { hole: SpotlightRect }) {
   const { top, left, width, height } = hole;
   const bottom = top + height;
   const right = left + width;
-
   const panelClass =
     'fixed bg-black/45 backdrop-blur-[1px] transition-[top,left,width,height] duration-300 ease-out pointer-events-auto';
 
   return (
     <>
       <div className={panelClass} style={{ zIndex: OVERLAY_Z, top: 0, left: 0, right: 0, height: top }} />
-      <div
-        className={panelClass}
-        style={{ zIndex: OVERLAY_Z, top: bottom, left: 0, right: 0, bottom: 0 }}
-      />
+      <div className={panelClass} style={{ zIndex: OVERLAY_Z, top: bottom, left: 0, right: 0, bottom: 0 }} />
       <div className={panelClass} style={{ zIndex: OVERLAY_Z, top, left: 0, width: left, height }} />
-      <div
-        className={panelClass}
-        style={{ zIndex: OVERLAY_Z, top, left: right, right: 0, height }}
-      />
+      <div className={panelClass} style={{ zIndex: OVERLAY_Z, top, left: right, right: 0, height }} />
     </>
+  );
+}
+
+function StepProgress({ current }: { current: OnboardingStepId }) {
+  return (
+    <div className="mb-3 flex gap-1.5">
+      {ONBOARDING_STEPS.map((step) => (
+        <span
+          key={step.id}
+          className={cn(
+            'h-1 flex-1 rounded-full transition-colors',
+            step.id < current
+              ? 'bg-neon-cyan'
+              : step.id === current
+                ? 'bg-neon-cyan/80'
+                : 'bg-white/15'
+          )}
+        />
+      ))}
+    </div>
   );
 }
 
 type StepCalloutProps = {
   step: OnboardingStepId;
   hole: SpotlightRect;
-  onContinue?: (step: OnboardingStepId) => void;
+  deviceCount: number;
+  hasRunPreset: boolean;
+  onContinue: (step: OnboardingStepId) => void;
+  onOpenVisuals?: () => void;
+  onFinishTour: () => void;
+  onDismissTour: () => void;
 };
 
-function StepCallout({ step, hole, onContinue }: StepCalloutProps) {
+function StepCallout({
+  step,
+  hole,
+  deviceCount,
+  hasRunPreset,
+  onContinue,
+  onOpenVisuals,
+  onFinishTour,
+  onDismissTour,
+}: StepCalloutProps) {
   const meta = ONBOARDING_STEPS.find((s) => s.id === step);
   if (!meta) return null;
 
   const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-  const calloutEstimatedHeight = step === 1 ? 140 : 100;
-  const checklistReserve = 280;
-  const spaceBelow = viewportHeight - (hole.top + hole.height) - checklistReserve;
+  const calloutEstimatedHeight = 200;
+  const spaceBelow = viewportHeight - (hole.top + hole.height) - 48;
   const placeAbove = spaceBelow < calloutEstimatedHeight && hole.top > calloutEstimatedHeight + 16;
 
   const calloutTop = placeAbove
@@ -91,52 +114,159 @@ function StepCallout({ step, hole, onContinue }: StepCalloutProps) {
 
   const clampedLeft = Math.min(
     Math.max(12, hole.left),
-    Math.max(12, (typeof window !== 'undefined' ? window.innerWidth : 400) - 280)
+    Math.max(12, (typeof window !== 'undefined' ? window.innerWidth : 400) - 300)
   );
+
+  const isOptional = 'optional' in meta && meta.optional;
 
   return (
     <div
-      className="fixed max-w-[min(20rem,calc(100vw-1.5rem))] animate-in fade-in slide-in-from-bottom-2 duration-300"
+      className="fixed w-[min(20rem,calc(100vw-1.5rem))] animate-in fade-in slide-in-from-bottom-2 duration-300"
       style={{ zIndex: CALLOUT_Z, top: calloutTop, left: clampedLeft }}
     >
       <div className="rounded-xl border border-neon-cyan/40 bg-zinc-950/95 px-4 py-3 shadow-[0_0_24px_rgba(0,255,255,0.1)]">
-        <p className="text-[10px] font-cyber uppercase tracking-widest text-neon-cyan">
-          Step {step} of {ONBOARDING_STEPS.length}
-        </p>
-        <p className="mt-1 text-sm font-semibold text-foreground">{meta.title}</p>
-        <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{meta.description}</p>
-
-        {step === 1 && onContinue ? (
-          <NeonButton
-            color="cyan"
-            variant="solid"
-            className="mt-3 h-8 w-full text-[10px] uppercase tracking-widest"
-            onClick={() => onContinue(1)}
-          >
-            I shared the link — continue
-          </NeonButton>
-        ) : null}
-
-        {step === 2 ? (
-          <p className="mt-2 text-[10px] leading-snug text-zinc-500">
-            Opens automatically when a guest joins. Use Share or View QR above, then join from another phone.
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <p className="text-[10px] font-cyber uppercase tracking-widest text-neon-cyan">
+            Step {step} of {ONBOARDING_STEPS.length}
+            {isOptional ? ' · optional' : ''}
           </p>
-        ) : null}
+          <button
+            type="button"
+            aria-label="Exit tour"
+            className="rounded p-0.5 text-zinc-500 transition hover:text-white"
+            onClick={onDismissTour}
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+
+        <StepProgress current={step} />
+
+        <p className="text-sm font-semibold text-foreground">{meta.title}</p>
+        <p className="mt-1 text-xs leading-snug text-muted-foreground">{meta.description}</p>
+
+        <div className="mt-3 flex flex-col gap-2">
+          {step === 1 ? (
+            <NeonButton
+              color="cyan"
+              variant="solid"
+              className="h-9 w-full text-[10px] uppercase tracking-widest"
+              onClick={() => onContinue(1)}
+            >
+              I shared the link — continue
+            </NeonButton>
+          ) : null}
+
+          {step === 2 ? (
+            <>
+              <p className="text-[10px] text-zinc-500">
+                {deviceCount > 0
+                  ? `${deviceCount} phone${deviceCount === 1 ? '' : 's'} connected.`
+                  : 'Join from another device using Share or View QR above.'}
+              </p>
+              <NeonButton
+                color="cyan"
+                variant="solid"
+                className="h-9 w-full text-[10px] uppercase tracking-widest"
+                disabled={deviceCount < 1}
+                onClick={() => onContinue(2)}
+              >
+                {deviceCount > 0 ? 'Continue' : 'Waiting for a phone…'}
+              </NeonButton>
+              <NeonButton
+                color="cyan"
+                variant="ghost"
+                className="h-8 w-full text-[10px] uppercase tracking-widest"
+                onClick={() => onContinue(2)}
+              >
+                Skip — no phone yet
+              </NeonButton>
+            </>
+          ) : null}
+
+          {step === 3 ? (
+            <>
+              <p className="text-[10px] text-zinc-500">
+                {hasRunPreset
+                  ? 'Preset sent live.'
+                  : 'Pick a pattern sequence below and tap Send Live.'}
+              </p>
+              <NeonButton
+                color="cyan"
+                variant="solid"
+                className="h-9 w-full text-[10px] uppercase tracking-widest"
+                disabled={!hasRunPreset}
+                onClick={() => onContinue(3)}
+              >
+                {hasRunPreset ? 'Continue' : 'Send a preset first'}
+              </NeonButton>
+              <NeonButton
+                color="cyan"
+                variant="ghost"
+                className="h-8 w-full text-[10px] uppercase tracking-widest"
+                onClick={() => onContinue(3)}
+              >
+                Skip for now
+              </NeonButton>
+            </>
+          ) : null}
+
+          {step === 4 ? (
+            <>
+              {onOpenVisuals ? (
+                <NeonButton
+                  color="cyan"
+                  variant="solid"
+                  className="h-9 w-full text-[10px] uppercase tracking-widest"
+                  onClick={onOpenVisuals}
+                >
+                  Open Visuals tab
+                </NeonButton>
+              ) : null}
+              <NeonButton
+                color="cyan"
+                variant="outline"
+                className="h-9 w-full text-[10px] uppercase tracking-widest"
+                onClick={onFinishTour}
+              >
+                Finish tour
+              </NeonButton>
+            </>
+          ) : null}
+        </div>
+
+        <button
+          type="button"
+          className="mt-3 w-full text-center text-[10px] text-zinc-500 transition hover:text-zinc-300"
+          onClick={onDismissTour}
+        >
+          Don&apos;t show again
+        </button>
       </div>
     </div>
   );
 }
 
-type OnboardingSpotlightProps = {
+export type OnboardingSpotlightProps = {
   activeStep: OnboardingStepId | null;
   enabled: boolean;
-  onContinueStep?: (step: OnboardingStepId) => void;
+  deviceCount: number;
+  hasRunPreset: boolean;
+  onContinueStep: (step: OnboardingStepId) => void;
+  onOpenVisuals?: () => void;
+  onFinishTour: () => void;
+  onDismissTour: () => void;
 };
 
 export function OnboardingSpotlight({
   activeStep,
   enabled,
+  deviceCount,
+  hasRunPreset,
   onContinueStep,
+  onOpenVisuals,
+  onFinishTour,
+  onDismissTour,
 }: OnboardingSpotlightProps) {
   const [mounted, setMounted] = useState(false);
   const [hole, setHole] = useState<SpotlightRect | null>(null);
@@ -165,7 +295,6 @@ export function OnboardingSpotlight({
     setMounted(true);
   }, []);
 
-  // Keep highlighted target above the dim overlay so Share / QR buttons stay clickable.
   useEffect(() => {
     if (!enabled || activeStep === null) return;
 
@@ -184,9 +313,8 @@ export function OnboardingSpotlight({
     };
   }, [activeStep, enabled]);
 
-  // Auto-advance step 1 when user clicks Share or View QR inside the target.
   useEffect(() => {
-    if (!enabled || activeStep !== 1 || !onContinueStep) return;
+    if (!enabled || activeStep !== 1) return;
 
     const element = document.querySelector('[data-onboarding="share"]');
     if (!element) return;
@@ -206,7 +334,6 @@ export function OnboardingSpotlight({
 
     const selector = selectorForStep(activeStep);
     const element = selector ? document.querySelector(selector) : null;
-
     const onLayout = () => updateHole();
 
     window.addEventListener('resize', onLayout);
@@ -251,7 +378,16 @@ export function OnboardingSpotlight({
           borderRadius: SPOTLIGHT_RADIUS,
         }}
       />
-      <StepCallout step={activeStep} hole={hole} onContinue={onContinueStep} />
+      <StepCallout
+        step={activeStep}
+        hole={hole}
+        deviceCount={deviceCount}
+        hasRunPreset={hasRunPreset}
+        onContinue={onContinueStep}
+        onOpenVisuals={onOpenVisuals}
+        onFinishTour={onFinishTour}
+        onDismissTour={onDismissTour}
+      />
     </>
   ) : (
     <div

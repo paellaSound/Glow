@@ -286,6 +286,8 @@ export function VisualsTab({
   // Load QR settings from loaded rig console_config
   useEffect(() => {
     if (loadedRig) {
+      const namePos = (loadedRig.console_config as any)?.displayNameConfig?.position;
+      if (namePos) setDisplayNamePosition(namePos);
       const cfg = (loadedRig.console_config as any)?.qrConfig;
       if (cfg) {
         setQrEnabled(cfg.enabled ?? false);

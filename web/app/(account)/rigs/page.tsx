@@ -23,6 +23,8 @@ import {
   X,
   FileImage,
   Star,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -113,6 +115,7 @@ type FormValues = {
   logoEffect: 'none' | 'pulse' | 'spin' | 'float' | 'neon';
   logoOpacity: number;
   displayName: string;
+  displayNamePosition: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 };
 
 const SOCIAL_KINDS = [
@@ -152,6 +155,9 @@ export default function RigsPage() {
   // Form states
   const [formName, setFormName] = useState('');
   const [formDisplayName, setFormDisplayName] = useState('');
+  const [formDisplayNamePosition, setFormDisplayNamePosition] = useState<
+    'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  >('center');
   const [formDefaultArt, setFormDefaultArt] = useState('audio-shader');
   const [formPalette, setFormPalette] = useState<string[]>(['#FF0055', '#00FFCC']);
   const [formLogoEnabled, setFormLogoEnabled] = useState(false);
@@ -230,6 +236,7 @@ export default function RigsPage() {
     const vals = draftData.values;
     setFormName(vals.name || '');
     setFormDisplayName(vals.displayName || '');
+    setFormDisplayNamePosition(vals.displayNamePosition || 'center');
     setFormDefaultArt(vals.defaultVisualArtId || 'audio-shader');
     setFormPalette(vals.palette || ['#FF0055', '#00FFCC']);
     setFormLogoEnabled(vals.logoEnabled ?? false);
@@ -250,6 +257,7 @@ export default function RigsPage() {
       setOriginalValues({
         name: 'New Rig Set',
         displayName: '',
+        displayNamePosition: 'center',
         defaultVisualArtId: 'audio-shader',
         palette: ['#FF0055', '#00FFCC'],
         logoEnabled: false,
@@ -272,6 +280,7 @@ export default function RigsPage() {
         setOriginalValues({
           name: originalRig.name,
           displayName: originalRig.consoleConfig?.displayName || '',
+          displayNamePosition: (originalRig.consoleConfig as any)?.displayNameConfig?.position ?? 'center',
           defaultVisualArtId: originalRig.defaultVisualArtId,
           palette: originalRig.palette,
           logoEnabled: originalRig.logoEnabled,
@@ -302,6 +311,7 @@ export default function RigsPage() {
         setOriginalValues({
           name: vals.name,
           displayName: vals.displayName || '',
+          displayNamePosition: vals.displayNamePosition || 'center',
           defaultVisualArtId: vals.defaultVisualArtId,
           palette: vals.palette,
           logoEnabled: vals.logoEnabled,
@@ -337,6 +347,7 @@ export default function RigsPage() {
     if (!originalValues) return false;
     if (formName !== originalValues.name) return true;
     if (formDisplayName !== originalValues.displayName) return true;
+    if (formDisplayNamePosition !== originalValues.displayNamePosition) return true;
     if (formDefaultArt !== originalValues.defaultVisualArtId) return true;
     if (JSON.stringify(formPalette) !== JSON.stringify(originalValues.palette)) return true;
     if (formLogoEnabled !== originalValues.logoEnabled) return true;
@@ -356,6 +367,7 @@ export default function RigsPage() {
     originalValues,
     formName,
     formDisplayName,
+    formDisplayNamePosition,
     formDefaultArt,
     formPalette,
     formLogoEnabled,
@@ -384,6 +396,7 @@ export default function RigsPage() {
       values: {
         name: formName,
         displayName: formDisplayName,
+        displayNamePosition: formDisplayNamePosition,
         defaultVisualArtId: formDefaultArt,
         palette: formPalette,
         logoEnabled: formLogoEnabled,
@@ -614,6 +627,7 @@ export default function RigsPage() {
     setIsCreating(false);
     setFormName(rig.name);
     setFormDisplayName(rig.consoleConfig?.displayName || '');
+    setFormDisplayNamePosition((rig.consoleConfig as any)?.displayNameConfig?.position ?? 'center');
     setFormDefaultArt(rig.defaultVisualArtId);
     setFormPalette(rig.palette);
     setFormLogoEnabled(rig.logoEnabled);
@@ -663,6 +677,7 @@ export default function RigsPage() {
     setOriginalValues({
       name: rig.name,
       displayName: rig.consoleConfig?.displayName || '',
+      displayNamePosition: (rig.consoleConfig as any)?.displayNameConfig?.position ?? 'center',
       defaultVisualArtId: rig.defaultVisualArtId,
       palette: rig.palette,
       logoEnabled: rig.logoEnabled,
@@ -688,6 +703,7 @@ export default function RigsPage() {
     setIsCreating(true);
     setFormName('New Rig Set');
     setFormDisplayName('');
+    setFormDisplayNamePosition('center');
     setFormDefaultArt('audio-shader');
     setFormPalette(['#FF0055', '#00FFCC']);
     setFormLogoEnabled(false);
@@ -711,6 +727,7 @@ export default function RigsPage() {
     setOriginalValues({
       name: 'New Rig Set',
       displayName: '',
+      displayNamePosition: 'center',
       defaultVisualArtId: 'audio-shader',
       palette: ['#FF0055', '#00FFCC'],
       logoEnabled: false,
@@ -842,6 +859,9 @@ export default function RigsPage() {
         consoleConfig: {
           visibleTabs: formConsoleTabs as Array<'devices' | 'visuals'>,
           displayName: formDisplayName,
+          displayNameConfig: {
+            position: formDisplayNamePosition,
+          },
           qrConfig: {
             enabled: formQrEnabled,
             intervalSeconds: Number(formQrInterval),
@@ -1122,48 +1142,32 @@ export default function RigsPage() {
               </button>
             </div>
 
-            {/* Tab switchers */}
-            <div className="flex border-b border-black/5 dark:border-white/5 mb-6 text-xs font-cyber tracking-widest uppercase">
-              <button
-                onClick={() => setActiveTab('info')}
-                className={`pb-2.5 px-4 border-b-2 font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
-                  activeTab === 'info'
-                    ? 'border-neon-magenta text-neon-magenta'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Info & Colors {tabErrors.info && <span className="size-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] shrink-0 animate-pulse" />}
-              </button>
-              <button
-                onClick={() => setActiveTab('cues')}
-                className={`pb-2.5 px-4 border-b-2 font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
-                  activeTab === 'cues'
-                    ? 'border-neon-magenta text-neon-magenta'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Cues ({formCues.length}) {tabErrors.cues && <span className="size-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] shrink-0 animate-pulse" />}
-              </button>
-              <button
-                onClick={() => setActiveTab('socials')}
-                className={`pb-2.5 px-4 border-b-2 font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
-                  activeTab === 'socials'
-                    ? 'border-neon-magenta text-neon-magenta'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Socials ({formSocials.length}) {tabErrors.socials && <span className="size-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] shrink-0 animate-pulse" />}
-              </button>
-              <button
-                onClick={() => setActiveTab('console')}
-                className={`pb-2.5 px-4 border-b-2 font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
-                  activeTab === 'console'
-                    ? 'border-neon-magenta text-neon-magenta'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Console
-              </button>
+            {/* Tab switchers — pill style, same pattern as the control desk */}
+            <div className="inline-flex flex-wrap gap-1 rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-black/30 p-1 mb-6 text-xs font-cyber tracking-widest uppercase">
+              {(
+                [
+                  { id: 'info' as const, label: 'Info & Colors', error: tabErrors.info },
+                  { id: 'cues' as const, label: `Cues (${formCues.length})`, error: tabErrors.cues },
+                  { id: 'socials' as const, label: `Socials (${formSocials.length})`, error: tabErrors.socials },
+                  { id: 'console' as const, label: 'Console', error: false },
+                ]
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-lg px-4 py-2.5 transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === tab.id
+                      ? 'bg-neon-magenta/15 text-neon-magenta border border-neon-magenta/30'
+                      : 'border border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tab.label}
+                  {tab.error && <span className="size-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] shrink-0 animate-pulse" />}
+                </button>
+              ))}
             </div>
 
             {/* Form body */}
@@ -1187,15 +1191,35 @@ export default function RigsPage() {
                   </div>
 
                   {/* Display Name field */}
-                  <div className="space-y-2">
-                    <Label htmlFor="rig-display-name" className="text-xs uppercase font-cyber tracking-wider text-muted-foreground">Display Name (Show Name)</Label>
-                    <Input
-                      id="rig-display-name"
-                      value={formDisplayName}
-                      onChange={(e) => setFormDisplayName(e.target.value)}
-                      placeholder="e.g. DJ Rig1 (Fallback to rig name on surface)"
-                      className="bg-black/[0.02] dark:bg-white/[0.02] border-black/10 dark:border-white/10 text-foreground font-cyber tracking-wide"
-                    />
+                  <div className="grid gap-4 sm:grid-cols-[1fr_200px]">
+                    <div className="space-y-2">
+                      <Label htmlFor="rig-display-name" className="text-xs uppercase font-cyber tracking-wider text-muted-foreground">Display Name (Show Name)</Label>
+                      <Input
+                        id="rig-display-name"
+                        value={formDisplayName}
+                        onChange={(e) => setFormDisplayName(e.target.value)}
+                        placeholder="e.g. DJ Rig1 (Fallback to rig name on surface)"
+                        className="bg-black/[0.02] dark:bg-white/[0.02] border-black/10 dark:border-white/10 text-foreground font-cyber tracking-wide"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rig-display-name-position" className="text-xs uppercase font-cyber tracking-wider text-muted-foreground">Name Position</Label>
+                      <select
+                        id="rig-display-name-position"
+                        value={formDisplayNamePosition}
+                        onChange={(e) => setFormDisplayNamePosition(e.target.value as any)}
+                        className="w-full h-9 text-xs bg-black/30 border border-black/10 dark:border-white/10 rounded-lg text-foreground font-cyber px-2 focus:ring-1 focus:ring-neon-magenta focus:border-neon-magenta focus:outline-none"
+                      >
+                        <option value="center" className="bg-background text-foreground">Center</option>
+                        <option value="top-left" className="bg-background text-foreground">Top Left</option>
+                        <option value="top-right" className="bg-background text-foreground">Top Right</option>
+                        <option value="bottom-left" className="bg-background text-foreground">Bottom Left</option>
+                        <option value="bottom-right" className="bg-background text-foreground">Bottom Right</option>
+                      </select>
+                      <p className="text-[10px] text-muted-foreground font-cyber tracking-wide">
+                        Same position as the logo = they stack instead of overlapping.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Default Art field */}
@@ -1254,16 +1278,19 @@ export default function RigsPage() {
                   <div className="space-y-3 pt-2">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs uppercase font-cyber tracking-wider text-muted-foreground">Branding Logo (Upload)</Label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="logo-enabled"
-                          checked={formLogoEnabled}
-                          onChange={(e) => setFormLogoEnabled(e.target.checked)}
-                          className="size-3.5 rounded border-black/20 dark:border-white/20 bg-black/5 dark:bg-white/5 text-neon-magenta focus:ring-neon-magenta"
-                        />
-                        <Label htmlFor="logo-enabled" className="text-[10px] uppercase font-cyber tracking-widest text-foreground cursor-pointer">Enable Logo</Label>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormLogoEnabled(!formLogoEnabled)}
+                        className="flex items-center gap-2 focus:outline-none cursor-pointer"
+                        aria-pressed={formLogoEnabled}
+                      >
+                        <span className="text-[10px] uppercase font-cyber tracking-widest text-foreground">Enable Logo</span>
+                        {formLogoEnabled ? (
+                          <ToggleRight className="w-7 h-7 text-neon-magenta" />
+                        ) : (
+                          <ToggleLeft className="w-7 h-7 text-muted-foreground" />
+                        )}
+                      </button>
                     </div>
 
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center bg-black/[0.02] dark:bg-white/[0.02] p-4 rounded-xl border border-black/5 dark:border-white/5">
@@ -1366,16 +1393,19 @@ export default function RigsPage() {
                   <div className="space-y-3 pt-2 border-t border-border/40">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs uppercase font-cyber tracking-wider text-muted-foreground">Periodic QR Code Overlay</Label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="qr-overlay-enabled"
-                          checked={formQrEnabled}
-                          onChange={(e) => setFormQrEnabled(e.target.checked)}
-                          className="size-3.5 rounded border-black/20 dark:border-white/20 bg-black/5 dark:bg-white/5 text-neon-magenta focus:ring-neon-magenta cursor-pointer"
-                        />
-                        <Label htmlFor="qr-overlay-enabled" className="text-[10px] uppercase font-cyber tracking-widest text-foreground cursor-pointer select-none">Enable QR Overlay</Label>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormQrEnabled(!formQrEnabled)}
+                        className="flex items-center gap-2 focus:outline-none cursor-pointer"
+                        aria-pressed={formQrEnabled}
+                      >
+                        <span className="text-[10px] uppercase font-cyber tracking-widest text-foreground select-none">Enable QR Overlay</span>
+                        {formQrEnabled ? (
+                          <ToggleRight className="w-7 h-7 text-neon-magenta" />
+                        ) : (
+                          <ToggleLeft className="w-7 h-7 text-muted-foreground" />
+                        )}
+                      </button>
                     </div>
 
                     {formQrEnabled && (

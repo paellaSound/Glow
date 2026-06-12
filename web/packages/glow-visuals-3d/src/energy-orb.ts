@@ -19,7 +19,8 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import type { OrbAction, Visuals3DController, Visuals3DInput } from './types.js';
 
 const MAX_ENERGY = 5;
-const GLB_URL = '/visuals3d/energy-orb.glb';
+// TEMP: pointing at the Goku look-test asset; restore energy-orb.glb after the test.
+const GLB_URL = '/visuals3d/goku.glb';
 const DRACO_DECODER_PATH = '/draco/';
 
 type ActionState = {

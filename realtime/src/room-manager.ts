@@ -638,6 +638,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
             visualsState.logo = logo;
             visualsState.qrConfig = rig.console_config?.qrConfig || null;
             visualsState.displayName = rig.console_config?.displayName || rig.name || 'Glow';
+            visualsState.displayNamePosition = rig.console_config?.displayNameConfig?.position || 'center';
 
             // Snapshot cue list for live Next/Prev tracking
             if (Array.isArray((rig as any).cues) && (rig as any).cues.length > 0) {
