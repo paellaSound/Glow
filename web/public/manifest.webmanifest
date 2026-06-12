@@ -1,7 +1,7 @@
 {
   "name": "Glow",
   "short_name": "Glow",
-  "description": "Sync lights across every screen",
+  "description": "Real-time connector suite — sync lights, visuals, polls, and crowd moments across every screen",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#09090b",

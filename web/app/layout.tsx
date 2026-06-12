@@ -4,18 +4,17 @@ import { Manrope, Syne, Space_Grotesk } from 'next/font/google';
 import { getProfile, getTeamForUser } from '@/lib/db/queries';
 import { ThemeProvider } from '@/components/theme-provider';
 import { PostHogIdentify } from '@/components/posthog-identify';
+import { buildMarketingMetadata, SITE_NAME } from '@/lib/seo/site';
 import { SWRConfig } from 'swr';
 
-export const metadata: Metadata = {
-  title: 'Glow — Sync lights across every screen',
-  description: 'Create rooms, place devices in a matrix, and control colors in real time.',
+export const metadata: Metadata = buildMarketingMetadata({
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Glow',
+    title: SITE_NAME,
   },
-};
+});
 
 export const viewport: Viewport = {
   themeColor: '#09090b',

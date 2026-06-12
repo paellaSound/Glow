@@ -1,6 +1,10 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { MarketingHeader } from '@/components/glow/marketing-header';
-import { PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
+import { buildMarketingMetadata } from '@/lib/seo/site';
+import { SectionGlow } from '@/components/ui/neon';
+
+export const metadata: Metadata = buildMarketingMetadata();
 
 export default function MarketingLayout({
   children,
@@ -13,9 +17,9 @@ export default function MarketingLayout({
       
       <MarketingHeader />
 
-      <PageTransitionWrapper className="flex flex-1 flex-col pb-12">
+      <div className="flex flex-1 flex-col pb-12">
         {children}
-      </PageTransitionWrapper>
+      </div>
       
       <footer className="border-t border-border/40 bg-background/20 backdrop-blur-md py-6 mt-auto">
         <div className="mx-auto flex max-w-6xl flex-col sm:flex-row items-center justify-between px-6 gap-4 text-[10px] sm:text-xs text-muted-foreground font-sans">

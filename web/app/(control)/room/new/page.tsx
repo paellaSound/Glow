@@ -153,7 +153,6 @@ export default function CreateRoomPage() {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create room';
       alert(message);
-    } finally {
       setCreating(false);
       setPendingCreate(false);
     }
@@ -278,7 +277,7 @@ export default function CreateRoomPage() {
                     </strong>
                     {' — '}
                     Enable the checkbox and set rows × columns. Each phone picks a grid cell — best
-                    for waves and spatial patterns once you know the flow.
+                    for waves and spatial patterns once you know the flow. Just use if the phoes or playing devices are in a fixed position.
                   </p>
                 </div>
               ) : null}

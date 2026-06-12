@@ -44,6 +44,7 @@ Turn the phases into a plan and execute one doc per chat.
 | 10 | PlanGate + upgrade modal (monetization UX) | [10](./10-plan-gate-wrapper.md) | Control desk + billing | `plan-gate.tsx`, `upgrade-modal.tsx`, `plan-meta.ts` | Medium |
 | 11 | PostHog analytics & error tracking (production gate) | [../posthog-production-analytics.md](../posthog-production-analytics.md) | Web + Realtime | `web/lib/analytics/*`, `realtime/src/analytics/*` | Medium |
 | 12 | Freemium depth (preview vs emit, GIF, test mode) | [12](./12-freemium-depth.md) | Desk + realtime + Klipy | `visuals-tab.tsx`, `freemium-depth.ts`, Klipy routes | Medium |
+| 13 | Marketing & SEO (landing metadata, sitemap, copy) | [13](./13-marketing-seo.md) | Marketing `/` | `lib/seo/*`, `(marketing)/*`, `robots.ts`, `sitemap.ts` | Medium |
 
 ---
 
@@ -69,3 +70,4 @@ must validate token + ownership.
 | 06 | Pattern sequence live sync & preview parity | **done** (2026-06-09) — palette/effect edits push live (200ms debounce); preview Split vs Single-Device modes via shared device render path |
 | 07 | Orchestrator auth hardening (rejoin) | **done** (2026-06-09) — `RoomState.ownerUserId`; `rejoin_room` validates `accessToken` + owner/team; both desks pass the token and redirect on Unauthorized/Forbidden |
 | 08 | QA / regression checklist | `checklist` — run end-to-end before next live use |
+| 13 | Marketing & SEO | **Phase A done** (2026-06-12) — metadata, OG (`logo-wide.png`), robots, sitemap, homepage copy, JSON-LD; Phases B–F backlog in [13](./13-marketing-seo.md) |
