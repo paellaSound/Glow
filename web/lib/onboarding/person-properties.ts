@@ -1,6 +1,7 @@
 import posthog from 'posthog-js';
 import { isPostHogEnabled } from '@/lib/posthog-config';
 import type { OnboardingStepId } from '@/lib/onboarding/constants';
+import { getOnboardingStatus } from '@/lib/onboarding/storage';
 
 /**
  * Person property keys — must match boolean fields defined in PostHog (project 200710).
@@ -79,6 +80,7 @@ export function readOnboardingPersonState(): OnboardingPersonState {
     checklistDismissed,
     firstDeviceConnected,
     firstPresetRun,
+    // Show when user never finished or dismissed. Step props being null is OK — checklist starts at step 1.
     shouldShowChecklist: !checklistComplete && !checklistDismissed,
   };
 }
@@ -89,6 +91,38 @@ export function persistChecklistStatus(status: 'complete' | 'dismissed'): void {
       ? ONBOARDING_PERSON_PROPS.checklistComplete
       : ONBOARDING_PERSON_PROPS.checklistDismissed;
   setPersonProps({ [key]: true });
+}
+
+export function getOnboardingDebugSnapshot() {
+  const posthogEnabled = isPostHogEnabled();
+  const personProps: Record<string, boolean | null | string> = {};
+
+  for (const step of [1, 2, 3, 4] as OnboardingStepId[]) {
+    personProps[stepPersonProp(step)] = posthogEnabled
+      ? getPersonProp(stepPersonProp(step))
+      : null;
+  }
+
+  for (const value of Object.values(ONBOARDING_PERSON_PROPS)) {
+    personProps[value] = posthogEnabled ? getPersonProp(value) : null;
+  }
+
+  if (posthogEnabled) {
+    personProps['$distinct_id'] = posthog.get_distinct_id();
+  }
+
+  const state = posthogEnabled ? readOnboardingPersonState() : null;
+  const shouldShowChecklist = posthogEnabled
+    ? (state?.shouldShowChecklist ?? null)
+    : getOnboardingStatus() === null;
+
+  return {
+    posthogEnabled,
+    personProps,
+    state,
+    completedSteps: state ? [...state.completedSteps] : [],
+    shouldShowChecklist,
+  };
 }
 
 export function waitForPostHogPersonReady(): Promise<void> {

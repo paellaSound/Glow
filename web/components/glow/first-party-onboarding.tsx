@@ -13,6 +13,7 @@ import {
   persistChecklistDismissStatus,
   useOnboardingVisibility,
 } from '@/lib/onboarding/use-onboarding-person-state';
+import { OnboardingSpotlight } from '@/components/glow/onboarding-spotlight';
 import { cn } from '@/lib/utils';
 
 type FirstPartyOnboardingProps = {
@@ -57,7 +58,7 @@ export function FirstPartyOnboarding({
   onRequestVisualsTab,
   onActiveStepChange,
 }: FirstPartyOnboardingProps) {
-  const { ready, visible: shouldShow, initialCompletedSteps } = useOnboardingVisibility();
+  const { ready, visible: shouldShow, forcedByUrl, initialCompletedSteps } = useOnboardingVisibility();
   const [minimized, setMinimized] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Set<OnboardingStepId>>(() => new Set());
   const [dismissed, setDismissed] = useState(false);
@@ -143,10 +144,13 @@ export function FirstPartyOnboarding({
   if (!ready || !shouldShow || dismissed) return null;
 
   const activeStepMeta = ONBOARDING_STEPS.find((s) => s.id === activeStep);
+  const showSpotlight = !minimized && activeStep !== null;
 
   return (
+    <>
+      <OnboardingSpotlight activeStep={activeStep} enabled={showSpotlight} />
     <div
-      className="fixed z-40 bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))] left-4 right-4 sm:left-auto sm:right-20 sm:max-w-sm"
+      className="fixed z-[50] bottom-[max(5.5rem,calc(env(safe-area-inset-bottom)+4.5rem))] left-4 right-4 sm:left-auto sm:right-20 sm:max-w-sm"
       role="region"
       aria-label="First party onboarding"
     >
@@ -165,9 +169,11 @@ export function FirstPartyOnboarding({
               </NeonTitle>
             </div>
             <p className="mt-1 text-[10px] text-muted-foreground">
-              {coreStepsDone
-                ? 'Core steps done — optional Visuals setup below.'
-                : 'Follow these steps to run your first Glow party.'}
+              {forcedByUrl
+                ? 'Debug mode — forced via ?onboarding= in URL.'
+                : coreStepsDone
+                  ? 'Core steps done — optional Visuals setup below.'
+                  : 'Follow these steps to run your first Glow party.'}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -297,5 +303,6 @@ export function FirstPartyOnboarding({
         ) : null}
       </NeonCard>
     </div>
+    </>
   );
 }

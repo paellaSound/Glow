@@ -10,6 +10,7 @@ import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } f
 import { DeviceCapBanner } from '@/components/glow/device-cap-banner';
 import { DeviceList } from '@/components/glow/device-list';
 import { FirstPartyOnboarding } from '@/components/glow/first-party-onboarding';
+import { OnboardingDebugPanel } from '@/components/glow/onboarding-debug-panel';
 import type { OnboardingStepId } from '@/lib/onboarding/constants';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
 import { RoomShareControls } from '@/components/glow/room-share-controls';
@@ -135,6 +136,12 @@ function ControlContent({ code }: { code: string }) {
     params.set('tab', tab);
     router.replace(`?${params.toString()}`, { scroll: false });
   }
+
+  useEffect(() => {
+    if (onboardingActiveStep === 3 && activeTab !== 'patterns') {
+      switchTab('patterns');
+    }
+  }, [onboardingActiveStep, activeTab]);
 
   useEffect(() => {
     if (!visibleTabs.includes(activeTab)) {
@@ -415,12 +422,7 @@ function ControlContent({ code }: { code: string }) {
                 </p>
               </div>
 
-              <div
-                className={cn(
-                  'flex flex-wrap items-center gap-2 rounded-xl transition-shadow',
-                  onboardingActiveStep === 1 && 'ring-2 ring-neon-cyan/50 ring-offset-2 ring-offset-background'
-                )}
-              >
+              <div className="flex flex-wrap items-center gap-2">
                 <RoomShareControls
                   roomCode={code}
                   matrixEnabled={shareMatrixEnabled}
@@ -482,6 +484,7 @@ function ControlContent({ code }: { code: string }) {
                     role="tab"
                     aria-selected={activeTab === tab}
                     id={`tab-${tab}`}
+                    data-onboarding={tab === 'visuals' ? 'visuals' : undefined}
                     onClick={() => switchTab(tab)}
                     className={cn(
                       'rounded-lg px-4 py-2.5 text-xs font-cyber uppercase tracking-widest transition-all',
@@ -504,10 +507,7 @@ function ControlContent({ code }: { code: string }) {
                   glowColor="violet"
                   borderVariant="violet"
                   hoverEffect={false}
-                  className={cn(
-                    'p-5 sm:p-6 transition-shadow',
-                    onboardingActiveStep === 3 && 'ring-2 ring-neon-violet/50 ring-offset-2 ring-offset-background'
-                  )}
+                  className="p-5 sm:p-6"
                   data-onboarding="preset"
                 >
                   <div className="mb-5">
@@ -564,10 +564,7 @@ function ControlContent({ code }: { code: string }) {
                 glowColor="none"
                 borderVariant="default"
                 hoverEffect={false}
-                className={cn(
-                  'overflow-hidden transition-shadow',
-                  onboardingActiveStep === 2 && 'ring-2 ring-neon-cyan/40 ring-offset-2 ring-offset-background'
-                )}
+                className="overflow-hidden"
                 data-onboarding="devices"
               >
                 <button
@@ -630,6 +627,8 @@ function ControlContent({ code }: { code: string }) {
               loadedRig={loadedRig}
             />
           ) : null}
+
+          <OnboardingDebugPanel />
 
           <FirstPartyOnboarding
             roomCode={code}

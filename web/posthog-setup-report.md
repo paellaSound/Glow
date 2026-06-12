@@ -134,6 +134,20 @@ Code reads them after `identify` via `posthog.get_property()` and sets them with
 `posthog.setPersonProperties()` in `web/lib/onboarding/person-properties.ts`.
 When PostHog is off (local dev), `localStorage` keys `glow_onboarding_v1` / `glow_ph_*` are used instead.
 
+**First login:** if `onboarding_checklist_complete` and `onboarding_checklist_dismissed` are null/false, the checklist shows after `identify`. Step props null → start at step 1.
+
+### Debug URL (control desk)
+
+| URL | Effect |
+| --- | --- |
+| `/room/ABC/control?onboarding=inspect` | **Debug HUD** — read PostHog props on screen, no force |
+| `/room/ABC/control?onboarding=debug` | Force checklist + debug HUD |
+| `/room/ABC/control?onboarding=first-party` | Force checklist (ignores complete/dismissed) |
+| `/room/ABC/control?onboarding=1` | Same as first-party |
+| `/room/ABC/control?onboarding=reset-local` | Clears localStorage fallback keys only |
+
+PostHog person props are not cleared by URL — reset in PostHog person profile or use a fresh user.
+
 | Event | Description | Where |
 | --- | --- | --- |
 | `onboarding_step_completed` | Checklist step done (1–4) | `lib/onboarding/analytics.ts` |
