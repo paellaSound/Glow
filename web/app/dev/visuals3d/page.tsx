@@ -350,7 +350,7 @@ export default function Visuals3DSandboxPage() {
 
   return (
     <div
-      className="fixed inset-0 flex bg-black text-zinc-200"
+      className="flex h-screen w-screen overflow-hidden bg-black text-zinc-200"
       onDragOver={(e) => {
         e.preventDefault();
         setDragging(true);

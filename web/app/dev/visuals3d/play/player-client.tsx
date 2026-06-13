@@ -109,7 +109,7 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
   const actions = config?.energyLevels[level]?.actions ?? [];
 
   return (
-    <div className="fixed inset-0 bg-black text-zinc-200">
+    <div className="relative h-screen w-screen overflow-hidden bg-black text-zinc-200">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" style={{ display: 'block' }} />
 
       {/* Scene picker (shown until a scene is loaded) */}
