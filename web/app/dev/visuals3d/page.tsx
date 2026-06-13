@@ -3,16 +3,16 @@
 /**
  * Designer sandbox for 3D visuals — /dev/visuals3d.
  *
- * A scene is an energy curve of 6 levels. Each level owns its OWN GLB (drag-drop
- * to assign it to the selected level, or "use test GLB" for the bundled goku),
- * an HSL tonality (background + global tint), one looping idle clip and N
- * triggerable action clips. The runtime crossfades or cuts between levels' models
- * and the laptop mic drives modular audio bindings. "Export config" produces the
- * Scene3DConfig handoff; copy that + the GLB/HDR source files into the app.
+ * A scene is an energy curve of 6 levels, each with its OWN GLB (drag-drop to
+ * the selected level, or "use test GLB"), an HSL tonality, an idle clip and N
+ * action clips. Author it here, then Save it to the local library (IndexedDB)
+ * and open it in the decoupled player (/dev/visuals3d/play) to validate the
+ * config-driven render — no backend, no touching the production energy-orb.
  *
  * Not linked from anywhere; visit /dev/visuals3d directly.
  */
 
+import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   mountSandboxScene,
@@ -29,6 +29,14 @@ import {
   type TransitionMode,
 } from 'glow-visuals-3d';
 import { useAudioAnalyzer } from '@/lib/glow/audio-analyzer';
+import {
+  deleteScene,
+  listScenes,
+  loadScene,
+  saveScene,
+  type SceneMeta,
+  type StoredAsset,
+} from './scene-store';
 
 const DEFAULT_PALETTE = ['#00e3ff', '#ff00c8', '#ffb300', '#7c4dff'];
 const TEST_GLB_URL = '/visuals3d/goku.glb';
@@ -53,7 +61,6 @@ function ext(name: string): string {
 }
 
 function emptyLevels(): EnergyLevelConfig[] {
-  // A gentle ground→space hue/lightness ramp; the designer customizes per level.
   return Array.from({ length: ENERGY_LEVEL_COUNT }, (_, i) => ({
     glb: null,
     hsl: { h: 0.62, s: 0.55, l: 0.04 + (i / MAX_ENERGY) * 0.04 },
@@ -110,6 +117,8 @@ export default function Visuals3DSandboxPage() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const controllerRef = useRef<SandboxController | null>(null);
   const inputRef = useRef<SandboxInput>({ timeMs: 0, palette: DEFAULT_PALETTE, audio: undefined });
+  // Retained asset bytes so a scene can be saved to the library.
+  const assetsRef = useRef<{ glbs: Map<number, StoredAsset>; hdr?: StoredAsset }>({ glbs: new Map() });
 
   const [levels, setLevels] = useState<EnergyLevelConfig[]>(emptyLevels());
   const [levelInspection, setLevelInspection] = useState<(SceneInspection | null)[]>(
@@ -129,22 +138,29 @@ export default function Visuals3DSandboxPage() {
   const [exposure, setExposure] = useState(1);
   const [useHdrBg, setUseHdrBg] = useState(false);
   const [micOn, setMicOn] = useState(false);
-  const [exported, setExported] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+
+  const [sceneName, setSceneName] = useState('my-scene');
+  const [scenes, setScenes] = useState<SceneMeta[]>([]);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   const { featuresRef, active: micActive, error: micError } = useAudioAnalyzer({ enabled: micOn });
+
+  const refreshLibrary = useCallback(() => {
+    void listScenes().then(setScenes).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!canvasRef.current || controllerRef.current) return;
     controllerRef.current = mountSandboxScene(canvasRef.current, () => inputRef.current);
     const onResize = () => controllerRef.current?.resize();
     window.addEventListener('resize', onResize);
+    refreshLibrary();
     return () => {
       window.removeEventListener('resize', onResize);
       controllerRef.current?.destroy();
       controllerRef.current = null;
     };
-  }, []);
+  }, [refreshLibrary]);
 
   useEffect(() => {
     inputRef.current = { ...inputRef.current, palette };
@@ -172,49 +188,60 @@ export default function Visuals3DSandboxPage() {
   useEffect(() => controllerRef.current?.setUseHdrBackground(useHdrBg), [useHdrBg]);
   useEffect(() => controllerRef.current?.setEnergy(editingLevel), [editingLevel]);
 
-  const loadGlbIntoLevel = useCallback(async (level: number, url: string, name: string) => {
+  /** Load a GLB blob into a level; optionally (re)set its metadata defaults. */
+  const loadGlbBlob = useCallback(
+    async (level: number, blob: Blob, name: string, resetMeta: boolean) => {
+      const controller = controllerRef.current;
+      if (!controller) return;
+      setError(null);
+      setLoading(true);
+      const url = URL.createObjectURL(blob);
+      try {
+        const found = await controller.loadGlbForLevel(level, url, name);
+        assetsRef.current.glbs.set(level, { name, blob });
+        setLevelInspection((prev) => prev.map((p, i) => (i === level ? found : p)));
+        if (resetMeta) {
+          const guessIdle =
+            found.clips.find((c) => c.toLowerCase() === 'idle') ?? found.clips[0] ?? null;
+          setLevels((prev) =>
+            prev.map((lv, i) =>
+              i === level ? { ...lv, glb: name, idleClip: guessIdle, actions: [] } : lv,
+            ),
+          );
+        }
+      } catch (err) {
+        setError(`Failed to load ${name}: ${(err as Error).message}`);
+      } finally {
+        setLoading(false);
+        URL.revokeObjectURL(url);
+      }
+    },
+    [],
+  );
+
+  const loadHdrBlob = useCallback(async (blob: Blob, name: string) => {
     const controller = controllerRef.current;
     if (!controller) return;
-    setError(null);
-    setLoading(true);
+    const url = URL.createObjectURL(blob);
     try {
-      const found = await controller.loadGlbForLevel(level, url, name);
-      const guessIdle = found.clips.find((c) => c.toLowerCase() === 'idle') ?? found.clips[0] ?? null;
-      setLevelInspection((prev) => prev.map((p, i) => (i === level ? found : p)));
-      setLevels((prev) =>
-        prev.map((lv, i) => (i === level ? { ...lv, glb: name, idleClip: guessIdle, actions: [] } : lv)),
-      );
+      await controller.loadHdr(url, name);
+      assetsRef.current.hdr = { name, blob };
+      setHdrName(name);
     } catch (err) {
-      setError(`Failed to load ${name}: ${(err as Error).message}`);
+      setError(`Failed to load HDR: ${(err as Error).message}`);
     } finally {
-      setLoading(false);
+      URL.revokeObjectURL(url);
     }
   }, []);
 
   const loadFile = useCallback(
     async (file: File) => {
-      const controller = controllerRef.current;
-      if (!controller) return;
       const kind = ext(file.name);
-      if (kind === 'glb' || kind === 'gltf') {
-        const url = URL.createObjectURL(file);
-        await loadGlbIntoLevel(editingLevel, url, file.name);
-        URL.revokeObjectURL(url);
-      } else if (kind === 'hdr' || kind === 'exr') {
-        const url = URL.createObjectURL(file);
-        try {
-          await controller.loadHdr(url, file.name);
-          setHdrName(file.name);
-        } catch (err) {
-          setError(`Failed to load HDR: ${(err as Error).message}`);
-        } finally {
-          URL.revokeObjectURL(url);
-        }
-      } else {
-        setError(`Unsupported file: .${kind} (drop a .glb / .gltf or .hdr)`);
-      }
+      if (kind === 'glb' || kind === 'gltf') await loadGlbBlob(editingLevel, file, file.name, true);
+      else if (kind === 'hdr' || kind === 'exr') await loadHdrBlob(file, file.name);
+      else setError(`Unsupported file: .${kind} (drop a .glb / .gltf or .hdr)`);
     },
-    [editingLevel, loadGlbIntoLevel],
+    [editingLevel, loadGlbBlob, loadHdrBlob],
   );
 
   const onDrop = useCallback(
@@ -225,6 +252,12 @@ export default function Visuals3DSandboxPage() {
     },
     [loadFile],
   );
+
+  async function useTestGlb() {
+    const res = await fetch(TEST_GLB_URL);
+    const blob = await res.blob();
+    await loadGlbBlob(editingLevel, blob, 'goku.glb (test)', true);
+  }
 
   function updateLevel(patch: Partial<EnergyLevelConfig>) {
     setLevels((prev) => prev.map((lv, i) => (i === editingLevel ? { ...lv, ...patch } : lv)));
@@ -252,9 +285,10 @@ export default function Visuals3DSandboxPage() {
     setBindings((prev) => prev.filter((_, j) => j !== i));
   }
 
-  function handleExport() {
+  async function handleSave() {
     const controller = controllerRef.current;
     if (!controller) return;
+    const id = sceneName.trim() || 'scene';
     const config = controller.readConfig({
       paletteTargets,
       energyLevels: levels,
@@ -262,28 +296,57 @@ export default function Visuals3DSandboxPage() {
       transition: transitionMode,
       hdrName,
     });
-    const json = JSON.stringify(config, null, 2);
-    setExported(json);
-    void navigator.clipboard.writeText(json).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    const glbs: Record<number, StoredAsset> = {};
+    assetsRef.current.glbs.forEach((asset, level) => {
+      glbs[level] = asset;
     });
+    try {
+      await saveScene({
+        id,
+        name: id,
+        savedAt: Date.now(),
+        palette,
+        config,
+        glbs,
+        hdr: assetsRef.current.hdr,
+      });
+      setSavedMsg(`saved "${id}"`);
+      setTimeout(() => setSavedMsg(null), 2500);
+      refreshLibrary();
+    } catch (err) {
+      setError(`Save failed: ${(err as Error).message}`);
+    }
   }
 
-  function handleDownload() {
-    if (!exported) return;
-    const blob = new Blob([exported], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'scene.config.json';
-    a.click();
-    URL.revokeObjectURL(url);
+  async function handleLoadScene(id: string) {
+    const scene = await loadScene(id);
+    if (!scene) return;
+    setSceneName(scene.name);
+    setLevels(scene.config.energyLevels);
+    setTransitionMode(scene.config.transition);
+    setPalette(scene.palette);
+    setPaletteTargets(scene.config.paletteTargets);
+    setBindings(scene.config.audioBindings);
+    setExposure(scene.config.exposure);
+    assetsRef.current = { glbs: new Map(), hdr: scene.hdr };
+    setLevelInspection(Array(ENERGY_LEVEL_COUNT).fill(null));
+    // Reload binaries into the running scene (metadata already restored above).
+    for (const [levelStr, asset] of Object.entries(scene.glbs)) {
+      await loadGlbBlob(Number(levelStr), asset.blob, asset.name, false);
+    }
+    if (scene.hdr) await loadHdrBlob(scene.hdr.blob, scene.hdr.name);
+    setUseHdrBg(scene.config.useHdrBackground);
+    setEditingLevel(0);
+  }
+
+  async function handleDeleteScene(id: string) {
+    await deleteScene(id);
+    refreshLibrary();
   }
 
   const lvl = levels[editingLevel]!;
   const insp = levelInspection[editingLevel];
-  const anyGlb = levels.some((l) => l.glb);
+  const anyGlb = levels.some((l) => l.glb) || assetsRef.current.glbs.size > 0;
 
   return (
     <div
@@ -337,11 +400,14 @@ export default function Visuals3DSandboxPage() {
 
       {/* Control panel */}
       <aside className="flex w-[340px] flex-col gap-5 overflow-y-auto border-l border-zinc-800 bg-zinc-950/95 p-4 font-mono text-xs">
-        <header>
-          <h1 className="text-sm font-bold tracking-widest text-cyan-300">3D SANDBOX</h1>
-          <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">
-            One GLB per energy level. Author each level, then export the scene config.
-          </p>
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-sm font-bold tracking-widest text-cyan-300">3D SANDBOX</h1>
+            <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">One GLB per energy level.</p>
+          </div>
+          <Link href="/dev/visuals3d/play" className="rounded bg-zinc-800 px-2 py-1 text-cyan-300 hover:bg-zinc-700">
+            player →
+          </Link>
         </header>
 
         {/* Level selector */}
@@ -373,7 +439,7 @@ export default function Visuals3DSandboxPage() {
           <Label>Level {editingLevel} · model</Label>
           <Row k="GLB" v={lvl.glb ?? '—'} />
           <button
-            onClick={() => void loadGlbIntoLevel(editingLevel, TEST_GLB_URL, 'goku.glb (test)')}
+            onClick={() => void useTestGlb()}
             className="w-full rounded border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800"
           >
             use test GLB (goku)
@@ -607,30 +673,42 @@ export default function Visuals3DSandboxPage() {
           ))}
         </section>
 
-        {/* Export */}
+        {/* Library (local, IndexedDB) */}
         <section className="mt-auto space-y-2 border-t border-zinc-800 pt-4">
-          <button
-            onClick={handleExport}
-            disabled={!anyGlb}
-            className="w-full rounded bg-cyan-500 px-3 py-2 font-bold text-black hover:bg-cyan-400 disabled:opacity-40"
-          >
-            {copied ? '✓ copied to clipboard' : 'Export config'}
-          </button>
-          {exported && (
-            <>
-              <textarea
-                readOnly
-                value={exported}
-                className="h-40 w-full resize-none rounded border border-zinc-800 bg-zinc-900 p-2 text-[10px] leading-snug text-zinc-300"
-              />
-              <button
-                onClick={handleDownload}
-                className="w-full rounded border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800"
-              >
-                Download .config.json
+          <Label>Library · local</Label>
+          <div className="flex gap-2">
+            <input
+              value={sceneName}
+              onChange={(e) => setSceneName(e.target.value)}
+              placeholder="scene name"
+              className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5"
+            />
+            <button
+              onClick={() => void handleSave()}
+              disabled={!anyGlb}
+              className="rounded bg-cyan-500 px-3 py-1.5 font-bold text-black hover:bg-cyan-400 disabled:opacity-40"
+            >
+              {savedMsg ?? 'Save'}
+            </button>
+          </div>
+          {scenes.length === 0 && <Empty>no saved scenes yet</Empty>}
+          {scenes.map((s) => (
+            <div key={s.id} className="flex items-center gap-2 rounded border border-zinc-800 bg-zinc-900/50 px-2 py-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-zinc-200">{s.name}</p>
+                <p className="text-[10px] text-zinc-600">levels {s.levels.join(',') || '—'}</p>
+              </div>
+              <button onClick={() => void handleLoadScene(s.id)} className="text-cyan-300 hover:text-cyan-200">
+                load
               </button>
-            </>
-          )}
+              <Link href={`/dev/visuals3d/play?scene=${encodeURIComponent(s.id)}`} className="text-violet-300 hover:text-violet-200">
+                play
+              </Link>
+              <button onClick={() => void handleDeleteScene(s.id)} className="text-zinc-500 hover:text-red-400">
+                ✕
+              </button>
+            </div>
+          ))}
         </section>
       </aside>
     </div>
