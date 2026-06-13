@@ -4,6 +4,8 @@ export type {
   AudioBinding,
   AudioSource,
   AudioTarget,
+  CameraConfig,
+  CameraMode,
   EnergyLevelConfig,
   HSL,
   TransitionMode,

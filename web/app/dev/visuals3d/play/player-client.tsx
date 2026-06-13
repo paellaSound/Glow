@@ -48,11 +48,18 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
         return;
       }
       inputRef.current = { ...inputRef.current, palette: scene.palette };
-      controller.setEnergyLevels(scene.config.energyLevels);
+      // Backfill camera for scenes saved before per-level cameras existed.
+      const levels = scene.config.energyLevels.map((lv) => ({
+        ...lv,
+        camera: lv.camera ?? { position: [3.5, 2, 5] as [number, number, number], target: [0, 1, 0] as [number, number, number], fov: 50 },
+      }));
+      controller.setEnergyLevels(levels);
       controller.setTransitionMode(scene.config.transition);
       controller.setPaletteTargets(scene.config.paletteTargets);
       controller.setAudioBindings(scene.config.audioBindings);
       controller.setExposure(scene.config.exposure);
+      // The player is the projector view: the engine owns the camera.
+      controller.setCameraMode('driven');
       for (const [levelStr, asset] of Object.entries(scene.glbs)) {
         const url = URL.createObjectURL(asset.blob);
         await controller.loadGlbForLevel(Number(levelStr), url, asset.name);

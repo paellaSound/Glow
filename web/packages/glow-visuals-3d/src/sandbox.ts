@@ -32,7 +32,15 @@ export type SceneInspection = {
 /** Audio bands extracted from the mic each frame (all 0–1). */
 export type AudioSource = 'bass' | 'mid' | 'treble' | 'energy';
 /** Scene properties an audio band can drive. */
-export type AudioTarget = 'scale' | 'emissive' | 'bgHue' | 'rotationY' | 'animationSpeed';
+export type AudioTarget =
+  | 'scale'
+  | 'emissive'
+  | 'bgHue'
+  | 'rotationY'
+  | 'animationSpeed'
+  | 'camFov'
+  | 'camDolly'
+  | 'camShake';
 
 /** One modular audio→visual connection. `amount` = gain, `smoothing` = filter. */
 export type AudioBinding = {
@@ -49,6 +57,16 @@ export type TransitionMode = 'crossfade' | 'cut';
 /** Hue/Saturation/Lightness, each 0–1. */
 export type HSL = { h: number; s: number; l: number };
 
+/** A camera framing: where it sits, what it looks at, and its vertical FOV (deg). */
+export type CameraConfig = {
+  position: [number, number, number];
+  target: [number, number, number];
+  fov: number;
+};
+
+/** free = OrbitControls drive the view (authoring); driven = config + audio own it. */
+export type CameraMode = 'free' | 'driven';
+
 /** One authored snapshot of the scene at a given energy level. */
 export type EnergyLevelConfig = {
   /** File name of this level's GLB (metadata; loaded via loadGlbForLevel). */
@@ -59,6 +77,8 @@ export type EnergyLevelConfig = {
   idleClip: string | null;
   /** Triggerable one-shot clips at this level. */
   actions: string[];
+  /** Camera framing for this level (runtime interpolates between levels). */
+  camera: CameraConfig;
 };
 
 export type Scene3DConfig = {
@@ -66,11 +86,6 @@ export type Scene3DConfig = {
   energyLevels: EnergyLevelConfig[];
   audioBindings: AudioBinding[];
   transition: TransitionMode;
-  camera: {
-    position: [number, number, number];
-    target: [number, number, number];
-    fov: number;
-  };
   exposure: number;
   hdrName: string | null;
   useHdrBackground: boolean;
@@ -95,6 +110,14 @@ export type SandboxController = {
   setEnergy: (level: number) => void;
   setExposure: (value: number) => void;
   setUseHdrBackground: (use: boolean) => void;
+  /** free = OrbitControls drive the view; driven = per-level config + audio. */
+  setCameraMode: (mode: CameraMode) => void;
+  /** Read the current OrbitControls view as a CameraConfig (authoring). */
+  captureCamera: () => CameraConfig;
+  /** Snap the live camera to a framing (used when selecting a level in free mode). */
+  applyCameraView: (cam: CameraConfig) => void;
+  /** Live FOV preview while editing (free mode). */
+  previewFov: (fov: number) => void;
   /** Play one of a level's action clips once. */
   playAction: (level: number, clip: string) => void;
   readConfig: (partial: {
@@ -144,6 +167,7 @@ const NEUTRAL_LEVEL: EnergyLevelConfig = {
   hsl: { h: 0.62, s: 0.5, l: 0.05 },
   idleClip: null,
   actions: [],
+  camera: { position: [3.5, 2, 5], target: [0, 1, 0], fov: 50 },
 };
 
 export function mountSandboxScene(
@@ -199,6 +223,7 @@ export function mountSandboxScene(
   let audioBindings: AudioBinding[] = [];
   let bindingState: number[] = [];
   let transitionMode: TransitionMode = 'crossfade';
+  let cameraMode: CameraMode = 'free';
 
   // Runtime state
   let energy = 0;
@@ -213,6 +238,9 @@ export function mountSandboxScene(
   const hsl = { h: 0, s: 0, l: 0 };
   const tintColor = new THREE.Color();
   const bgBase = new THREE.Color();
+  const camTmpPos = new THREE.Vector3();
+  const camTmpTgt = new THREE.Vector3();
+  const camDir = new THREE.Vector3();
 
   function levelAt(i: number): EnergyLevelConfig {
     return levels[Math.max(0, Math.min(levels.length - 1, i))] ?? NEUTRAL_LEVEL;
@@ -470,6 +498,9 @@ export function mountSandboxScene(
     let hueAdd = 0;
     let rotVel = 0;
     let speedAdd = 0;
+    let camFovAdd = 0;
+    let camDollyAdd = 0;
+    let camShakeAdd = 0;
     for (let i = 0; i < audioBindings.length; i++) {
       const b = audioBindings[i]!;
       if (!b.enabled) continue;
@@ -483,6 +514,9 @@ export function mountSandboxScene(
         case 'bgHue': hueAdd += v; break;
         case 'rotationY': rotVel += v; break;
         case 'animationSpeed': speedAdd += v; break;
+        case 'camFov': camFovAdd += v; break;
+        case 'camDolly': camDollyAdd += v; break;
+        case 'camShake': camShakeAdd += v; break;
       }
     }
 
@@ -523,7 +557,39 @@ export function mountSandboxScene(
     }
 
     for (const model of models.values()) model.mixer?.update(dt);
-    controls.update();
+
+    // Camera: in 'driven' the engine owns it — interpolate the per-level framing
+    // and layer audio reactivity (fov breathe, dolly push, shake) on top. In
+    // 'free' OrbitControls drive it (authoring / inspection).
+    if (cameraMode === 'driven') {
+      controls.enabled = false;
+      const c0 = lvLo.camera;
+      const c1 = lvHi.camera;
+      camTmpPos.set(
+        lerp(c0.position[0], c1.position[0], frac),
+        lerp(c0.position[1], c1.position[1], frac),
+        lerp(c0.position[2], c1.position[2], frac),
+      );
+      camTmpTgt.set(
+        lerp(c0.target[0], c1.target[0], frac),
+        lerp(c0.target[1], c1.target[1], frac),
+        lerp(c0.target[2], c1.target[2], frac),
+      );
+      camDir.subVectors(camTmpTgt, camTmpPos).normalize();
+      camTmpPos.addScaledVector(camDir, camDollyAdd);
+      if (camShakeAdd > 0) {
+        camTmpPos.x += (Math.random() - 0.5) * camShakeAdd;
+        camTmpPos.y += (Math.random() - 0.5) * camShakeAdd;
+      }
+      camera.position.copy(camTmpPos);
+      camera.fov = Math.min(150, Math.max(5, lerp(c0.fov, c1.fov, frac) + camFovAdd));
+      camera.lookAt(camTmpTgt);
+      camera.updateProjectionMatrix();
+    } else {
+      controls.enabled = true;
+      controls.update();
+    }
+
     renderer.render(scene, camera);
     rafId = requestAnimationFrame(render);
   }
@@ -558,25 +624,39 @@ export function mountSandboxScene(
       useHdrBackground = use;
       if (use && envTexture) scene.background = envTexture;
     },
+    setCameraMode: (mode) => {
+      cameraMode = mode;
+    },
+    captureCamera: () => ({
+      position: [
+        +camera.position.x.toFixed(3),
+        +camera.position.y.toFixed(3),
+        +camera.position.z.toFixed(3),
+      ],
+      target: [
+        +controls.target.x.toFixed(3),
+        +controls.target.y.toFixed(3),
+        +controls.target.z.toFixed(3),
+      ],
+      fov: +camera.fov.toFixed(1),
+    }),
+    applyCameraView: (cam) => {
+      camera.position.set(cam.position[0], cam.position[1], cam.position[2]);
+      controls.target.set(cam.target[0], cam.target[1], cam.target[2]);
+      camera.fov = cam.fov;
+      camera.updateProjectionMatrix();
+      controls.update();
+    },
+    previewFov: (fov) => {
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+    },
     playAction,
     readConfig: (partial) => ({
       paletteTargets: partial.paletteTargets,
       energyLevels: partial.energyLevels,
       audioBindings: partial.audioBindings,
       transition: partial.transition,
-      camera: {
-        position: [
-          +camera.position.x.toFixed(3),
-          +camera.position.y.toFixed(3),
-          +camera.position.z.toFixed(3),
-        ],
-        target: [
-          +controls.target.x.toFixed(3),
-          +controls.target.y.toFixed(3),
-          +controls.target.z.toFixed(3),
-        ],
-        fov: camera.fov,
-      },
       exposure: +renderer.toneMappingExposure.toFixed(2),
       hdrName: partial.hdrName,
       useHdrBackground,

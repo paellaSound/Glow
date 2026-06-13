@@ -21,6 +21,8 @@ import {
   type AudioBinding,
   type AudioSource,
   type AudioTarget,
+  type CameraConfig,
+  type CameraMode,
   type EnergyLevelConfig,
   type HSL,
   type SandboxController,
@@ -48,6 +50,20 @@ const AUDIO_TARGETS: { id: AudioTarget; label: string }[] = [
   { id: 'bgHue', label: 'background hue' },
   { id: 'rotationY', label: 'rotation' },
   { id: 'animationSpeed', label: 'anim speed' },
+  { id: 'camFov', label: 'camera FOV' },
+  { id: 'camDolly', label: 'camera dolly' },
+  { id: 'camShake', label: 'camera shake' },
+];
+
+const DEFAULT_CAMERA: CameraConfig = { position: [3.5, 2, 5], target: [0, 1, 0], fov: 50 };
+
+// Vertical-FOV presets by lens feel (full-frame-ish).
+const FOV_PRESETS: { label: string; fov: number }[] = [
+  { label: 'fisheye', fov: 100 },
+  { label: 'wide', fov: 65 },
+  { label: 'normal', fov: 50 },
+  { label: '50mm', fov: 28 },
+  { label: '85mm', fov: 16 },
 ];
 
 const DEFAULT_BINDINGS: AudioBinding[] = [
@@ -66,6 +82,7 @@ function emptyLevels(): EnergyLevelConfig[] {
     hsl: { h: 0.62, s: 0.55, l: 0.04 + (i / MAX_ENERGY) * 0.04 },
     idleClip: null,
     actions: [],
+    camera: { ...DEFAULT_CAMERA },
   }));
 }
 
@@ -126,6 +143,7 @@ export default function Visuals3DSandboxPage() {
   );
   const [editingLevel, setEditingLevel] = useState(0);
   const [transitionMode, setTransitionMode] = useState<TransitionMode>('crossfade');
+  const [cameraMode, setCameraMode] = useState<CameraMode>('free');
 
   const [hdrName, setHdrName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -186,13 +204,20 @@ export default function Visuals3DSandboxPage() {
   useEffect(() => controllerRef.current?.setTransitionMode(transitionMode), [transitionMode]);
   useEffect(() => controllerRef.current?.setExposure(exposure), [exposure]);
   useEffect(() => controllerRef.current?.setUseHdrBackground(useHdrBg), [useHdrBg]);
+  useEffect(() => controllerRef.current?.setCameraMode(cameraMode), [cameraMode]);
   useEffect(() => controllerRef.current?.setEnergy(editingLevel), [editingLevel]);
+  // On level switch (free mode) snap the live view to that level's framing.
+  useEffect(() => {
+    if (cameraMode === 'free') controllerRef.current?.applyCameraView(levels[editingLevel]!.camera);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingLevel]);
 
   /** Load a GLB blob into a level; optionally (re)set its metadata defaults. */
   const loadGlbBlob = useCallback(
     async (level: number, blob: Blob, name: string, resetMeta: boolean) => {
       const controller = controllerRef.current;
       if (!controller) return;
+      const firstModel = assetsRef.current.glbs.size === 0;
       setError(null);
       setLoading(true);
       const url = URL.createObjectURL(blob);
@@ -208,6 +233,11 @@ export default function Visuals3DSandboxPage() {
               i === level ? { ...lv, glb: name, idleClip: guessIdle, actions: [] } : lv,
             ),
           );
+          // First model framed the camera — seed every level with that shot.
+          if (firstModel) {
+            const cam = controller.captureCamera();
+            setLevels((prev) => prev.map((lv) => ({ ...lv, camera: cam })));
+          }
         }
       } catch (err) {
         setError(`Failed to load ${name}: ${(err as Error).message}`);
@@ -261,6 +291,14 @@ export default function Visuals3DSandboxPage() {
 
   function updateLevel(patch: Partial<EnergyLevelConfig>) {
     setLevels((prev) => prev.map((lv, i) => (i === editingLevel ? { ...lv, ...patch } : lv)));
+  }
+  function setFov(fov: number) {
+    updateLevel({ camera: { ...lvl.camera, fov } });
+    controllerRef.current?.previewFov(fov);
+  }
+  function captureCameraToLevel() {
+    const cam = controllerRef.current?.captureCamera();
+    if (cam) updateLevel({ camera: cam });
   }
   function toggleAction(clip: string) {
     const cur = lvl.actions;
@@ -322,7 +360,8 @@ export default function Visuals3DSandboxPage() {
     const scene = await loadScene(id);
     if (!scene) return;
     setSceneName(scene.name);
-    setLevels(scene.config.energyLevels);
+    // Older scenes may predate per-level cameras — backfill a default.
+    setLevels(scene.config.energyLevels.map((lv) => ({ ...lv, camera: lv.camera ?? { ...DEFAULT_CAMERA } })));
     setTransitionMode(scene.config.transition);
     setPalette(scene.palette);
     setPaletteTargets(scene.config.paletteTargets);
@@ -463,6 +502,39 @@ export default function Visuals3DSandboxPage() {
               <span className="text-[10px] text-zinc-600">background + global tint</span>
             </div>
 
+            <div className="space-y-1 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-500">camera</span>
+                <button
+                  onClick={captureCameraToLevel}
+                  className="rounded bg-zinc-800 px-2 py-0.5 text-cyan-300 hover:bg-zinc-700"
+                  title="store the current orbit view into this level"
+                >
+                  capture view → L{editingLevel}
+                </button>
+              </div>
+              <Slider
+                label={`FOV ${lvl.camera.fov.toFixed(0)}°`}
+                min={10}
+                max={120}
+                step={1}
+                value={lvl.camera.fov}
+                onChange={setFov}
+              />
+              <div className="flex gap-1">
+                {FOV_PRESETS.map((p) => (
+                  <button
+                    key={p.label}
+                    onClick={() => setFov(p.fov)}
+                    className="flex-1 rounded bg-zinc-800 px-1 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-700"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-zinc-600">orbit to frame → capture · audio bindings can drive FOV/dolly/shake</p>
+            </div>
+
             <label className="flex items-center gap-2">
               <span className="w-16 text-zinc-500">idle</span>
               <select
@@ -560,6 +632,23 @@ export default function Visuals3DSandboxPage() {
                   className={`flex-1 rounded py-1 ${
                     transitionMode === m ? 'bg-cyan-500 font-bold text-black' : 'bg-zinc-800 text-zinc-400'
                   }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-20 text-zinc-500">camera</span>
+            <div className="flex flex-1 gap-1">
+              {(['free', 'driven'] as CameraMode[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setCameraMode(m)}
+                  className={`flex-1 rounded py-1 ${
+                    cameraMode === m ? 'bg-cyan-500 font-bold text-black' : 'bg-zinc-800 text-zinc-400'
+                  }`}
+                  title={m === 'free' ? 'orbit freely to frame each level' : 'preview the runtime camera (per-level + audio)'}
                 >
                   {m}
                 </button>
