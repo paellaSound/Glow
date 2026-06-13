@@ -1,11 +1,12 @@
 import Link from 'next/link';
+import { GlowLogo } from '@/components/glow/glow-logo';
 
 export default function NotFound() {
   return (
     <div className="flex items-center justify-center min-h-[100dvh]">
       <div className="max-w-md space-y-8 p-4 text-center">
         <div className="flex justify-center">
-          <img src="/logo.svg" alt="Logo" className="size-12" />
+          <GlowLogo className="size-12" />
         </div>
         <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
           Page Not Found
