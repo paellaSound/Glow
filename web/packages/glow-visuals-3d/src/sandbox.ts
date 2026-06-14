@@ -27,6 +27,8 @@ export type SceneInspection = {
   meshes: string[];
   materials: string[];
   clips: string[];
+  /** Whether the GLB ships its own camera (lets the designer pick GLB vs engine). */
+  hasCamera: boolean;
 };
 
 /** Audio bands extracted from the mic each frame (all 0–1). */
@@ -79,6 +81,8 @@ export type EnergyLevelConfig = {
   actions: string[];
   /** Camera framing for this level (runtime interpolates between levels). */
   camera: CameraConfig;
+  /** Use the engine's per-level camera, or the one baked into the GLB. */
+  cameraSource: 'engine' | 'glb';
 };
 
 export type Scene3DConfig = {
@@ -110,6 +114,8 @@ export type SandboxController = {
   setEnergy: (level: number) => void;
   setExposure: (value: number) => void;
   setUseHdrBackground: (use: boolean) => void;
+  /** The camera baked into a level's GLB, if any (for the GLB/engine toggle). */
+  getGlbCamera: (level: number) => CameraConfig | null;
   /** free = OrbitControls drive the view; driven = per-level config + audio. */
   setCameraMode: (mode: CameraMode) => void;
   /** Read the current OrbitControls view as a CameraConfig (authoring). */
@@ -145,6 +151,7 @@ type LevelModel = {
   materials: LevelMaterial[];
   idleAction: THREE.AnimationAction | null;
   currentIdleName: string | null;
+  glbCamera: CameraConfig | null;
 };
 
 function hexColor(hex: string | undefined, fallback: number): THREE.Color {
@@ -168,6 +175,7 @@ const NEUTRAL_LEVEL: EnergyLevelConfig = {
   idleClip: null,
   actions: [],
   camera: { position: [3.5, 2, 5], target: [0, 1, 0], fov: 50 },
+  cameraSource: 'engine',
 };
 
 export function mountSandboxScene(
@@ -244,6 +252,16 @@ export function mountSandboxScene(
 
   function levelAt(i: number): EnergyLevelConfig {
     return levels[Math.max(0, Math.min(levels.length - 1, i))] ?? NEUTRAL_LEVEL;
+  }
+
+  /** The camera a level actually uses: its GLB's baked one, or the engine framing. */
+  function effectiveCamera(i: number): CameraConfig {
+    const lv = levelAt(i);
+    if (lv.cameraSource === 'glb') {
+      const m = modelForLevel(i);
+      if (m?.glbCamera) return m.glbCamera;
+    }
+    return lv.camera;
   }
 
   /** The model shown at a level: its own, else the nearest loaded neighbour. */
@@ -326,7 +344,7 @@ export function mountSandboxScene(
 
   async function loadGlbForLevel(level: number, url: string, _name: string): Promise<SceneInspection> {
     const gltf = await gltfLoader.loadAsync(url);
-    if (destroyed) return { meshes: [], materials: [], clips: [] };
+    if (destroyed) return { meshes: [], materials: [], clips: [], hasCamera: false };
 
     const existing = models.get(level);
     if (existing) {
@@ -367,7 +385,33 @@ export function mountSandboxScene(
       gltf.animations.forEach((c) => clips.set(c.name, c));
     }
 
-    models.set(level, { root, mixer, clips, materials, idleAction: null, currentIdleName: null });
+    // Extract a baked camera (if the GLB ships one) as a CameraConfig.
+    let glbCamera: CameraConfig | null = null;
+    const gcam = gltf.cameras?.find(
+      (c) => (c as THREE.PerspectiveCamera).isPerspectiveCamera,
+    ) as THREE.PerspectiveCamera | undefined;
+    if (gcam) {
+      root.updateMatrixWorld(true);
+      const pos = new THREE.Vector3().setFromMatrixPosition(gcam.matrixWorld);
+      const q = new THREE.Quaternion();
+      gcam.getWorldQuaternion(q);
+      const tgt = pos.clone().addScaledVector(new THREE.Vector3(0, 0, -1).applyQuaternion(q), 5);
+      glbCamera = {
+        position: [+pos.x.toFixed(3), +pos.y.toFixed(3), +pos.z.toFixed(3)],
+        target: [+tgt.x.toFixed(3), +tgt.y.toFixed(3), +tgt.z.toFixed(3)],
+        fov: +gcam.fov.toFixed(1),
+      };
+    }
+
+    models.set(level, {
+      root,
+      mixer,
+      clips,
+      materials,
+      idleAction: null,
+      currentIdleName: null,
+      glbCamera,
+    });
 
     if (!framed) {
       frameModel(root);
@@ -376,7 +420,7 @@ export function mountSandboxScene(
     // Force the visible model to refresh on the next frame.
     currentModel = null;
 
-    return { meshes, materials: [...materialNames], clips: [...clips.keys()] };
+    return { meshes, materials: [...materialNames], clips: [...clips.keys()], hasCamera: !!glbCamera };
   }
 
   async function loadHdr(url: string, _name: string): Promise<void> {
@@ -563,8 +607,8 @@ export function mountSandboxScene(
     // 'free' OrbitControls drive it (authoring / inspection).
     if (cameraMode === 'driven') {
       controls.enabled = false;
-      const c0 = lvLo.camera;
-      const c1 = lvHi.camera;
+      const c0 = effectiveCamera(lo);
+      const c1 = effectiveCamera(hi);
       camTmpPos.set(
         lerp(c0.position[0], c1.position[0], frac),
         lerp(c0.position[1], c1.position[1], frac),
@@ -624,6 +668,7 @@ export function mountSandboxScene(
       useHdrBackground = use;
       if (use && envTexture) scene.background = envTexture;
     },
+    getGlbCamera: (level) => modelForLevel(level)?.glbCamera ?? null,
     setCameraMode: (mode) => {
       cameraMode = mode;
     },

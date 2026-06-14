@@ -39,6 +39,7 @@ import {
   type SceneMeta,
   type StoredAsset,
 } from './scene-store';
+import { makeZip, type ZipEntry } from './zip';
 
 const DEFAULT_PALETTE = ['#00e3ff', '#ff00c8', '#ffb300', '#7c4dff'];
 const TEST_GLB_URL = '/visuals3d/goku.glb';
@@ -56,6 +57,17 @@ const AUDIO_TARGETS: { id: AudioTarget; label: string }[] = [
 ];
 
 const DEFAULT_CAMERA: CameraConfig = { position: [3.5, 2, 5], target: [0, 1, 0], fov: 50 };
+
+const ZIP_README = `Glow 3D scene bundle
+====================
+scene.json            scene config (energy curve, audio bindings, cameras, palette)
+glb/level-N.glb       the GLB for energy level N (a level with glb=null inherits the nearest)
+environment.hdr       optional HDR environment
+
+Each energyLevels[N].glb in scene.json points to its file here. Load scene.json,
+then load each level's GLB + the HDR, and feed the config to the 3D engine
+(mountSandboxScene) — same as /dev/visuals3d/play does from IndexedDB.
+`;
 
 // Vertical-FOV presets by lens feel (full-frame-ish).
 const FOV_PRESETS: { label: string; fov: number }[] = [
@@ -83,6 +95,7 @@ function emptyLevels(): EnergyLevelConfig[] {
     idleClip: null,
     actions: [],
     camera: { ...DEFAULT_CAMERA },
+    cameraSource: 'engine',
   }));
 }
 
@@ -300,6 +313,18 @@ export default function Visuals3DSandboxPage() {
     const cam = controllerRef.current?.captureCamera();
     if (cam) updateLevel({ camera: cam });
   }
+  function setCameraSource(src: 'engine' | 'glb') {
+    updateLevel({ cameraSource: src });
+    const ctrl = controllerRef.current;
+    if (!ctrl) return;
+    // Snap the live view so the choice is visible immediately (even in free mode).
+    if (src === 'glb') {
+      const cam = ctrl.getGlbCamera(editingLevel);
+      if (cam) ctrl.applyCameraView(cam);
+    } else {
+      ctrl.applyCameraView(lvl.camera);
+    }
+  }
   function toggleAction(clip: string) {
     const cur = lvl.actions;
     updateLevel({ actions: cur.includes(clip) ? cur.filter((c) => c !== clip) : [...cur, clip] });
@@ -360,8 +385,14 @@ export default function Visuals3DSandboxPage() {
     const scene = await loadScene(id);
     if (!scene) return;
     setSceneName(scene.name);
-    // Older scenes may predate per-level cameras — backfill a default.
-    setLevels(scene.config.energyLevels.map((lv) => ({ ...lv, camera: lv.camera ?? { ...DEFAULT_CAMERA } })));
+    // Older scenes may predate per-level cameras — backfill defaults.
+    setLevels(
+      scene.config.energyLevels.map((lv) => ({
+        ...lv,
+        camera: lv.camera ?? { ...DEFAULT_CAMERA },
+        cameraSource: lv.cameraSource ?? 'engine',
+      })),
+    );
     setTransitionMode(scene.config.transition);
     setPalette(scene.palette);
     setPaletteTargets(scene.config.paletteTargets);
@@ -381,6 +412,47 @@ export default function Visuals3DSandboxPage() {
   async function handleDeleteScene(id: string) {
     await deleteScene(id);
     refreshLibrary();
+  }
+
+  /** Bundle config + every source file into a single .zip for the app handoff. */
+  async function handleExportZip() {
+    const controller = controllerRef.current;
+    if (!controller) return;
+    const enc = new TextEncoder();
+    const config = controller.readConfig({
+      paletteTargets,
+      energyLevels: levels,
+      audioBindings: bindings,
+      transition: transitionMode,
+      hdrName,
+    });
+    // Rewrite per-level GLB refs to the zip-relative paths the app will read.
+    const exportConfig = {
+      ...config,
+      palette,
+      hdr: assetsRef.current.hdr ? 'environment.hdr' : null,
+      energyLevels: config.energyLevels.map((lv, i) => ({
+        ...lv,
+        glb: assetsRef.current.glbs.has(i) ? `glb/level-${i}.glb` : null,
+      })),
+    };
+    const entries: ZipEntry[] = [
+      { name: 'scene.json', data: enc.encode(JSON.stringify(exportConfig, null, 2)) },
+      { name: 'README.txt', data: enc.encode(ZIP_README) },
+    ];
+    for (const [level, asset] of assetsRef.current.glbs) {
+      entries.push({ name: `glb/level-${level}.glb`, data: new Uint8Array(await asset.blob.arrayBuffer()) });
+    }
+    if (assetsRef.current.hdr) {
+      entries.push({ name: 'environment.hdr', data: new Uint8Array(await assetsRef.current.hdr.blob.arrayBuffer()) });
+    }
+    const blob = makeZip(entries);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${sceneName.trim() || 'scene'}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const lvl = levels[editingLevel]!;
@@ -502,37 +574,66 @@ export default function Visuals3DSandboxPage() {
               <span className="text-[10px] text-zinc-600">background + global tint</span>
             </div>
 
-            <div className="space-y-1 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
-              <div className="flex items-center justify-between">
-                <span className="text-zinc-500">camera</span>
-                <button
-                  onClick={captureCameraToLevel}
-                  className="rounded bg-zinc-800 px-2 py-0.5 text-cyan-300 hover:bg-zinc-700"
-                  title="store the current orbit view into this level"
-                >
-                  capture view → L{editingLevel}
-                </button>
-              </div>
-              <Slider
-                label={`FOV ${lvl.camera.fov.toFixed(0)}°`}
-                min={10}
-                max={120}
-                step={1}
-                value={lvl.camera.fov}
-                onChange={setFov}
-              />
-              <div className="flex gap-1">
-                {FOV_PRESETS.map((p) => (
+            <div className="space-y-1.5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
+              <div className="flex items-center gap-2">
+                <span className="w-12 text-zinc-500">camera</span>
+                <div className="flex flex-1 gap-1">
                   <button
-                    key={p.label}
-                    onClick={() => setFov(p.fov)}
-                    className="flex-1 rounded bg-zinc-800 px-1 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-700"
+                    onClick={() => setCameraSource('engine')}
+                    className={`flex-1 rounded py-1 text-[11px] ${
+                      lvl.cameraSource === 'engine' ? 'bg-cyan-500 font-bold text-black' : 'bg-zinc-800 text-zinc-400'
+                    }`}
                   >
-                    {p.label}
+                    engine
                   </button>
-                ))}
+                  <button
+                    onClick={() => setCameraSource('glb')}
+                    disabled={!insp.hasCamera}
+                    title={insp.hasCamera ? 'use the camera baked in this GLB' : 'this GLB has no camera'}
+                    className={`flex-1 rounded py-1 text-[11px] disabled:opacity-40 ${
+                      lvl.cameraSource === 'glb' ? 'bg-cyan-500 font-bold text-black' : 'bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    GLB {insp.hasCamera ? '' : '✕'}
+                  </button>
+                </div>
               </div>
-              <p className="text-[10px] text-zinc-600">orbit to frame → capture · audio bindings can drive FOV/dolly/shake</p>
+
+              {lvl.cameraSource === 'engine' ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-zinc-600">orbit to frame, then →</span>
+                    <button
+                      onClick={captureCameraToLevel}
+                      className="rounded bg-zinc-800 px-2 py-0.5 text-cyan-300 hover:bg-zinc-700"
+                    >
+                      capture view → L{editingLevel}
+                    </button>
+                  </div>
+                  <Slider
+                    label={`FOV ${lvl.camera.fov.toFixed(0)}°`}
+                    min={10}
+                    max={120}
+                    step={1}
+                    value={lvl.camera.fov}
+                    onChange={setFov}
+                  />
+                  <div className="flex gap-1">
+                    {FOV_PRESETS.map((p) => (
+                      <button
+                        key={p.label}
+                        onClick={() => setFov(p.fov)}
+                        className="flex-1 rounded bg-zinc-800 px-1 py-0.5 text-[10px] text-zinc-300 hover:bg-zinc-700"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-[10px] text-zinc-600">using the GLB&apos;s baked camera for this level</p>
+              )}
+              <p className="text-[10px] text-zinc-600">audio bindings can drive FOV / dolly / shake</p>
             </div>
 
             <label className="flex items-center gap-2">
@@ -780,6 +881,13 @@ export default function Visuals3DSandboxPage() {
               {savedMsg ?? 'Save'}
             </button>
           </div>
+          <button
+            onClick={() => void handleExportZip()}
+            disabled={!anyGlb}
+            className="w-full rounded border border-cyan-500/50 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-40"
+          >
+            Export .zip (config + files)
+          </button>
           {scenes.length === 0 && <Empty>no saved scenes yet</Empty>}
           {scenes.map((s) => (
             <div key={s.id} className="flex items-center gap-2 rounded border border-zinc-800 bg-zinc-900/50 px-2 py-1.5">
