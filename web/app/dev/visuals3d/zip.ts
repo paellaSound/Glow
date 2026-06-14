@@ -86,5 +86,57 @@ export function makeZip(entries: ZipEntry[]): Blob {
   ev.setUint32(16, offset, true); // central dir offset
   ev.setUint16(20, 0, true); // comment len
 
-  return new Blob([...locals, ...centrals, end], { type: 'application/zip' });
+  return new Blob([...locals, ...centrals, end] as BlobPart[], { type: 'application/zip' });
+}
+
+async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
+  const ds = new DecompressionStream('deflate-raw');
+  // `as BlobPart`: TS 5.7 BlobPart excludes SharedArrayBuffer-backed views; our
+  // bytes are always ArrayBuffer-backed, so the cast is safe.
+  const stream = new Blob([data as BlobPart]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** Read a ZIP (handles stored + deflate entries) into a name→bytes map. */
+export async function unzip(blob: Blob): Promise<Map<string, Uint8Array>> {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  const dv = new DataView(buf.buffer);
+
+  // Locate the End Of Central Directory record (scan back from the tail).
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= 0; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error('Not a ZIP (no end-of-central-directory)');
+
+  const count = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const out = new Map<string, Uint8Array>();
+  const dec = new TextDecoder();
+
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) break; // central dir header sig
+    const method = dv.getUint16(off + 10, true);
+    const compSize = dv.getUint32(off + 20, true);
+    const nameLen = dv.getUint16(off + 28, true);
+    const extraLen = dv.getUint16(off + 30, true);
+    const commentLen = dv.getUint16(off + 32, true);
+    const localOff = dv.getUint32(off + 42, true);
+    const name = dec.decode(buf.subarray(off + 46, off + 46 + nameLen));
+
+    const lNameLen = dv.getUint16(localOff + 26, true);
+    const lExtraLen = dv.getUint16(localOff + 28, true);
+    const dataStart = localOff + 30 + lNameLen + lExtraLen;
+    const comp = buf.subarray(dataStart, dataStart + compSize);
+
+    if (method === 0) out.set(name, comp.slice());
+    else if (method === 8) out.set(name, await inflateRaw(comp));
+    else throw new Error(`Unsupported ZIP compression method ${method} for ${name}`);
+
+    off += 46 + nameLen + extraLen + commentLen;
+  }
+  return out;
 }

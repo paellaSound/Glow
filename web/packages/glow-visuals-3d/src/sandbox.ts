@@ -126,6 +126,8 @@ export type SandboxController = {
   previewFov: (fov: number) => void;
   /** Play one of a level's action clips once. */
   playAction: (level: number, clip: string) => void;
+  /** Live audio for the UI meters: raw bands + each binding's smoothed value. */
+  getAudioDebug: () => { feats: AudioFeatures; bindings: number[] };
   readConfig: (partial: {
     paletteTargets: string[];
     energyLevels: EnergyLevelConfig[];
@@ -230,6 +232,7 @@ export function mountSandboxScene(
   let paletteTargets: string[] = [];
   let audioBindings: AudioBinding[] = [];
   let bindingState: number[] = [];
+  let lastFeats: AudioFeatures = { bass: 0, mid: 0, treble: 0, energy: 0 };
   let transitionMode: TransitionMode = 'crossfade';
   let cameraMode: CameraMode = 'free';
 
@@ -535,6 +538,7 @@ export function mountSandboxScene(
       treble: 0.2 + 0.2 * Math.cos(t * 5.0),
       energy: 0.3 + 0.2 * Math.sin(t * 1.5),
     };
+    lastFeats = feats;
 
     // Accumulate enabled audio bindings into per-target contributions.
     let scaleAdd = 0;
@@ -669,6 +673,7 @@ export function mountSandboxScene(
       if (use && envTexture) scene.background = envTexture;
     },
     getGlbCamera: (level) => modelForLevel(level)?.glbCamera ?? null,
+    getAudioDebug: () => ({ feats: lastFeats, bindings: bindingState.slice() }),
     setCameraMode: (mode) => {
       cameraMode = mode;
     },

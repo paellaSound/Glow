@@ -39,7 +39,7 @@ import {
   type SceneMeta,
   type StoredAsset,
 } from './scene-store';
-import { makeZip, type ZipEntry } from './zip';
+import { makeZip, unzip, type ZipEntry } from './zip';
 
 const DEFAULT_PALETTE = ['#00e3ff', '#ff00c8', '#ffb300', '#7c4dff'];
 const TEST_GLB_URL = '/visuals3d/goku.glb';
@@ -149,6 +149,7 @@ export default function Visuals3DSandboxPage() {
   const inputRef = useRef<SandboxInput>({ timeMs: 0, palette: DEFAULT_PALETTE, audio: undefined });
   // Retained asset bytes so a scene can be saved to the library.
   const assetsRef = useRef<{ glbs: Map<number, StoredAsset>; hdr?: StoredAsset }>({ glbs: new Map() });
+  const zipInputRef = useRef<HTMLInputElement | null>(null);
 
   const [levels, setLevels] = useState<EnergyLevelConfig[]>(emptyLevels());
   const [levelInspection, setLevelInspection] = useState<(SceneInspection | null)[]>(
@@ -453,6 +454,52 @@ export default function Visuals3DSandboxPage() {
     a.download = `${sceneName.trim() || 'scene'}.zip`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  /** Re-open a previously exported .zip to keep editing the scene. */
+  async function handleImportZip(file: File) {
+    const controller = controllerRef.current;
+    if (!controller) return;
+    setError(null);
+    setLoading(true);
+    try {
+      const map = await unzip(file);
+      const sceneBytes = map.get('scene.json');
+      if (!sceneBytes) throw new Error('scene.json missing in zip');
+      const cfg = JSON.parse(new TextDecoder().decode(sceneBytes));
+
+      setSceneName(file.name.replace(/\.zip$/i, ''));
+      setLevels(
+        (cfg.energyLevels as EnergyLevelConfig[]).map((lv, i) => ({
+          ...lv,
+          glb: map.has(`glb/level-${i}.glb`) ? `level-${i}.glb` : null,
+          camera: lv.camera ?? { ...DEFAULT_CAMERA },
+          cameraSource: lv.cameraSource ?? 'engine',
+        })),
+      );
+      setTransitionMode(cfg.transition ?? 'crossfade');
+      setPalette(cfg.palette ?? DEFAULT_PALETTE);
+      setPaletteTargets(cfg.paletteTargets ?? []);
+      setBindings(cfg.audioBindings ?? DEFAULT_BINDINGS);
+      setExposure(cfg.exposure ?? 1);
+      assetsRef.current = { glbs: new Map(), hdr: undefined };
+      setLevelInspection(Array(ENERGY_LEVEL_COUNT).fill(null));
+
+      for (let i = 0; i < ENERGY_LEVEL_COUNT; i++) {
+        const bytes = map.get(`glb/level-${i}.glb`);
+        if (bytes) {
+          await loadGlbBlob(i, new Blob([bytes as BlobPart], { type: 'model/gltf-binary' }), `level-${i}.glb`, false);
+        }
+      }
+      const hdrBytes = map.get('environment.hdr');
+      if (hdrBytes) await loadHdrBlob(new Blob([hdrBytes as BlobPart]), 'environment.hdr');
+      setUseHdrBg(cfg.useHdrBackground ?? false);
+      setEditingLevel(0);
+    } catch (err) {
+      setError(`Import failed: ${(err as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const lvl = levels[editingLevel]!;
@@ -798,8 +845,9 @@ export default function Visuals3DSandboxPage() {
           </div>
           <p className="text-[10px] leading-relaxed text-zinc-600">
             source → target. <span className="text-zinc-400">amount</span> = how strong,{' '}
-            <span className="text-zinc-400">filter</span> = tames spikes.
+            <span className="text-zinc-400">filter</span> = tames spikes. Turn the mic on to see levels.
           </p>
+          <AudioBands controllerRef={controllerRef} />
           {bindings.length === 0 && <Empty>no connections</Empty>}
           {bindings.map((b, i) => (
             <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-2">
@@ -859,6 +907,10 @@ export default function Visuals3DSandboxPage() {
                   onChange={(v) => updateBinding(i, { smoothing: v })}
                 />
               </div>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className="text-[9px] text-zinc-600">out</span>
+                <BindingMeter controllerRef={controllerRef} index={i} amount={b.amount} />
+              </div>
             </div>
           ))}
         </section>
@@ -881,13 +933,32 @@ export default function Visuals3DSandboxPage() {
               {savedMsg ?? 'Save'}
             </button>
           </div>
-          <button
-            onClick={() => void handleExportZip()}
-            disabled={!anyGlb}
-            className="w-full rounded border border-cyan-500/50 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-40"
-          >
-            Export .zip (config + files)
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => void handleExportZip()}
+              disabled={!anyGlb}
+              className="flex-1 rounded border border-cyan-500/50 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-40"
+            >
+              Export .zip
+            </button>
+            <button
+              onClick={() => zipInputRef.current?.click()}
+              className="flex-1 rounded border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800"
+            >
+              Import .zip
+            </button>
+            <input
+              ref={zipInputRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleImportZip(f);
+                e.target.value = '';
+              }}
+            />
+          </div>
           {scenes.length === 0 && <Empty>no saved scenes yet</Empty>}
           {scenes.map((s) => (
             <div key={s.id} className="flex items-center gap-2 rounded border border-zinc-800 bg-zinc-900/50 px-2 py-1.5">
@@ -916,6 +987,73 @@ export default function Visuals3DSandboxPage() {
 
 function Label({ children }: { children: React.ReactNode }) {
   return <h2 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{children}</h2>;
+}
+
+type ControllerRef = React.MutableRefObject<SandboxController | null>;
+
+/** Live bars for the raw audio bands so the designer sees what's coming in. */
+function AudioBands({ controllerRef }: { controllerRef: ControllerRef }) {
+  const [lvls, setLvls] = useState({ bass: 0, mid: 0, treble: 0, energy: 0 });
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const d = controllerRef.current?.getAudioDebug();
+      if (d) setLvls(d.feats);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [controllerRef]);
+  const bands: [string, number, string][] = [
+    ['bass', lvls.bass, '#00e3ff'],
+    ['mid', lvls.mid, '#7c4dff'],
+    ['treble', lvls.treble, '#ff00c8'],
+    ['energy', lvls.energy, '#ffb300'],
+  ];
+  return (
+    <div className="space-y-1 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
+      {bands.map(([name, v, c]) => (
+        <div key={name} className="flex items-center gap-2">
+          <span className="w-12 text-zinc-500">{name}</span>
+          <div className="h-2 flex-1 overflow-hidden rounded bg-zinc-800">
+            <div
+              className="h-full rounded transition-[width] duration-75"
+              style={{ width: `${Math.min(100, v * 100)}%`, background: c }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Live output bar for one binding (smoothed band × amount) — shows what the
+ * amount/filter sliders actually do. */
+function BindingMeter({
+  controllerRef,
+  index,
+  amount,
+}: {
+  controllerRef: ControllerRef;
+  index: number;
+  amount: number;
+}) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const d = controllerRef.current?.getAudioDebug();
+      if (d) setV(Math.min(1, ((d.bindings[index] ?? 0) * amount) / 3));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [controllerRef, index, amount]);
+  return (
+    <div className="h-1.5 flex-1 overflow-hidden rounded bg-zinc-800">
+      <div className="h-full rounded bg-cyan-400" style={{ width: `${v * 100}%` }} />
+    </div>
+  );
 }
 function Row({ k, v }: { k: string; v: string }) {
   return (
