@@ -6,6 +6,11 @@ for a future redesign. Descriptive only — no proposals here. See
 [improvements/00-index.md](./improvements/00-index.md) for the recent fixes that shaped the
 current state.
 
+> **3D visuals (designer pipeline):** the config-driven 3D scene tooling is
+> documented separately — [visuals-3d-sandbox.md](./visuals-3d-sandbox.md) (panel
+> de edición) and [visuals-3d-player.md](./visuals-3d-player.md) (reproductor +
+> schema `Scene3DConfig`).
+
 ---
 
 ## 0. The key fact: two independent render systems

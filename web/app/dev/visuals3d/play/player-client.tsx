@@ -57,6 +57,9 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
       controller.setTransitionMode(scene.config.transition);
       controller.setPaletteTargets(scene.config.paletteTargets);
       controller.setAudioBindings(scene.config.audioBindings);
+      controller.setActionTriggers(scene.config.actionTriggers ?? []);
+      controller.setAutoConfig(scene.config.autoConfig ?? { dwellMs: 4000, silenceFloor: 0.04 });
+      controller.setEnergyMode(scene.config.energyMode ?? 'manual');
       controller.setExposure(scene.config.exposure);
       // The player is the projector view: the engine owns the camera.
       controller.setCameraMode('driven');

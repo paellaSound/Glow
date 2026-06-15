@@ -18,12 +18,14 @@ import {
   mountSandboxScene,
   MAX_ENERGY,
   ENERGY_LEVEL_COUNT,
+  type ActionTrigger,
   type AudioBinding,
   type AudioSource,
   type AudioTarget,
   type CameraConfig,
   type CameraMode,
   type EnergyLevelConfig,
+  type EnergyMode,
   type HSL,
   type SandboxController,
   type SandboxInput,
@@ -158,6 +160,10 @@ export default function Visuals3DSandboxPage() {
   const [editingLevel, setEditingLevel] = useState(0);
   const [transitionMode, setTransitionMode] = useState<TransitionMode>('crossfade');
   const [cameraMode, setCameraMode] = useState<CameraMode>('free');
+  const [energyMode, setEnergyMode] = useState<EnergyMode>('manual');
+  const [autoDwellMs, setAutoDwellMs] = useState(4000);
+  const [autoSilenceFloor, setAutoSilenceFloor] = useState(0.04);
+  const [triggers, setTriggers] = useState<ActionTrigger[]>([]);
 
   const [hdrName, setHdrName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -216,6 +222,12 @@ export default function Visuals3DSandboxPage() {
   useEffect(() => controllerRef.current?.setAudioBindings(bindings), [bindings]);
   useEffect(() => controllerRef.current?.setEnergyLevels(levels), [levels]);
   useEffect(() => controllerRef.current?.setTransitionMode(transitionMode), [transitionMode]);
+  useEffect(() => controllerRef.current?.setEnergyMode(energyMode), [energyMode]);
+  useEffect(
+    () => controllerRef.current?.setAutoConfig({ dwellMs: autoDwellMs, silenceFloor: autoSilenceFloor }),
+    [autoDwellMs, autoSilenceFloor],
+  );
+  useEffect(() => controllerRef.current?.setActionTriggers(triggers), [triggers]);
   useEffect(() => controllerRef.current?.setExposure(exposure), [exposure]);
   useEffect(() => controllerRef.current?.setUseHdrBackground(useHdrBg), [useHdrBg]);
   useEffect(() => controllerRef.current?.setCameraMode(cameraMode), [cameraMode]);
@@ -349,6 +361,22 @@ export default function Visuals3DSandboxPage() {
     setBindings((prev) => prev.filter((_, j) => j !== i));
   }
 
+  const allClips = Array.from(
+    new Set(levelInspection.flatMap((insp) => insp?.clips ?? [])),
+  );
+  function addTrigger() {
+    setTriggers((prev) => [
+      ...prev,
+      { source: 'bass', threshold: 0.7, clip: allClips[0] ?? '', cooldownMs: 800, enabled: true },
+    ]);
+  }
+  function updateTrigger(i: number, patch: Partial<ActionTrigger>) {
+    setTriggers((prev) => prev.map((tr, j) => (j === i ? { ...tr, ...patch } : tr)));
+  }
+  function removeTrigger(i: number) {
+    setTriggers((prev) => prev.filter((_, j) => j !== i));
+  }
+
   async function handleSave() {
     const controller = controllerRef.current;
     if (!controller) return;
@@ -358,6 +386,9 @@ export default function Visuals3DSandboxPage() {
       energyLevels: levels,
       audioBindings: bindings,
       transition: transitionMode,
+      energyMode,
+      autoConfig: { dwellMs: autoDwellMs, silenceFloor: autoSilenceFloor },
+      actionTriggers: triggers,
       hdrName,
     });
     const glbs: Record<number, StoredAsset> = {};
@@ -398,6 +429,10 @@ export default function Visuals3DSandboxPage() {
     setPalette(scene.palette);
     setPaletteTargets(scene.config.paletteTargets);
     setBindings(scene.config.audioBindings);
+    setEnergyMode(scene.config.energyMode ?? 'manual');
+    setAutoDwellMs(scene.config.autoConfig?.dwellMs ?? 4000);
+    setAutoSilenceFloor(scene.config.autoConfig?.silenceFloor ?? 0.04);
+    setTriggers(scene.config.actionTriggers ?? []);
     setExposure(scene.config.exposure);
     assetsRef.current = { glbs: new Map(), hdr: scene.hdr };
     setLevelInspection(Array(ENERGY_LEVEL_COUNT).fill(null));
@@ -425,6 +460,9 @@ export default function Visuals3DSandboxPage() {
       energyLevels: levels,
       audioBindings: bindings,
       transition: transitionMode,
+      energyMode,
+      autoConfig: { dwellMs: autoDwellMs, silenceFloor: autoSilenceFloor },
+      actionTriggers: triggers,
       hdrName,
     });
     // Rewrite per-level GLB refs to the zip-relative paths the app will read.
@@ -481,6 +519,10 @@ export default function Visuals3DSandboxPage() {
       setPalette(cfg.palette ?? DEFAULT_PALETTE);
       setPaletteTargets(cfg.paletteTargets ?? []);
       setBindings(cfg.audioBindings ?? DEFAULT_BINDINGS);
+      setEnergyMode(cfg.energyMode ?? 'manual');
+      setAutoDwellMs(cfg.autoConfig?.dwellMs ?? 4000);
+      setAutoSilenceFloor(cfg.autoConfig?.silenceFloor ?? 0.04);
+      setTriggers(cfg.actionTriggers ?? []);
       setExposure(cfg.exposure ?? 1);
       assetsRef.current = { glbs: new Map(), hdr: undefined };
       setLevelInspection(Array(ENERGY_LEVEL_COUNT).fill(null));
@@ -590,6 +632,48 @@ export default function Visuals3DSandboxPage() {
             ))}
           </div>
           <p className="text-[10px] text-zinc-600">click a level to edit + preview it (eases there)</p>
+
+          <div className="flex items-center gap-2 pt-1">
+            <span className="w-12 text-zinc-500">drive</span>
+            <div className="flex flex-1 gap-1">
+              {(['manual', 'auto'] as EnergyMode[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setEnergyMode(m)}
+                  className={`flex-1 rounded py-1 ${
+                    energyMode === m ? 'bg-cyan-500 font-bold text-black' : 'bg-zinc-800 text-zinc-400'
+                  }`}
+                  title={m === 'manual' ? 'you set the level' : "the song's average energy sets the level"}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+          {energyMode === 'auto' && (
+            <div className="space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
+              <AvgEnergyMeter controllerRef={controllerRef} />
+              <Slider
+                label={`dwell ${(autoDwellMs / 1000).toFixed(1)}s`}
+                min={0.5}
+                max={15}
+                step={0.5}
+                value={autoDwellMs / 1000}
+                onChange={(v) => setAutoDwellMs(v * 1000)}
+              />
+              <Slider
+                label={`silence gate ${autoSilenceFloor.toFixed(2)}`}
+                min={0}
+                max={0.3}
+                step={0.01}
+                value={autoSilenceFloor}
+                onChange={setAutoSilenceFloor}
+              />
+              <p className="text-[10px] text-zinc-600">
+                avg energy picks the level · stays ≥ dwell · won&apos;t change below the gate
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Per-level GLB */}
@@ -915,6 +999,83 @@ export default function Visuals3DSandboxPage() {
           ))}
         </section>
 
+        {/* Action triggers */}
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Action triggers</Label>
+            <button onClick={addTrigger} className="text-cyan-300 hover:text-cyan-200">
+              + add
+            </button>
+          </div>
+          <p className="text-[10px] leading-relaxed text-zinc-600">
+            fire a clip when a band crosses a <span className="text-zinc-400">threshold</span> (rising edge,{' '}
+            <span className="text-zinc-400">cooldown</span> between fires). Plays on the active level&apos;s model.
+          </p>
+          {triggers.length === 0 && <Empty>no triggers</Empty>}
+          {triggers.map((tr, i) => (
+            <div key={i} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-2">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={tr.enabled}
+                  onChange={(e) => updateTrigger(i, { enabled: e.target.checked })}
+                  className="accent-cyan-400"
+                />
+                <select
+                  value={tr.source}
+                  onChange={(e) => updateTrigger(i, { source: e.target.value as AudioSource })}
+                  className="rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5"
+                >
+                  {AUDIO_SOURCES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-zinc-600">→</span>
+                <select
+                  value={tr.clip}
+                  onChange={(e) => updateTrigger(i, { clip: e.target.value })}
+                  className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-1 py-0.5"
+                >
+                  <option value="">— clip —</option>
+                  {allClips.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+                <TriggerFlash controllerRef={controllerRef} index={i} />
+                <button
+                  onClick={() => removeTrigger(i)}
+                  className="px-1 text-zinc-500 hover:text-red-400"
+                  title="remove"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Slider
+                  label={`threshold ${tr.threshold.toFixed(2)}`}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={tr.threshold}
+                  onChange={(v) => updateTrigger(i, { threshold: v })}
+                />
+                <Slider
+                  label={`cooldown ${(tr.cooldownMs / 1000).toFixed(1)}s`}
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  value={tr.cooldownMs / 1000}
+                  onChange={(v) => updateTrigger(i, { cooldownMs: v * 1000 })}
+                />
+              </div>
+            </div>
+          ))}
+        </section>
+
         {/* Library (local, IndexedDB) */}
         <section className="mt-auto space-y-2 border-t border-zinc-800 pt-4">
           <Label>Library · local</Label>
@@ -1053,6 +1214,51 @@ function BindingMeter({
     <div className="h-1.5 flex-1 overflow-hidden rounded bg-zinc-800">
       <div className="h-full rounded bg-cyan-400" style={{ width: `${v * 100}%` }} />
     </div>
+  );
+}
+
+/** Average (normalized) energy + the auto-selected level — what auto mode uses. */
+function AvgEnergyMeter({ controllerRef }: { controllerRef: ControllerRef }) {
+  const [d, setD] = useState({ avg: 0, level: 0 });
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const dbg = controllerRef.current?.getAudioDebug();
+      if (dbg) setD({ avg: dbg.avgEnergy, level: dbg.autoLevel });
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [controllerRef]);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-12 text-zinc-500">avg</span>
+      <div className="h-2 flex-1 overflow-hidden rounded bg-zinc-800">
+        <div className="h-full rounded bg-cyan-400" style={{ width: `${Math.min(100, d.avg * 100)}%` }} />
+      </div>
+      <span className="w-10 text-right text-cyan-300">lvl {d.level}</span>
+    </div>
+  );
+}
+
+/** Flashes when a trigger fires, so the threshold/cooldown are visible. */
+function TriggerFlash({ controllerRef, index }: { controllerRef: ControllerRef; index: number }) {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      const d = controllerRef.current?.getAudioDebug();
+      if (d) setOn(!!d.triggersFired[index]);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [controllerRef, index]);
+  return (
+    <span
+      className={`h-2.5 w-2.5 flex-none rounded-full ${on ? 'bg-cyan-400' : 'bg-zinc-700'}`}
+      title="fires here"
+    />
   );
 }
 function Row({ k, v }: { k: string; v: string }) {

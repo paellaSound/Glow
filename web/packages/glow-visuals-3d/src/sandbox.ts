@@ -56,6 +56,21 @@ export type AudioBinding = {
 /** How the scene moves from one level's model to the next. */
 export type TransitionMode = 'crossfade' | 'cut';
 
+/** manual = operator sets the level; auto = the song's average energy drives it. */
+export type EnergyMode = 'manual' | 'auto';
+
+/** Auto-energy tuning: how long to dwell on a level, and the silence floor. */
+export type AutoConfig = { dwellMs: number; silenceFloor: number };
+
+/** Fire a clip when an audio band crosses a threshold (rising edge + cooldown). */
+export type ActionTrigger = {
+  source: AudioSource;
+  threshold: number;
+  clip: string;
+  cooldownMs: number;
+  enabled: boolean;
+};
+
 /** Hue/Saturation/Lightness, each 0–1. */
 export type HSL = { h: number; s: number; l: number };
 
@@ -90,6 +105,10 @@ export type Scene3DConfig = {
   energyLevels: EnergyLevelConfig[];
   audioBindings: AudioBinding[];
   transition: TransitionMode;
+  /** manual = operator-driven level; auto = audio-driven (avg energy → level). */
+  energyMode: EnergyMode;
+  autoConfig: AutoConfig;
+  actionTriggers: ActionTrigger[];
   exposure: number;
   hdrName: string | null;
   useHdrBackground: boolean;
@@ -112,6 +131,9 @@ export type SandboxController = {
   setEnergyLevels: (levels: EnergyLevelConfig[]) => void;
   setTransitionMode: (mode: TransitionMode) => void;
   setEnergy: (level: number) => void;
+  setEnergyMode: (mode: EnergyMode) => void;
+  setAutoConfig: (cfg: AutoConfig) => void;
+  setActionTriggers: (triggers: ActionTrigger[]) => void;
   setExposure: (value: number) => void;
   setUseHdrBackground: (use: boolean) => void;
   /** The camera baked into a level's GLB, if any (for the GLB/engine toggle). */
@@ -126,13 +148,24 @@ export type SandboxController = {
   previewFov: (fov: number) => void;
   /** Play one of a level's action clips once. */
   playAction: (level: number, clip: string) => void;
-  /** Live audio for the UI meters: raw bands + each binding's smoothed value. */
-  getAudioDebug: () => { feats: AudioFeatures; bindings: number[] };
+  /** Live audio for the UI meters: raw bands, per-binding smoothed values, the
+   * normalized average energy (0–1), the auto-selected level, and which triggers
+   * just fired (for a flash indicator). */
+  getAudioDebug: () => {
+    feats: AudioFeatures;
+    bindings: number[];
+    avgEnergy: number;
+    autoLevel: number;
+    triggersFired: boolean[];
+  };
   readConfig: (partial: {
     paletteTargets: string[];
     energyLevels: EnergyLevelConfig[];
     audioBindings: AudioBinding[];
     transition: TransitionMode;
+    energyMode: EnergyMode;
+    autoConfig: AutoConfig;
+    actionTriggers: ActionTrigger[];
     hdrName: string | null;
   }) => Scene3DConfig;
   resize: () => void;
@@ -233,6 +266,18 @@ export function mountSandboxScene(
   let audioBindings: AudioBinding[] = [];
   let bindingState: number[] = [];
   let lastFeats: AudioFeatures = { bass: 0, mid: 0, treble: 0, energy: 0 };
+
+  // Auto-energy (audio-driven level) + threshold action triggers.
+  let energyMode: EnergyMode = 'manual';
+  let autoDwellMs = 4000;
+  let autoSilenceFloor = 0.04;
+  let avgEnergy = 0; // slow EMA of feats.energy
+  let energyMax = 0.001; // decaying peak for auto-normalization
+  let normEnergy = 0; // avgEnergy normalized to 0–1
+  let autoLevel = 0;
+  let lastAutoChangeMs = 0;
+  let actionTriggers: ActionTrigger[] = [];
+  let triggerState: { lastFireMs: number; armed: boolean }[] = [];
   let transitionMode: TransitionMode = 'crossfade';
   let cameraMode: CameraMode = 'free';
 
@@ -503,6 +548,13 @@ export function mountSandboxScene(
       }
     }
 
+    // Visibility sweep: only the active model (and the transition pair) show —
+    // prevents earlier-loaded GLBs from lingering and overlapping.
+    for (const m of models.values()) {
+      m.root.visible =
+        m === currentModel || (transition !== null && (m === transition.from || m === transition.to));
+    }
+
     if (currentModel) setModelIdle(currentModel, levelAt(activeLevel).idleClip);
   }
 
@@ -521,16 +573,6 @@ export function mountSandboxScene(
     const dt = Math.min(0.1, (nowMs - lastMs) / 1000);
     lastMs = nowMs;
 
-    energySmooth += (energy - energySmooth) * 0.05;
-    syncActiveModel(nowMs);
-
-    const lo = Math.max(0, Math.min(MAX_ENERGY, Math.floor(energySmooth)));
-    const hi = Math.min(MAX_ENERGY, lo + 1);
-    const frac = energySmooth - lo;
-    const lvLo = levelAt(lo);
-    const lvHi = levelAt(hi);
-    const eNorm = energySmooth / MAX_ENERGY;
-
     // Synthetic fallback keeps the scene breathing without a live mic feed.
     const feats = input.audio ?? {
       bass: 0.3 + 0.3 * Math.sin(t * 2.5),
@@ -539,6 +581,55 @@ export function mountSandboxScene(
       energy: 0.3 + 0.2 * Math.sin(t * 1.5),
     };
     lastFeats = feats;
+
+    // Long average + auto-normalization of overall energy (for the avg readout
+    // and auto mode). energyMax decays slowly so it adapts to mic volume.
+    avgEnergy += (feats.energy - avgEnergy) * (1 - Math.exp(-dt / 1.5));
+    energyMax = Math.max(feats.energy, energyMax * 0.9995);
+    normEnergy = clamp01((avgEnergy - autoSilenceFloor) / Math.max(0.001, energyMax - autoSilenceFloor));
+
+    // Auto mode: the song's average energy picks the level, with a silence gate,
+    // hysteresis (a clear move past the midpoint) and a minimum dwell time.
+    if (energyMode === 'auto') {
+      if (avgEnergy >= autoSilenceFloor) {
+        const targetFloat = normEnergy * MAX_ENERGY;
+        const target = Math.round(targetFloat);
+        if (
+          target !== autoLevel &&
+          Math.abs(targetFloat - autoLevel) > 0.6 &&
+          nowMs - lastAutoChangeMs >= autoDwellMs
+        ) {
+          autoLevel = target;
+          lastAutoChangeMs = nowMs;
+        }
+      }
+      energy = autoLevel;
+    }
+
+    energySmooth += (energy - energySmooth) * 0.05;
+    syncActiveModel(nowMs);
+
+    // Threshold action triggers: rising edge + cooldown, with re-arm hysteresis.
+    for (let i = 0; i < actionTriggers.length; i++) {
+      const tr = actionTriggers[i]!;
+      if (!tr.enabled) continue;
+      const st = triggerState[i] ?? (triggerState[i] = { lastFireMs: 0, armed: true });
+      const v = clamp01(feats[tr.source]);
+      if (st.armed && v >= tr.threshold && nowMs - st.lastFireMs >= tr.cooldownMs) {
+        if (tr.clip) playAction(activeLevel, tr.clip);
+        st.lastFireMs = nowMs;
+        st.armed = false;
+      } else if (!st.armed && v < tr.threshold - 0.08) {
+        st.armed = true;
+      }
+    }
+
+    const lo = Math.max(0, Math.min(MAX_ENERGY, Math.floor(energySmooth)));
+    const hi = Math.min(MAX_ENERGY, lo + 1);
+    const frac = energySmooth - lo;
+    const lvLo = levelAt(lo);
+    const lvHi = levelAt(hi);
+    const eNorm = energySmooth / MAX_ENERGY;
 
     // Accumulate enabled audio bindings into per-target contributions.
     let scaleAdd = 0;
@@ -665,6 +756,21 @@ export function mountSandboxScene(
     setEnergy: (level) => {
       energy = Math.max(0, Math.min(MAX_ENERGY, level));
     },
+    setEnergyMode: (mode) => {
+      energyMode = mode;
+      if (mode === 'auto') {
+        autoLevel = Math.round(energySmooth);
+        lastAutoChangeMs = performance.now();
+      }
+    },
+    setAutoConfig: (cfg) => {
+      autoDwellMs = cfg.dwellMs;
+      autoSilenceFloor = cfg.silenceFloor;
+    },
+    setActionTriggers: (next) => {
+      actionTriggers = next;
+      triggerState = next.map((_, i) => triggerState[i] ?? { lastFireMs: 0, armed: true });
+    },
     setExposure: (value) => {
       renderer.toneMappingExposure = value;
     },
@@ -673,7 +779,16 @@ export function mountSandboxScene(
       if (use && envTexture) scene.background = envTexture;
     },
     getGlbCamera: (level) => modelForLevel(level)?.glbCamera ?? null,
-    getAudioDebug: () => ({ feats: lastFeats, bindings: bindingState.slice() }),
+    getAudioDebug: () => {
+      const now = performance.now();
+      return {
+        feats: lastFeats,
+        bindings: bindingState.slice(),
+        avgEnergy: normEnergy,
+        autoLevel,
+        triggersFired: actionTriggers.map((_, i) => now - (triggerState[i]?.lastFireMs ?? -1e9) < 150),
+      };
+    },
     setCameraMode: (mode) => {
       cameraMode = mode;
     },
@@ -707,6 +822,9 @@ export function mountSandboxScene(
       energyLevels: partial.energyLevels,
       audioBindings: partial.audioBindings,
       transition: partial.transition,
+      energyMode: partial.energyMode,
+      autoConfig: partial.autoConfig,
+      actionTriggers: partial.actionTriggers,
       exposure: +renderer.toneMappingExposure.toFixed(2),
       hdrName: partial.hdrName,
       useHdrBackground,
