@@ -1,4 +1,6 @@
+import { Check } from 'lucide-react';
 import { NeonButton, NeonCard, NeonTitle } from '@/components/ui/neon';
+import { PlanDetailsPopover } from '@/components/glow/plan-details-popover';
 import { checkoutAction, customerPortalAction } from '@/lib/payments/actions';
 import type { BillingPlanPresentation } from '@/lib/plans/billing-cards';
 import { cn } from '@/lib/utils';
@@ -6,6 +8,7 @@ import { cn } from '@/lib/utils';
 type BillingPlanCardProps = {
   presentation: BillingPlanPresentation;
   isCurrentPlan: boolean;
+  recommended: boolean;
   hasActivePaidSubscription: boolean;
   stripeEnabled: boolean;
 };
@@ -13,12 +16,13 @@ type BillingPlanCardProps = {
 export function BillingPlanCard({
   presentation,
   isCurrentPlan,
+  recommended,
   hasActivePaidSubscription,
   stripeEnabled,
 }: BillingPlanCardProps) {
   const isFree = presentation.planCode === 'free';
-  const glow = presentation.recommended ? 'magenta' : isFree ? 'none' : 'cyan';
-  const border = presentation.recommended ? 'magenta' : isFree ? 'default' : 'cyan';
+  const glow = recommended ? 'magenta' : isCurrentPlan ? 'cyan' : isFree ? 'none' : 'cyan';
+  const border = recommended ? 'magenta' : isCurrentPlan ? 'cyan' : isFree ? 'default' : 'cyan';
 
   return (
     <NeonCard
@@ -26,55 +30,69 @@ export function BillingPlanCard({
       borderVariant={border}
       hoverEffect={!isCurrentPlan}
       className={cn(
-        'relative flex flex-col p-6 min-h-[520px]',
-        presentation.recommended && 'ring-1 ring-neon-magenta/30'
+        'relative flex flex-col p-6',
+        recommended && 'ring-1 ring-neon-magenta/30',
+        isCurrentPlan && 'ring-1 ring-neon-cyan/30'
       )}
     >
-      {presentation.recommended ? (
+      {isCurrentPlan ? (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full border border-neon-cyan/50 bg-zinc-950 px-3 py-1 text-[9px] font-cyber uppercase tracking-widest text-neon-cyan shadow-[0_0_12px_rgba(0,229,255,0.35)]">
+          Current plan
+        </span>
+      ) : recommended ? (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-neon-magenta px-3 py-1 text-[9px] font-cyber uppercase tracking-widest text-white shadow-[0_0_12px_rgba(255,0,200,0.4)]">
           Recommended
         </span>
       ) : null}
 
-      <div className="mb-4">
-        <NeonTitle
-          as="h3"
-          color={presentation.recommended ? 'magenta' : isFree ? 'white' : 'cyan'}
-          className="text-xl font-black tracking-widest"
-        >
-          {presentation.marketingName.toUpperCase()}
-        </NeonTitle>
-        <p className="mt-1 text-xs font-cyber uppercase tracking-wider text-neon-cyan/80">
-          {presentation.tagline}
-        </p>
-        <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
-          {presentation.brandingNote}
-        </p>
-      </div>
-
-      <div className="flex-1 space-y-4">
-        {presentation.sections.map((section) => (
-          <div
-            key={section.key}
-            className="rounded-xl border border-white/5 bg-black/20 p-3"
+      {/* Header: name + "i" detail popover */}
+      <div className="mb-4 flex items-start justify-between gap-2">
+        <div>
+          <NeonTitle
+            as="h3"
+            color={recommended ? 'magenta' : isFree ? 'white' : 'cyan'}
+            className="text-xl font-black tracking-widest"
           >
-            <p className="text-[9px] font-cyber uppercase tracking-widest text-zinc-500 mb-2">
-              {section.title}
-            </p>
-            <ul className="space-y-1.5">
-              {section.items.map((item) => (
-                <li
-                  key={item}
-                  className="text-[10px] font-cyber text-zinc-300 uppercase tracking-wide leading-snug"
-                >
-                  · {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+            {presentation.marketingName.toUpperCase()}
+          </NeonTitle>
+          <p className="mt-1 text-xs font-cyber uppercase tracking-wider text-neon-cyan/80">
+            {presentation.tagline}
+          </p>
+        </div>
+        <PlanDetailsPopover
+          planName={presentation.marketingName}
+          sections={presentation.detailSections}
+        />
       </div>
 
+      {/* Headline: crowd size */}
+      <p className="text-lg font-black font-cyber tracking-tight text-foreground">
+        {presentation.headline}
+      </p>
+
+      {/* Delta: what this plan adds over the previous one */}
+      <div className="mt-4 flex-1">
+        {presentation.deltaIntro ? (
+          <p className="mb-2 text-[10px] font-cyber uppercase tracking-widest text-zinc-500">
+            {presentation.deltaIntro}
+          </p>
+        ) : null}
+        <ul className="space-y-2">
+          {presentation.deltaItems.map((item) => (
+            <li key={item} className="flex items-start gap-2 text-xs text-zinc-200 leading-snug">
+              <Check
+                className={cn(
+                  'mt-0.5 size-3.5 shrink-0',
+                  recommended ? 'text-neon-magenta' : 'text-neon-cyan'
+                )}
+              />
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Price + CTA */}
       <div className="mt-6 space-y-3">
         <p className="text-3xl font-black font-cyber tracking-tight text-foreground">
           {presentation.priceLabel}

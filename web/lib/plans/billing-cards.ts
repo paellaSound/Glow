@@ -11,8 +11,10 @@ import {
 // PRICING MODEL: every plan ships the full product. You only pay for two things:
 //   1. Crowd size  — how many phones can join (the real server cost)
 //   2. Your brand  — your logo on stage, your QR, no Glow watermark
-// The card copy below makes that explicit: "Crowd size" and "Your brand" are the
-// differentiators, and "Every feature included" reassures that nothing is locked.
+//
+// CARD UX: keep cards scannable. The card shows the headline (crowd size) + the
+// DELTA over the previous plan (what's new). The full feature detail lives behind
+// an "i" popover (`detailSections`) so the card stays low-noise.
 
 export type BillingSectionKey = 'crowd' | 'brand' | 'included';
 
@@ -27,14 +29,19 @@ export type BillingPlanPresentation = {
   marketingName: string;
   tagline: string;
   ctaLabel: string;
-  recommended?: boolean;
-  brandingNote: string;
-  sections: BillingSection[];
   priceLabel: string;
+  /** Big scannable headline — the crowd size. */
+  headline: string;
+  /** "Everything in <prev>, plus:" — null for Free (the base plan). */
+  deltaIntro: string | null;
+  /** Short list of what THIS plan adds over the previous one. */
+  deltaItems: string[];
+  /** Full feature detail, shown inside the "i" popover. */
+  detailSections: BillingSection[];
 };
 
 const SECTION_LABELS: Record<BillingSectionKey, string> = {
-  crowd: 'Crowd size — what you pay for',
+  crowd: 'Crowd size',
   brand: 'Your brand',
   included: 'Every feature included',
 };
@@ -50,8 +57,8 @@ function matrixLabel(cells: number, rows: number, cols: number): string {
   return `Up to ${cells} matrix cells (grid ${rows}×${cols})`;
 }
 
-function buildSections(ents: PlanEntitlements): BillingSection[] {
-  // 1. Crowd size — the thing that scales, and the thing you pay for
+/** Full detail for the "i" popover — identical structure across plans. */
+function buildDetailSections(ents: PlanEntitlements): BillingSection[] {
   const crowdItems: string[] = [
     devicesLabel(ents.maxDevices),
     matrixLabel(ents.maxMatrixCells, ents.maxGridRows, ents.maxGridCols),
@@ -61,14 +68,12 @@ function buildSections(ents: PlanEntitlements): BillingSection[] {
     crowdItems.push('Massive crowds (best with solid venue coverage)');
   }
 
-  // 2. Your brand — the second paid axis
   const brandItems: string[] = [
     ents.removeWatermark ? 'No Glow watermark on stage' : `${GLOW_BRAND_NAME} watermark on stage`,
     ents.customRigLogo ? 'Your logo on the projector' : `${GLOW_BRAND_NAME} logo on the projector`,
     ents.customQrBranding ? 'Your QR + social links' : `${GLOW_BRAND_NAME} join QR`,
   ];
 
-  // 3. Everything included — identical on every plan (nothing is locked behind a tier)
   const includedItems: string[] = [
     'Stage visuals: YouTube, 3D & shaders',
     'Every light preset + audio-reactive FX',
@@ -86,11 +91,20 @@ function buildSections(ents: PlanEntitlements): BillingSection[] {
   ];
 }
 
-const BRANDING_NOTES: Record<PlanCode, string> = {
-  free: `Run the whole product free — ${GLOW_BRAND_NAME} branded, up to 15 phones.`,
-  plus_25: 'More phones and zero ads — the easiest way to grow the floor.',
-  plus_50: `Your logo on stage, your QR, no ${GLOW_BRAND_NAME} watermark — and room for 300.`,
-  pro: 'Unlimited phones for festivals, tours and big rooms.',
+// The DELTA: what each plan adds over the one below it. Kept short on purpose —
+// the headline already shows the crowd size, so these are the qualitative wins.
+const DELTA_INTRO: Record<PlanCode, string | null> = {
+  free: null,
+  plus_25: 'Everything in Free, plus:',
+  plus_50: 'Everything in Party, plus:',
+  pro: 'Everything in Venue, plus:',
+};
+
+const DELTA_ITEMS: Record<PlanCode, string[]> = {
+  free: ['Every feature included', 'Free forever — Glow branded'],
+  plus_25: ['No ads', '3× the crowd'],
+  plus_50: ['Your logo on stage', 'Your QR + social links', 'No Glow watermark'],
+  pro: ['Unlimited crowd size', 'Built for festival-scale rooms'],
 };
 
 const TAGLINES: Record<PlanCode, string> = {
@@ -117,11 +131,11 @@ export function buildBillingPresentation(
     marketingName: meta?.marketingName ?? 'Free',
     tagline: TAGLINES[planCode],
     ctaLabel: CTAS[planCode],
-    recommended: planCode === 'plus_50',
-    brandingNote: BRANDING_NOTES[planCode],
-    sections: buildSections(ents),
-    priceLabel:
-      planCode === 'free' ? 'Free' : formatPlanPrice(meta?.priceCents ?? 0),
+    priceLabel: planCode === 'free' ? 'Free' : formatPlanPrice(meta?.priceCents ?? 0),
+    headline: devicesLabel(ents.maxDevices),
+    deltaIntro: DELTA_INTRO[planCode],
+    deltaItems: DELTA_ITEMS[planCode],
+    detailSections: buildDetailSections(ents),
   };
 }
 

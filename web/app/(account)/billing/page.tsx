@@ -34,6 +34,14 @@ export default async function BillingPage() {
     (a, b) => PLAN_ORDER.indexOf(a.code as PlanCode) - PLAN_ORDER.indexOf(b.code as PlanCode)
   );
 
+  // Recommend the plan ONE tier above the current one — always nudge an upgrade,
+  // unless the user is already on the top (most expensive) plan.
+  const currentIndex = PLAN_ORDER.indexOf(currentPlanCode as PlanCode);
+  const recommendedCode =
+    currentIndex >= 0 && currentIndex < PLAN_ORDER.length - 1
+      ? PLAN_ORDER[currentIndex + 1]
+      : null;
+
   return (
     <main className="relative mx-auto max-w-6xl px-6 py-12 min-h-screen overflow-hidden">
       <BillingPageTracker currentPlanCode={currentPlanCode} />
@@ -101,7 +109,7 @@ export default async function BillingPage() {
           </NeonCard>
         ) : null}
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {orderedPlans.map((plan) => {
             const planEnts = buildEntitlementsFromRows(plan.entitlements);
             const presentation = buildBillingPresentation(plan.code as PlanCode, planEnts);
@@ -111,6 +119,7 @@ export default async function BillingPage() {
                 key={plan.id}
                 presentation={presentation}
                 isCurrentPlan={team?.planId === plan.id}
+                recommended={plan.code === recommendedCode}
                 hasActivePaidSubscription={hasActivePaidSubscription}
                 stripeEnabled={Boolean(plan.stripePriceId) || plan.code === 'free'}
               />

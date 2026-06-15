@@ -18,6 +18,7 @@ import {
   MAX_ENERGY,
   DEFAULT_LIGHT,
   DEFAULT_POOL_PLAYBACK,
+  type EnergyMode,
   type SandboxController,
   type SandboxInput,
   type Scene3DConfig,
@@ -34,6 +35,8 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
   const [loadedName, setLoadedName] = useState<string | null>(null);
   const [config, setConfig] = useState<Scene3DConfig | null>(null);
   const [level, setLevel] = useState(0);
+  const [energyMode, setEnergyMode] = useState<EnergyMode>('manual');
+  const [poolLocked, setPoolLocked] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,7 +74,8 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
       controller.setActionTriggers(scene.config.actionTriggers ?? []);
       controller.setActions(scene.config.actions ?? []);
       controller.setAutoConfig(scene.config.autoConfig ?? { dwellMs: 4000, silenceFloor: 0.04 });
-      controller.setEnergyMode(scene.config.energyMode ?? 'manual');
+      const mode = scene.config.energyMode ?? 'manual';
+      controller.setEnergyMode(mode);
       controller.setExposure(scene.config.exposure);
       // The player is the projector view: the engine owns the camera.
       controller.setCameraMode('driven');
@@ -88,6 +92,8 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
       controller.setUseHdrBackground(scene.config.useHdrBackground);
       controller.setEnergy(0);
       setLevel(0);
+      setEnergyMode(mode);
+      setPoolLocked(false);
       setConfig(scene.config);
       setLoadedName(scene.name);
     } catch (err) {
@@ -128,6 +134,20 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
     controllerRef.current?.setEnergy(n);
   }
 
+  function setMode(mode: EnergyMode) {
+    setEnergyMode(mode);
+    controllerRef.current?.setEnergyMode(mode);
+  }
+
+  function togglePoolLock() {
+    controllerRef.current?.lockCurrentClip();
+    setPoolLocked((v) => !v);
+  }
+
+  function skipPoolClip() {
+    controllerRef.current?.skipClip();
+  }
+
   const sceneActions = config?.actions ?? [];
 
   function playSceneAction(actionId: string) {
@@ -135,7 +155,7 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
   }
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black text-zinc-200">
+    <div className="relative h-screen w-screen overflow-hidden bg-black text-zinc-100">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" style={{ display: 'block' }} />
 
       {/* Scene picker (shown until a scene is loaded) */}
@@ -169,52 +189,124 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
         </div>
       )}
 
-      {/* Playback controls */}
+      {/* Live control deck — bottom bar, high contrast for dark-room operation */}
       {loadedName && (
-        <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-col items-center gap-3 rounded-2xl bg-zinc-950/80 px-5 py-3 font-mono text-xs backdrop-blur">
-          <div className="flex items-center gap-3">
-            <span className="text-zinc-500">{loadedName}</span>
-            <span className="text-zinc-600">·</span>
-            <span className="text-zinc-400">energy</span>
-            <div className="flex gap-1">
-              {Array.from({ length: MAX_ENERGY + 1 }, (_, i) => (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pb-[max(1rem,env(safe-area-inset-bottom))] pt-16">
+          <div className="pointer-events-auto mx-auto max-w-5xl px-4 font-mono">
+            <div className="rounded-2xl border border-zinc-700/80 bg-zinc-950/90 px-4 py-3 shadow-2xl backdrop-blur-sm">
+              {/* Row 1: scene name + edit */}
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <span className="truncate text-[11px] font-bold uppercase tracking-widest text-cyan-300">
+                  {loadedName}
+                </span>
+                <Link
+                  href="/dev/visuals3d"
+                  className="shrink-0 rounded-lg border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-zinc-200 hover:bg-zinc-700"
+                >
+                  edit
+                </Link>
+              </div>
+
+              {/* Row 2: energy 0–5 + manual/auto */}
+              <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <span className="w-14 shrink-0 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                  energy
+                </span>
+                <div className="flex gap-1.5">
+                  {Array.from({ length: MAX_ENERGY + 1 }, (_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setEnergy(i)}
+                      title={`Energy level ${i}`}
+                      className={`h-12 w-12 rounded-lg text-lg font-bold transition-colors ${
+                        i === level
+                          ? 'bg-cyan-400 text-black ring-2 ring-cyan-200'
+                          : 'bg-zinc-800 text-zinc-100 ring-1 ring-zinc-600 hover:bg-zinc-700'
+                      }`}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">mode</span>
+                  <div className="flex gap-1">
+                    {(['manual', 'auto'] as EnergyMode[]).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setMode(m)}
+                        title={m === 'manual' ? 'You pick the energy level' : 'Song average energy drives level'}
+                        className={`rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-wide ${
+                          energyMode === m
+                            ? 'bg-white text-black'
+                            : 'bg-zinc-800 text-zinc-200 ring-1 ring-zinc-600 hover:bg-zinc-700'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: action buttons */}
+              {sceneActions.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <span className="w-14 shrink-0 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+                    actions
+                  </span>
+                  <div className="flex flex-1 flex-wrap gap-2">
+                    {sceneActions.map((action) => (
+                      <button
+                        key={action.id}
+                        onClick={() => playSceneAction(action.id)}
+                        title={`Fire action: ${action.name}`}
+                        className="min-h-12 rounded-xl bg-violet-500 px-5 py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow-lg shadow-violet-500/20 ring-1 ring-violet-300/50 hover:bg-violet-400 active:scale-[0.98]"
+                      >
+                        {action.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Row 4: pool lock/skip + mic */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-3">
+                <div className="flex items-center gap-2">
+                  <span className="mr-1 text-[10px] font-bold uppercase tracking-widest text-zinc-400">pool</span>
+                  <button
+                    onClick={togglePoolLock}
+                    title="Lock/unlock current pool clip"
+                    className={`min-h-11 rounded-lg px-4 py-2 text-sm font-bold ${
+                      poolLocked
+                        ? 'bg-amber-400 text-black ring-2 ring-amber-200'
+                        : 'bg-zinc-800 text-zinc-100 ring-1 ring-zinc-600 hover:bg-zinc-700'
+                    }`}
+                  >
+                    🔒 lock
+                  </button>
+                  <button
+                    onClick={skipPoolClip}
+                    title="Skip to next pool clip"
+                    className="min-h-11 rounded-lg bg-zinc-800 px-4 py-2 text-sm font-bold text-zinc-100 ring-1 ring-zinc-600 hover:bg-zinc-700"
+                  >
+                    ⏭ skip
+                  </button>
+                </div>
                 <button
-                  key={i}
-                  onClick={() => setEnergy(i)}
-                  className={`h-8 w-8 rounded ${
-                    i === level ? 'bg-cyan-500 font-bold text-black' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  onClick={() => setMicOn((v) => !v)}
+                  title={micActive ? 'Mic on — audio reactivity + triggers' : 'Enable laptop mic'}
+                  className={`min-h-11 rounded-lg px-5 py-2 text-sm font-bold ${
+                    micActive
+                      ? 'bg-cyan-400 text-black ring-2 ring-cyan-200'
+                      : 'bg-zinc-800 text-zinc-100 ring-1 ring-zinc-600 hover:bg-zinc-700'
                   }`}
                 >
-                  {i}
+                  🎤 mic
                 </button>
-              ))}
+              </div>
             </div>
-            <button
-              onClick={() => setMicOn((v) => !v)}
-              className={`rounded px-3 py-1.5 ${
-                micActive ? 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-400' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-              }`}
-            >
-              🎤
-            </button>
-            <Link href="/dev/visuals3d" className="text-zinc-500 hover:text-zinc-300">
-              edit
-            </Link>
           </div>
-          {sceneActions.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-zinc-500">actions</span>
-              {sceneActions.map((action) => (
-                <button
-                  key={action.id}
-                  onClick={() => playSceneAction(action.id)}
-                  className="rounded bg-violet-500/20 px-3 py-1 text-violet-200 ring-1 ring-violet-500/40 hover:bg-violet-500/30"
-                >
-                  {action.name}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>
