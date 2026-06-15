@@ -16,15 +16,22 @@ interface ReactionsToolbarProps {
   roomCode: string;
   roomState: RoomStatePayload | null;
   onEmit: (event: string, payload: { roomCode: string; emoji: ReactionEmoji }) => void;
+  /** Admin rig config — when false, toolbar is hidden. Defaults to true. */
+  showReactionsToolbar?: boolean;
 }
 
-export function ReactionsToolbar({ roomCode, roomState, onEmit }: ReactionsToolbarProps) {
+export function ReactionsToolbar({
+  roomCode,
+  roomState,
+  onEmit,
+  showReactionsToolbar = true,
+}: ReactionsToolbarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [clickCounts, setClickCounts] = useState<Record<string, number>>({});
   const { teamEntitlements } = useTeamEntitlements();
   const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
 
-  if (!entitlements.audienceReactions) {
+  if (!entitlements.audienceReactions || !showReactionsToolbar) {
     return null;
   }
 

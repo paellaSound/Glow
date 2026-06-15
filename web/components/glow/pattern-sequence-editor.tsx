@@ -32,6 +32,12 @@ import { cn } from '@/lib/utils';
 
 type PatternSequenceEditorVariant = 'default' | 'control';
 
+export type SequenceSelectionOption = { id: string; name: string; isDefault: boolean };
+export type SequenceSelectionState = {
+  options: SequenceSelectionOption[];
+  selectedId: string | null;
+};
+
 type PatternSequenceEditorProps = {
   availablePresetIds: string[];
   audioReactive: boolean;
@@ -51,6 +57,12 @@ type PatternSequenceEditorProps = {
   presetSeed?: number;
   roomState?: RoomStatePayload;
   mode?: 'edit' | 'operate';
+  /** Mirrors the saved-sequence list + current selection upward (e.g. to render the selector in a header). */
+  onSelectionStateChange?: (state: SequenceSelectionState) => void;
+  /** Apply an external selection. Bump `nonce` to re-trigger even for the same id. */
+  externalSelect?: { id: string | null; nonce: number };
+  /** Hide the built-in control-variant sequence `<select>` (when it is rendered elsewhere). */
+  hideInlineSelector?: boolean;
 };
 
 export function PatternSequenceEditor({
@@ -72,6 +84,9 @@ export function PatternSequenceEditor({
   presetSeed,
   roomState,
   mode = 'edit',
+  onSelectionStateChange,
+  externalSelect,
+  hideInlineSelector = false,
 }: PatternSequenceEditorProps) {
   const { data: savedSequences = [], mutate } = useSWR<PatternSequenceRecord[]>(
     '/api/pattern-sequences',
@@ -91,6 +106,7 @@ export function PatternSequenceEditor({
   const [status, setStatus] = useState<string | null>(null);
   const [isMediaExpanded, setIsMediaExpanded] = useState(false);
   const hasAutoSelectedRef = useRef(false);
+  const appliedSelectNonceRef = useRef<number | null>(null);
 
   const activeEffects = useMemo(() => getActiveEffects(draft.effects), [draft.effects]);
   const previewEffect = useMemo(
@@ -145,6 +161,46 @@ export function PatternSequenceEditor({
     hasAutoSelectedRef.current = true;
   }, [isControlVariant, hasSavedSequences, savedSequences, selectedId]);
 
+  const selectionState = useMemo<SequenceSelectionState>(
+    () => ({
+      options: (savedSequences ?? []).map((sequence) => ({
+        id: sequence.id,
+        name: sequence.name,
+        isDefault: sequence.isDefault,
+      })),
+      selectedId,
+    }),
+    [savedSequences, selectedId]
+  );
+  const onSelectionStateChangeRef = useRef(onSelectionStateChange);
+  onSelectionStateChangeRef.current = onSelectionStateChange;
+  const mirroredSelectionSnapshotRef = useRef('');
+
+  // Mirror the saved-sequence list + current selection upward so the selector
+  // can be rendered elsewhere (e.g. the control header).
+  useEffect(() => {
+    if (!isControlVariant) return;
+
+    const callback = onSelectionStateChangeRef.current;
+    if (!callback) return;
+
+    const snapshot = JSON.stringify(selectionState);
+    if (snapshot === mirroredSelectionSnapshotRef.current) return;
+
+    mirroredSelectionSnapshotRef.current = snapshot;
+    callback(selectionState);
+  }, [isControlVariant, selectionState]);
+
+  // Apply a selection requested from outside (header selector). The nonce guard
+  // lets the same id be re-applied without looping on internal selection updates.
+  useEffect(() => {
+    if (!externalSelect) return;
+    if (appliedSelectNonceRef.current === externalSelect.nonce) return;
+    appliedSelectNonceRef.current = externalSelect.nonce;
+    if (externalSelect.id) handleSequenceSelect(externalSelect.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalSelect]);
+
   const isDirty = selectedId
     ? JSON.stringify(savedSequences?.find((seq) => seq.id === selectedId)) !==
       JSON.stringify({ ...draft, id: selectedId, createdAt: '', updatedAt: '', isDefault: draft.isDefault ?? false })
@@ -181,11 +237,12 @@ export function PatternSequenceEditor({
   }, []);
 
   function patchDraft(patch: Partial<PatternSequenceDraft>) {
+    let next!: PatternSequenceDraft;
     setDraft((current) => {
-      const next = { ...current, ...patch };
-      onPreviewChange?.(next);
+      next = { ...current, ...patch };
       return next;
     });
+    onPreviewChange?.(next);
   }
 
   function patchEffects(nextEffects: PatternSequenceEffect[]) {
@@ -376,11 +433,20 @@ export function PatternSequenceEditor({
     ? 'Save your first sequence'
     : 'Sequence name';
 
+  const showTopPanel =
+    !isControlVariant ||
+    !hideInlineSelector ||
+    mode !== 'operate' ||
+    Boolean(status) ||
+    !effectLayering;
+
   return (
     <div className="flex flex-col gap-6">
+      {showTopPanel ? (
       <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-4">
         {isControlVariant ? (
           <>
+            {!hideInlineSelector ? (
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">
                 Pattern sequence
@@ -403,6 +469,7 @@ export function PatternSequenceEditor({
                 )}
               </select>
             </div>
+            ) : null}
 
             {mode !== 'operate' && (
               <>
@@ -531,6 +598,7 @@ export function PatternSequenceEditor({
           <PlanGateBanner feature="effect_layering" roomEntitlements={roomState?.entitlements} />
         ) : null}
       </div>
+      ) : null}
 
       <PatternSequencePreview
         draft={draft}

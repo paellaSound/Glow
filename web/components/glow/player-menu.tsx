@@ -18,12 +18,15 @@ import { RoomQrPanel } from '@/components/glow/room-qr-panel';
 import { buildPlayerJoinUrl } from '@/lib/glow/join-url';
 import type { RigSocial } from '@/lib/glow/social-kinds';
 import type { TorchCapability } from '@/lib/glow/types';
+import type { PlayerMenuItemId } from '@/lib/glow/player-chrome-config';
+import { isPlayerMenuItemVisible, type PlayerChromeConfig } from '@/lib/glow/player-chrome-config';
 
 interface PlayerMenuProps {
   roomCode: string;
   nickname: string;
   displayLabel?: string;
   onExit: () => void;
+  playerChrome?: PlayerChromeConfig;
   torchCapability?: TorchCapability;
   torchActive?: boolean;
   torchEnabling?: boolean;
@@ -42,6 +45,7 @@ export function PlayerMenu({
   nickname,
   displayLabel,
   onExit,
+  playerChrome = {},
   torchCapability,
   torchActive = false,
   torchEnabling = false,
@@ -64,6 +68,9 @@ export function PlayerMenu({
     () => buildPlayerJoinUrl(roomCode, { matrix: false }),
     [roomCode]
   );
+
+  const showMenuItem = (itemId: PlayerMenuItemId) =>
+    isPlayerMenuItemVisible(playerChrome, itemId);
 
   // Monitor fullscreen state changes
   useEffect(() => {
@@ -147,13 +154,29 @@ export function PlayerMenu({
     setShowConfirmExit(false);
   };
 
+  const showExit = showMenuItem('exit-rave');
+  const showFlashEffects =
+    showMenuItem('flash-effects') && Boolean(onEnableTorch && onDisableTorch);
+  const hasSheetContent = showFlashEffects || showExit;
+  // The More button is derived: it appears whenever the sheet has reachable
+  // content (flash opt-in / exit). This guarantees the exit is never orphaned.
+  const showMore = hasSheetContent;
+  const hasToolbarItems =
+    showMenuItem('share-link') ||
+    showMenuItem('qr-code') ||
+    (showMenuItem('fullscreen') && isFullscreenSupported) ||
+    showMore;
+  const hasAnyHud = hasToolbarItems || hasSheetContent;
+
+  if (!hasAnyHud) return null;
+
   return (
     <div className="dark fixed top-4 right-4 z-40 flex flex-col items-end gap-2 select-none">
       {/* Horizontal Toolbar with a cyber neon glow style */}
       <div className="flex items-center gap-1.5 rounded-full bg-black/75 border border-neon-cyan/40 p-1 backdrop-blur-md transition-all duration-300 shadow-[0_0_15px_rgba(0,229,255,0.3)] hover:shadow-[0_0_20px_rgba(0,229,255,0.45)]">
-        {!isCollapsed && (
+        {!isCollapsed && hasToolbarItems && (
           <div className="flex items-center gap-1 animate-in fade-in slide-in-from-right-4 duration-300">
-            {/* Share button */}
+            {showMenuItem('share-link') ? (
             <button
               type="button"
               onClick={() => void copyJoinLink()}
@@ -166,8 +189,9 @@ export function PlayerMenu({
                 <Share2 className="h-4 w-4" />
               )}
             </button>
+            ) : null}
 
-            {/* QR button */}
+            {showMenuItem('qr-code') ? (
             <button
               type="button"
               onClick={() => setIsQrModalOpen(true)}
@@ -176,9 +200,9 @@ export function PlayerMenu({
             >
               <QrCode className="h-4 w-4" />
             </button>
+            ) : null}
 
-            {/* Fullscreen toggle button */}
-            {isFullscreenSupported && (
+            {showMenuItem('fullscreen') && isFullscreenSupported ? (
               <button
                 type="button"
                 onClick={() => void toggleFullscreen()}
@@ -191,9 +215,9 @@ export function PlayerMenu({
                   <Maximize2 className="h-4 w-4" />
                 )}
               </button>
-            )}
+            ) : null}
 
-            {/* More (⋯) trigger button */}
+            {showMore ? (
             <button
               type="button"
               onClick={() => setIsSheetOpen(true)}
@@ -202,10 +226,11 @@ export function PlayerMenu({
             >
               <MoreHorizontal className="h-4 w-4" />
             </button>
+            ) : null}
           </div>
         )}
 
-        {/* Collapse/Expand Toggle button */}
+        {(hasToolbarItems || !isCollapsed) ? (
         <button
           type="button"
           onClick={() => setIsCollapsed(!isCollapsed)}
@@ -218,6 +243,7 @@ export function PlayerMenu({
             <ChevronRight className="h-4 w-4" />
           )}
         </button>
+        ) : null}
       </div>
 
       {/* QR Modal */}
@@ -282,7 +308,7 @@ export function PlayerMenu({
 
 
             {/* Flash effects opt-in */}
-            {onEnableTorch && onDisableTorch ? (
+            {onEnableTorch && onDisableTorch && showMenuItem('flash-effects') ? (
               <div className="mb-5 rounded-xl border border-white/10 bg-zinc-900/50 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -338,7 +364,8 @@ export function PlayerMenu({
 
             {/* Actions */}
             <div className="space-y-4">
-              {!showConfirmExit ? (
+              {showMenuItem('exit-rave') ? (
+              !showConfirmExit ? (
                 <Button
                   type="button"
                   variant="destructive"
@@ -372,7 +399,8 @@ export function PlayerMenu({
                     </Button>
                   </div>
                 </div>
-              )}
+              )
+              ) : null}
             </div>
           </div>
         </div>

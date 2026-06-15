@@ -25,6 +25,7 @@ export type ControlHeaderProps = {
   endingSession: boolean;
   showEndButton: boolean;
   shareControls: React.ReactNode;
+  sequenceSelector?: React.ReactNode;
 };
 
 const TABS: { id: ActiveTab; label: string; Icon: typeof Vibrate }[] = [
@@ -50,6 +51,7 @@ export function ControlHeader({
   endingSession,
   showEndButton,
   shareControls,
+  sequenceSelector,
 }: ControlHeaderProps) {
   const editing = mode === 'edit';
 
@@ -88,9 +90,13 @@ export function ControlHeader({
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <NeonTitle as="h1" color="cyan" className="truncate text-xl font-black tracking-widest sm:text-2xl">
-            ROOM {roomCode.toUpperCase()}
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <NeonTitle
+            as="h1"
+            color="cyan"
+            className="shrink-0 whitespace-nowrap text-xl font-black tracking-widest sm:text-2xl"
+          >
+            {roomCode.toUpperCase()}
           </NeonTitle>
           <span
             className={cn(
@@ -140,35 +146,34 @@ export function ControlHeader({
         </div>
       </div>
 
-      {visibleTabs.length > 1 ? (
-        <div
-          role="tablist"
-          aria-label="Control desk sections"
-          className="flex gap-1 border-t border-white/[0.07] pt-2"
-        >
-          {TABS.filter((tab) => visibleTabs.includes(tab.id)).map(({ id, label, Icon }) => {
-            const active = activeTab === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                id={`tab-${id}`}
-                data-onboarding={id === 'visuals' ? 'visuals' : undefined}
-                onClick={() => onTabChange(id)}
-                className={cn(
-                  'flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-cyber uppercase tracking-widest transition-all',
-                  active
-                    ? 'border-neon-cyan text-neon-cyan [text-shadow:0_0_8px_rgba(0,255,204,0.4)]'
-                    : 'border-transparent text-zinc-500 hover:text-zinc-200'
-                )}
-              >
-                <Icon className="size-3.5" />
-                {label}
-              </button>
-            );
-          })}
+      {visibleTabs.length > 1 || sequenceSelector ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-2">
+          <div role="tablist" aria-label="Control desk sections" className="flex gap-1">
+            {TABS.filter((tab) => visibleTabs.includes(tab.id)).map(({ id, label, Icon }) => {
+              const active = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  id={`tab-${id}`}
+                  data-onboarding={id === 'visuals' ? 'visuals' : undefined}
+                  onClick={() => onTabChange(id)}
+                  className={cn(
+                    'flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-cyber uppercase tracking-widest transition-all',
+                    active
+                      ? 'border-neon-cyan text-neon-cyan [text-shadow:0_0_8px_rgba(0,255,204,0.4)]'
+                      : 'border-transparent text-zinc-500 hover:text-zinc-200'
+                  )}
+                >
+                  <Icon className="size-3.5" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          {sequenceSelector ? <div className="shrink-0">{sequenceSelector}</div> : null}
         </div>
       ) : null}
     </div>

@@ -3,6 +3,7 @@ import { db } from '@/lib/db/drizzle';
 import { roomSessions } from '@/lib/db/schema';
 import { and, eq, isNull } from 'drizzle-orm';
 import { GLOW_BRAND_NAME } from '@/lib/glow/branding';
+import { parsePlayerChromeConfig } from '@/lib/glow/player-chrome-config';
 import type { PlanEntitlements } from '@/lib/glow/types';
 
 /**
@@ -39,11 +40,17 @@ export async function GET(
         adsEnabled: true,
         customQrBranding: false,
         glowBrandName: GLOW_BRAND_NAME,
+        playerChrome: {},
+        logoAssetPath: null,
+        customRigLogo: false,
+        removeWatermark: false,
+        entitlements: {},
       });
     }
 
-    const entitlements = session.entitlementsSnapshot as PlanEntitlements;
+    const entitlements = (session.entitlementsSnapshot ?? {}) as PlanEntitlements;
     const customQrBranding = Boolean(entitlements?.customQrBranding);
+    const consoleConfig = (session.rig?.consoleConfig ?? {}) as Record<string, unknown>;
     const socials = customQrBranding
       ? (session.rig?.socials.map((social) => ({
           kind: social.kind,
@@ -60,6 +67,11 @@ export async function GET(
       adsEnabled: session.adsEnabledSnapshot,
       customQrBranding,
       glowBrandName: GLOW_BRAND_NAME,
+      playerChrome: parsePlayerChromeConfig(consoleConfig.playerChrome),
+      logoAssetPath: session.rig?.logoAssetPath ?? null,
+      customRigLogo: Boolean(entitlements?.customRigLogo),
+      removeWatermark: Boolean(entitlements?.removeWatermark),
+      entitlements,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to load share info';

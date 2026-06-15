@@ -28,12 +28,23 @@ import { useLiveCallPublisher } from '@/lib/glow/use-live-call-publisher';
 import { PlayerMenu } from '@/components/glow/player-menu';
 import { PlayerFlashButton } from '@/components/glow/player-flash-button';
 import { ReactionsToolbar } from '@/components/glow/reactions-toolbar';
+import { PlayerChromeOverlays } from '@/components/glow/player-chrome-overlays';
+import {
+  parsePlayerChromeConfig,
+  rigLogoPublicUrl,
+  shouldShowFlashButton,
+  shouldShowReactionsToolbar,
+  shouldShowSyncDelay,
+} from '@/lib/glow/player-chrome-config';
+import { mergeEntitlementsForUi } from '@/lib/entitlements-defaults';
+import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import { useTheme } from 'next-themes';
 import { getSocialLabel, SOCIAL_KINDS, type RigSocial } from '@/lib/glow/social-kinds';
 import type {
   DeviceTorchEvent,
   EffectDistribution,
   FallbackModeEvent,
+  PlanEntitlements,
   VisualAudioFeaturesEvent,
   VisualColorEvent,
   VisualPresetEvent,
@@ -59,6 +70,11 @@ type JoinResponse = {
 type ShareInfo = {
   rigName: string | null;
   socials: RigSocial[];
+  playerChrome?: unknown;
+  logoAssetPath?: string | null;
+  customRigLogo?: boolean;
+  removeWatermark?: boolean;
+  entitlements?: PlanEntitlements;
 };
 
 function NicknameGate({
@@ -194,6 +210,7 @@ function PlayerContent({
   }, [setTheme]);
 
   const [fetchedShareInfo, setFetchedShareInfo] = useState<ShareInfo | null>(null);
+  const { teamEntitlements } = useTeamEntitlements();
 
   // Fetch DJ branding & socials on mount
   useEffect(() => {
@@ -206,6 +223,21 @@ function PlayerContent({
   }, [roomCode]);
 
   const { connected, emit, emitWithCallback, on, socket, roomState } = useGlowSocket();
+  const playerChrome = useMemo(
+    () => parsePlayerChromeConfig(fetchedShareInfo?.playerChrome),
+    [fetchedShareInfo?.playerChrome]
+  );
+  const playerLogoUrl = useMemo(() => {
+    if (!fetchedShareInfo?.customRigLogo || !fetchedShareInfo.logoAssetPath) return null;
+    return rigLogoPublicUrl(fetchedShareInfo.logoAssetPath);
+  }, [fetchedShareInfo?.customRigLogo, fetchedShareInfo?.logoAssetPath]);
+  const playerEntitlements = mergeEntitlementsForUi(
+    roomState?.entitlements ?? fetchedShareInfo?.entitlements,
+    teamEntitlements
+  );
+  const showReactionsToolbar = shouldShowReactionsToolbar(playerChrome, playerEntitlements);
+  const showFlashButton = shouldShowFlashButton(playerChrome);
+  const showSyncDelay = shouldShowSyncDelay(playerChrome);
   const [joined, setJoined] = useState(false);
 
   const handleExit = useCallback(() => {
@@ -714,7 +746,7 @@ function PlayerContent({
       <div className="dark absolute inset-x-0 top-0 z-10 flex items-center justify-between p-4">
         <div className="rounded bg-black/40 px-3 py-1 text-xs text-white">
           {statusLabel}
-          {joined && connected && delayMs !== null ? ` (${delayMs}ms)` : ''}
+          {joined && connected && showSyncDelay && delayMs !== null ? ` (${delayMs}ms)` : ''}
         </div>
         {!joined && <FullscreenButton />}
       </div>
@@ -743,6 +775,14 @@ function PlayerContent({
             )
           )}
         </div>
+      ) : null}
+
+      {!pickMode && joined ? (
+        <PlayerChromeOverlays
+          playerChrome={playerChrome}
+          entitlements={playerEntitlements}
+          logoUrl={playerLogoUrl}
+        />
       ) : null}
 
       {matrixRequired && pickMode && joined && connected ? (
@@ -853,6 +893,7 @@ function PlayerContent({
             nickname={activeNickname}
             displayLabel={displayLabel}
             onExit={handleExit}
+            playerChrome={playerChrome}
             torchCapability={torchCapability}
             torchActive={torchActive}
             torchEnabling={torchEnabling}
@@ -864,8 +905,9 @@ function PlayerContent({
             roomCode={roomCode}
             roomState={roomState}
             onEmit={emit}
+            showReactionsToolbar={showReactionsToolbar}
           />
-          {!pickMode ? (
+          {!pickMode && showFlashButton ? (
             <PlayerFlashButton
               onPressStart={startManualFlash}
               onPressEnd={stopManualFlash}

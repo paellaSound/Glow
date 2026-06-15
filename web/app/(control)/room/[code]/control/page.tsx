@@ -3,7 +3,7 @@
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { captureClientEvent } from '@/lib/posthog-client';
-import { ChevronDown, ChevronUp, EyeOff, Plus, Smartphone } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, EyeOff, Plus, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import QRCode from 'qrcode';
 import { parseMatrixParam } from '@/lib/glow/join-url';
@@ -15,11 +15,19 @@ import { OnboardingDebugPanel } from '@/components/glow/onboarding-debug-panel';
 import type { OnboardingStepId } from '@/lib/onboarding/constants';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
 import { ControlHeader, type ActiveTab } from '@/components/glow/control-header';
+import { PlayDevicesDesk, getPlayerChromeFromRig } from '@/components/glow/play-devices-desk';
 import { RoomShareControls } from '@/components/glow/room-share-controls';
 import type { ConsoleMode } from '@/lib/glow/console-mode';
 import {
+  getUserLogoLayer,
+  playerChromeConfigsEqual,
+  rigLogoPublicUrl,
+  type PlayerChromeConfig,
+} from '@/lib/glow/player-chrome-config';
+import {
   PatternSequenceEditor,
   toDistributionEffects,
+  type SequenceSelectionState,
 } from '@/components/glow/pattern-sequence-editor';
 import { VisualsTab, normalizeRigResponse, type VisualsWorkingState, type RigWithCues } from '@/components/glow/visuals-tab';
 import { MediaPanel } from '@/components/glow/media-panel';
@@ -69,20 +77,59 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return sortedA.every((value, index) => value === sortedB[index]);
 }
 
+const PLAY_SECTION_IDS: string[] = PLAY_SECTIONS.map((section) => section.id);
+
+function sequenceEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+/** Known section ids in saved order, then any known ids missing from the saved order. */
+function normalizePlayOrder(saved: string[] | undefined): string[] {
+  const known = (saved ?? []).filter((id) => PLAY_SECTION_IDS.includes(id));
+  const missing = PLAY_SECTION_IDS.filter((id) => !known.includes(id));
+  return [...known, ...missing];
+}
+
 function EditSectionChrome({
   mode,
+  order,
   onHide,
+  onMoveUp,
+  onMoveDown,
   children,
 }: {
   mode: ConsoleMode;
+  order?: number;
   onHide: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   children: React.ReactNode;
 }) {
-  if (mode !== 'edit') return <>{children}</>;
+  if (mode !== 'edit') return <div style={{ order }}>{children}</div>;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/10">
-      <div className="flex items-center justify-end border-b border-white/10 bg-white/5 px-3 py-1.5">
+    <div style={{ order }} className="overflow-hidden rounded-2xl border border-white/10">
+      <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-3 py-1.5">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onMoveUp}
+            disabled={!onMoveUp}
+            aria-label="Move section up"
+            className="inline-flex size-6 items-center justify-center rounded text-zinc-400 transition-colors hover:text-zinc-200 disabled:opacity-30"
+          >
+            <ArrowUp className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={onMoveDown}
+            disabled={!onMoveDown}
+            aria-label="Move section down"
+            className="inline-flex size-6 items-center justify-center rounded text-zinc-400 transition-colors hover:text-zinc-200 disabled:opacity-30"
+          >
+            <ArrowDown className="size-3.5" />
+          </button>
+        </div>
         <button
           type="button"
           onClick={onHide}
@@ -110,6 +157,9 @@ function ControlContent({ code }: { code: string }) {
   const [closingRoom, setClosingRoom] = useState(false);
   const [devicesOpen, setDevicesOpen] = useState(false);
   const [initialSequenceDraft, setInitialSequenceDraft] = useState<PatternSequenceDraft>(createDefaultDraft());
+  const [previewDraft, setPreviewDraft] = useState<PatternSequenceDraft>(createDefaultDraft());
+  const [seqSelect, setSeqSelect] = useState<SequenceSelectionState>({ options: [], selectedId: null });
+  const [seqSignal, setSeqSignal] = useState<{ id: string | null; nonce: number }>({ id: null, nonce: 0 });
   const [liveDraftName, setLiveDraftName] = useState<string | null>(null);
   const [presetSeed, setPresetSeed] = useState(() => Date.now());
   const [fallbackSeed, setFallbackSeed] = useState(() => Date.now());
@@ -121,7 +171,12 @@ function ControlContent({ code }: { code: string }) {
   const [mode, setMode] = useState<ConsoleMode>('play');
   const [workingHidden, setWorkingHidden] = useState<string[]>([]);
   const [baselineHidden, setBaselineHidden] = useState<string[]>([]);
+  const [workingOrder, setWorkingOrder] = useState<string[]>(() => normalizePlayOrder(undefined));
+  const [baselineOrder, setBaselineOrder] = useState<string[]>(() => normalizePlayOrder(undefined));
   const [savingConfig, setSavingConfig] = useState(false);
+  const [workingPlayerChrome, setWorkingPlayerChrome] = useState<PlayerChromeConfig>({});
+  const [baselinePlayerChrome, setBaselinePlayerChrome] = useState<PlayerChromeConfig>({});
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     if (onboardingActiveStep === 2) {
@@ -168,15 +223,24 @@ function ControlContent({ code }: { code: string }) {
     [workingHidden]
   );
   const configDirty = useMemo(
-    () => !arraysEqual(workingHidden, baselineHidden),
-    [workingHidden, baselineHidden]
+    () =>
+      !arraysEqual(workingHidden, baselineHidden) ||
+      !sequenceEqual(workingOrder, baselineOrder) ||
+      !playerChromeConfigsEqual(workingPlayerChrome, baselinePlayerChrome),
+    [workingHidden, baselineHidden, workingOrder, baselineOrder, workingPlayerChrome, baselinePlayerChrome]
   );
 
   useEffect(() => {
     if (!loadedRig) return;
     const hidden = getConsoleConfig(loadedRig).hiddenButtons;
+    const chrome = getPlayerChromeFromRig(loadedRig.console_config);
+    const order = normalizePlayOrder((loadedRig.console_config as any)?.playSectionOrder);
     setWorkingHidden(hidden);
     setBaselineHidden(hidden);
+    setWorkingPlayerChrome(chrome);
+    setBaselinePlayerChrome(chrome);
+    setWorkingOrder(order);
+    setBaselineOrder(order);
   }, [loadedRig?.id]);
 
   function hideSection(sectionId: string) {
@@ -199,6 +263,8 @@ function ControlContent({ code }: { code: string }) {
           consoleConfig: {
             ...loadedRig.console_config,
             hiddenButtons: workingHidden,
+            playSectionOrder: workingOrder,
+            playerChrome: workingPlayerChrome,
           },
         }),
       });
@@ -211,6 +277,8 @@ function ControlContent({ code }: { code: string }) {
       const updated = normalizeRigResponse(await res.json());
       setLoadedRig(updated);
       setBaselineHidden(workingHidden);
+      setBaselineOrder(workingOrder);
+      setBaselinePlayerChrome(workingPlayerChrome);
       toast.success('Configuration saved');
       return true;
     } catch (err) {
@@ -235,7 +303,51 @@ function ControlContent({ code }: { code: string }) {
 
   function discardEditMode() {
     setWorkingHidden(baselineHidden);
+    setWorkingOrder(baselineOrder);
+    setWorkingPlayerChrome(baselinePlayerChrome);
     setMode('play');
+  }
+
+  async function handlePlayerLogoUpload(file: File) {
+    if (!loadedRig || uploadingLogo) return;
+    if (!entitlements.customRigLogo) {
+      toast.error('Custom rig logo requires a Venue plan or higher');
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`/api/rigs/${loadedRig.id}/logo`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+
+      const updated = normalizeRigResponse(await res.json());
+      setLoadedRig(updated);
+      setWorkingPlayerChrome((prev) => {
+        const userLogo = getUserLogoLayer(prev);
+        return {
+          ...prev,
+          layers: {
+            ...prev.layers,
+            userLogo: { ...userLogo, visible: true },
+          },
+        };
+      });
+      toast.success('Logo uploaded — drag it on the preview, then Save & done');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
   }
 
   const roomHasMatrix = useMemo(() => {
@@ -252,9 +364,77 @@ function ControlContent({ code }: { code: string }) {
     [isHidden, roomHasMatrix]
   );
 
+  const hasSectionContent = useCallback(
+    (id: string): boolean => {
+      if (id === 'torch-controls') return Boolean(roomState);
+      if (id === 'matrix-grid') return roomHasMatrix && Boolean(roomState);
+      return true;
+    },
+    [roomState, roomHasMatrix]
+  );
+
+  const effectiveOrder = useMemo(() => normalizePlayOrder(workingOrder), [workingOrder]);
+
+  const visibleSectionIds = useMemo(
+    () => effectiveOrder.filter((id) => !isHidden(id) && hasSectionContent(id)),
+    [effectiveOrder, isHidden, hasSectionContent]
+  );
+
+  function moveSection(id: string, dir: -1 | 1) {
+    setWorkingOrder((prev) => {
+      const order = normalizePlayOrder(prev);
+      const visible = order.filter((sid) => !isHidden(sid) && hasSectionContent(sid));
+      const vi = visible.indexOf(id);
+      const target = vi + dir;
+      if (vi < 0 || target < 0 || target >= visible.length) return prev;
+      const swapId = visible[target]!;
+      const next = [...order];
+      const a = next.indexOf(id);
+      const b = next.indexOf(swapId);
+      [next[a], next[b]] = [next[b]!, next[a]!];
+      return next;
+    });
+  }
+
+  function sectionChromeProps(id: string) {
+    const visibleIndex = visibleSectionIds.indexOf(id);
+    const lastIndex = visibleSectionIds.length - 1;
+    return {
+      order: effectiveOrder.indexOf(id),
+      onHide: () => hideSection(id),
+      onMoveUp: visibleIndex > 0 ? () => moveSection(id, -1) : undefined,
+      onMoveDown:
+        visibleIndex >= 0 && visibleIndex < lastIndex ? () => moveSection(id, 1) : undefined,
+    };
+  }
+
+  const previewBackgroundColor = initialSequenceDraft.palette[0] ?? '#1a0533';
+
+  const sequenceSelector =
+    seqSelect.options.length > 0 ? (
+      <select
+        aria-label="Pattern sequence"
+        value={seqSelect.selectedId ?? ''}
+        disabled={!connected}
+        onChange={(event) => setSeqSignal({ id: event.target.value, nonce: Date.now() })}
+        className="h-9 max-w-[14rem] rounded-md border border-white/10 bg-black/40 px-2 text-xs font-cyber uppercase tracking-wider text-foreground"
+      >
+        {seqSelect.options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+            {option.isDefault ? ' (default)' : ''}
+          </option>
+        ))}
+      </select>
+    ) : null;
+
   const pathname = usePathname();
   const { teamEntitlements, mutate: mutateEntitlements } = useTeamEntitlements();
   const entitlements = mergeEntitlementsForUi(roomState?.entitlements, teamEntitlements);
+  const rigLogoUrlForPreview = useMemo(() => {
+    if (!loadedRig?.logo_asset_path || !entitlements.customRigLogo) return null;
+    return rigLogoPublicUrl(loadedRig.logo_asset_path);
+  }, [loadedRig?.logo_asset_path, entitlements.customRigLogo]);
   const controlReturnUrl = searchParams.toString()
     ? `${pathname}?${searchParams.toString()}`
     : pathname;
@@ -309,6 +489,7 @@ function ControlContent({ code }: { code: string }) {
             : ['#FF0055', '#00FFCC'];
 
         setInitialSequenceDraft(createDefaultDraft(rigPalette));
+        setPreviewDraft(createDefaultDraft(rigPalette));
         setWorkingState((prev) => ({
           ...prev,
           artId: rig.default_visual_art_id || 'audio-shader',
@@ -552,6 +733,7 @@ function ControlContent({ code }: { code: string }) {
             onEndSession={() => void handleCloseRoom()}
             endingSession={closingRoom}
             showEndButton={!isHidden('terminate-rave')}
+            sequenceSelector={sequenceSelector}
             shareControls={
               <RoomShareControls
                 roomCode={code}
@@ -565,9 +747,26 @@ function ControlContent({ code }: { code: string }) {
           />
 
           {activeTab === 'patterns' && visibleTabs.includes('patterns') ? (
+            <PlayDevicesDesk
+              roomCode={code}
+              mode={mode}
+              previewBackgroundColor={previewBackgroundColor}
+              playerChrome={workingPlayerChrome}
+              entitlements={entitlements}
+              logoUrl={rigLogoUrlForPreview}
+              previewDraft={previewDraft}
+              uploadingLogo={uploadingLogo}
+              onLogoUpload={(file) => void handlePlayerLogoUpload(file)}
+              onEnterEditLayout={enterEditMode}
+              onPlayerChromeChange={setWorkingPlayerChrome}
+            >
             <div className="flex flex-col gap-6">
               {mode === 'edit' && hiddenPlaySections.length > 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/15 bg-black/20 p-4">
+                <div style={{ order: -2 }}>
+                  <h3 className="mb-2 text-xs font-cyber font-bold uppercase tracking-widest text-zinc-400">
+                    Operator panels
+                  </h3>
+                  <div className="rounded-2xl border border-dashed border-white/15 bg-black/20 p-4">
                   <p className="mb-3 flex items-center gap-1.5 text-xs font-cyber uppercase tracking-wider text-muted-foreground">
                     <Plus className="size-3.5" />
                     Add section
@@ -584,11 +783,12 @@ function ControlContent({ code }: { code: string }) {
                       </button>
                     ))}
                   </div>
+                  </div>
                 </div>
               ) : null}
 
               {!isHidden('preset-sequences') ? (
-                <EditSectionChrome mode={mode} onHide={() => hideSection('preset-sequences')}>
+                <EditSectionChrome mode={mode} {...sectionChromeProps('preset-sequences')}>
                   <NeonCard
                     glowColor="violet"
                     borderVariant="violet"
@@ -608,6 +808,7 @@ function ControlContent({ code }: { code: string }) {
                   <PatternSequenceEditor
                     key={loadedRig?.id ?? 'default'}
                     variant="control"
+                    mode="operate"
                     availablePresetIds={entitlements.availablePresets}
                     audioReactive={entitlements.audioReactive}
                     effectLayering={entitlements.effectLayering}
@@ -616,6 +817,10 @@ function ControlContent({ code }: { code: string }) {
                     audioSource={audioSource}
                     onAudioSourceChange={setAudioSource}
                     initialDraft={initialSequenceDraft}
+                    onPreviewChange={setPreviewDraft}
+                    onSelectionStateChange={setSeqSelect}
+                    externalSelect={seqSignal}
+                    hideInlineSelector
                     onSendLive={(draft) => sendDistribution(draft, true)}
                     roomCode={code.toUpperCase()}
                     liveName={liveDraftName}
@@ -629,7 +834,7 @@ function ControlContent({ code }: { code: string }) {
               ) : null}
 
               {roomState && !isHidden('torch-controls') ? (
-                <EditSectionChrome mode={mode} onHide={() => hideSection('torch-controls')}>
+                <EditSectionChrome mode={mode} {...sectionChromeProps('torch-controls')}>
                   <NeonCard
                     glowColor="cyan"
                     borderVariant="cyan"
@@ -647,15 +852,17 @@ function ControlContent({ code }: { code: string }) {
               ) : null}
 
               {roomState ? (
-                <DeviceCapBanner
-                  deviceCount={roomState.devices.length}
-                  maxDevices={entitlements.maxDevices}
-                  returnUrl={controlReturnUrl}
-                />
+                <div style={{ order: -1 }}>
+                  <DeviceCapBanner
+                    deviceCount={roomState.devices.length}
+                    maxDevices={entitlements.maxDevices}
+                    returnUrl={controlReturnUrl}
+                  />
+                </div>
               ) : null}
 
               {!isHidden('connected-screens') ? (
-                <EditSectionChrome mode={mode} onHide={() => hideSection('connected-screens')}>
+                <EditSectionChrome mode={mode} {...sectionChromeProps('connected-screens')}>
                   <NeonCard
                     glowColor="none"
                     borderVariant="default"
@@ -698,7 +905,7 @@ function ControlContent({ code }: { code: string }) {
               ) : null}
 
               {roomHasMatrix && !isHidden('matrix-grid') && roomState ? (
-                <EditSectionChrome mode={mode} onHide={() => hideSection('matrix-grid')}>
+                <EditSectionChrome mode={mode} {...sectionChromeProps('matrix-grid')}>
                   <NeonCard
                     glowColor="cyan"
                     borderVariant="cyan"
@@ -717,6 +924,7 @@ function ControlContent({ code }: { code: string }) {
                 </EditSectionChrome>
               ) : null}
             </div>
+            </PlayDevicesDesk>
           ) : null}
 
           {activeTab === 'visuals' && visibleTabs.includes('visuals') ? (

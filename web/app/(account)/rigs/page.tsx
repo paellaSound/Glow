@@ -27,6 +27,7 @@ import {
   ToggleRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { parsePlayerChromeConfig } from '@/lib/glow/player-chrome-config';
 import {
   NeonButton,
   NeonCard,
@@ -116,6 +117,7 @@ type FormValues = {
   logoOpacity: number;
   displayName: string;
   displayNamePosition: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  showReactionsToolbar: boolean;
 };
 
 const SOCIAL_KINDS = [
@@ -165,6 +167,7 @@ export default function RigsPage() {
   const [formCues, setFormCues] = useState<Omit<Cue, 'id'>[]>([]);
   const [formSocials, setFormSocials] = useState<Omit<Social, 'id'>[]>([]);
   const [formConsoleTabs, setFormConsoleTabs] = useState<string[]>(['devices', 'visuals']);
+  const [formShowReactionsToolbar, setFormShowReactionsToolbar] = useState(true);
 
   // QR config states
   const [formQrEnabled, setFormQrEnabled] = useState(false);
@@ -250,6 +253,7 @@ export default function RigsPage() {
     setFormLogoPosition(vals.logoPosition || 'center');
     setFormLogoEffect(vals.logoEffect || 'none');
     setFormLogoOpacity(vals.logoOpacity ?? 0.8);
+    setFormShowReactionsToolbar(vals.showReactionsToolbar ?? true);
     setLogoFile(null);
 
     // Reconstruct original values for comparison
@@ -270,7 +274,8 @@ export default function RigsPage() {
         qrDuration: 5,
         logoPosition: 'center',
         logoEffect: 'none',
-        logoOpacity: 0.8
+        logoOpacity: 0.8,
+        showReactionsToolbar: true,
       });
     } else {
       const originalRig = rigsList?.find(r => r.id === draftData.editingRigId);
@@ -306,6 +311,9 @@ export default function RigsPage() {
           logoPosition: logoConfig?.position ?? 'center',
           logoEffect: logoConfig?.effect ?? 'none',
           logoOpacity: logoConfig?.opacity ?? 0.8,
+          showReactionsToolbar:
+            parsePlayerChromeConfig(originalRig.consoleConfig?.playerChrome).showReactionsToolbar !==
+            false,
         });
       } else {
         setOriginalValues({
@@ -325,6 +333,7 @@ export default function RigsPage() {
           logoPosition: vals.logoPosition,
           logoEffect: vals.logoEffect,
           logoOpacity: vals.logoOpacity,
+          showReactionsToolbar: vals.showReactionsToolbar ?? true,
         });
       }
     }
@@ -361,6 +370,7 @@ export default function RigsPage() {
     if (formLogoPosition !== originalValues.logoPosition) return true;
     if (formLogoEffect !== originalValues.logoEffect) return true;
     if (formLogoOpacity !== originalValues.logoOpacity) return true;
+    if (formShowReactionsToolbar !== originalValues.showReactionsToolbar) return true;
     if (logoFile !== null) return true;
     return false;
   }, [
@@ -381,6 +391,7 @@ export default function RigsPage() {
     formLogoPosition,
     formLogoEffect,
     formLogoOpacity,
+    formShowReactionsToolbar,
     logoFile,
   ]);
 
@@ -410,6 +421,7 @@ export default function RigsPage() {
         logoPosition: formLogoPosition,
         logoEffect: formLogoEffect,
         logoOpacity: formLogoOpacity,
+        showReactionsToolbar: formShowReactionsToolbar,
       }
     };
 
@@ -670,6 +682,9 @@ export default function RigsPage() {
     setFormLogoEffect(logoEffectVal);
     setFormLogoOpacity(logoOpacityVal);
 
+    const playerChrome = parsePlayerChromeConfig(rig.consoleConfig?.playerChrome);
+    setFormShowReactionsToolbar(playerChrome.showReactionsToolbar !== false);
+
     setLogoFile(null);
     setActiveTab('info');
 
@@ -691,6 +706,7 @@ export default function RigsPage() {
       logoPosition: logoPositionVal,
       logoEffect: logoEffectVal,
       logoOpacity: logoOpacityVal,
+      showReactionsToolbar: playerChrome.showReactionsToolbar !== false,
     });
   };
 
@@ -720,6 +736,7 @@ export default function RigsPage() {
     setFormLogoPosition('center');
     setFormLogoEffect('none');
     setFormLogoOpacity(0.8);
+    setFormShowReactionsToolbar(true);
     setLogoFile(null);
     setActiveTab('info');
 
@@ -741,6 +758,7 @@ export default function RigsPage() {
       logoPosition: 'center',
       logoEffect: 'none',
       logoOpacity: 0.8,
+      showReactionsToolbar: true,
     });
   };
 
@@ -871,6 +889,10 @@ export default function RigsPage() {
             position: formLogoPosition,
             effect: formLogoEffect,
             opacity: Number(formLogoOpacity),
+          },
+          playerChrome: {
+            ...parsePlayerChromeConfig(editingRig?.consoleConfig?.playerChrome),
+            showReactionsToolbar: formShowReactionsToolbar,
           },
         },
       };
@@ -1787,6 +1809,30 @@ export default function RigsPage() {
                           )}
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-black/10 dark:border-white/10 bg-black/[0.02] dark:bg-white/[0.02] p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <span className="font-cyber font-bold uppercase tracking-wider text-xs block">
+                          Player emoji reactions
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-cyber tracking-wide uppercase mt-0.5 block max-w-md">
+                          When enabled, connected phones show the reaction toolbar. Requires an audience reactions plan.
+                        </span>
+                      </div>
+                      <label className="flex shrink-0 items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formShowReactionsToolbar}
+                          onChange={(event) => setFormShowReactionsToolbar(event.target.checked)}
+                          className="accent-neon-magenta size-4"
+                        />
+                        <span className="text-[10px] font-cyber uppercase tracking-widest text-muted-foreground">
+                          {formShowReactionsToolbar ? 'On' : 'Off'}
+                        </span>
+                      </label>
                     </div>
                   </div>
 

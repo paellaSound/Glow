@@ -123,7 +123,6 @@ export function PatternSequencePreview({
   const [orientation, setOrientation] = useState<Orientation>('landscape');
   const [viewport, setViewport] = useState<ViewportMode>('mobile');
   const [previewMode, setPreviewMode] = useState<'split' | 'device'>('split');
-  const [statusLabel, setStatusLabel] = useState('Preview');
   const playingRef = useRef(true);
   const presetSeedRef = useRef(presetSeedProp ?? Date.now());
   const presetCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -139,38 +138,40 @@ export function PatternSequencePreview({
   const previewEffect = previewEffectId
     ? draft.effects.find((effect) => effect.id === previewEffectId) ?? null
     : null;
-  const activeEffects = getActiveEffects(draft.effects);
+  const activeEffects = useMemo(() => getActiveEffects(draft.effects), [draft.effects]);
   const isSplitPreview = activeEffects.length > 1 && !previewEffect;
 
-  useEffect(() => {
+  const statusLabel = useMemo(() => {
     if (fallbackEnabled) {
-      setStatusLabel('Auto-Strobe');
-      return;
+      return 'Auto-Strobe';
     }
 
     if (previewEffect) {
       const preset = getPreset(previewEffect.presetId);
-      setStatusLabel(`Previewing · ${preset?.label ?? previewEffect.presetId}`);
-      return;
+      return `Previewing · ${preset?.label ?? previewEffect.presetId}`;
     }
 
     if (isSplitPreview) {
       if (previewMode === 'device') {
-        setStatusLabel(`Device preview · 1 assigned effect`);
-      } else {
-        setStatusLabel(`Split preview · ${activeEffects.length} effects in mix`);
+        return 'Device preview · 1 assigned effect';
       }
-      return;
+      return `Split preview · ${activeEffects.length} effects in mix`;
     }
 
     if (activeEffects.length === 1) {
       const preset = getPreset(activeEffects[0]!.presetId);
-      setStatusLabel(`Previewing · ${preset?.label ?? activeEffects[0]!.presetId}`);
-      return;
+      return `Previewing · ${preset?.label ?? activeEffects[0]!.presetId}`;
     }
 
-    setStatusLabel(`Editing · ${draft.name}`);
-  }, [draft.name, draft.effects, activeEffects, fallbackEnabled, isSplitPreview, previewEffect, previewMode]);
+    return `Editing · ${draft.name}`;
+  }, [
+    draft.name,
+    activeEffects,
+    fallbackEnabled,
+    isSplitPreview,
+    previewEffect,
+    previewMode,
+  ]);
 
   useEffect(() => {
     const canvas = presetCanvasRef.current;
