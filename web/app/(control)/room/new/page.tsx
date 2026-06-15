@@ -17,7 +17,7 @@ import {
   buildLimitBody,
   buildLimitTitle,
   formatDeviceCap,
-  getRequiredPlanForFeature,
+  getNextPlanForDevices,
 } from '@/lib/plans/plan-meta';
 import { AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -191,7 +191,8 @@ export default function CreateRoomPage() {
     void createRoom();
   }
 
-  const matrixPlan = getRequiredPlanForFeature('matrix_too_large');
+  // Suggest the next tier that actually fits a bigger grid (matrix cells === devices).
+  const matrixPlan = getNextPlanForDevices(maxMatrixCells);
   const hasActiveSubscription =
     team?.subscriptionStatus === 'active' || team?.subscriptionStatus === 'trialing';
 
@@ -376,12 +377,12 @@ export default function CreateRoomPage() {
                   <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
                   <div className="flex flex-col gap-2">
                     <span className="font-cyber text-xs font-semibold uppercase tracking-wide text-amber-300">
-                      Aforo masivo — comprueba la cobertura
+                      Massive crowd — check your coverage
                     </span>
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      Con dispositivos ilimitados, el resultado depende del nivel de cobertura
-                      de red del recinto. Si la zona tiene mala señal o saturación, algunos
-                      móviles no sincronizarán bien. Comprueba la conectividad antes de lanzar.
+                      With unlimited phones, the show depends on the venue&apos;s network
+                      coverage. If the area has weak signal or congestion, some phones
+                      won&apos;t sync cleanly. Test the connectivity before you go live.
                     </p>
                     <label className="flex cursor-pointer items-start gap-2">
                       <input
@@ -394,12 +395,12 @@ export default function CreateRoomPage() {
                         className="mt-0.5 rounded border-border bg-transparent text-amber-400 focus:ring-amber-400"
                       />
                       <span className="text-xs font-medium leading-snug text-foreground">
-                        Conozco los riesgos y he comprobado la conectividad / cobertura de la zona.
+                        I understand the risks and I&apos;ve checked the venue&apos;s connectivity / coverage.
                       </span>
                     </label>
                     {coverageError && !coverageAck ? (
                       <span className="text-[10px] font-cyber uppercase tracking-wide text-amber-400">
-                        Marca la casilla para lanzar la sala.
+                        Tick the box to launch the room.
                       </span>
                     ) : null}
                   </div>

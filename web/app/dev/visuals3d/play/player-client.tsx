@@ -7,7 +7,7 @@
  * renders it with the SAME config-driven engine the projector would use — only
  * energy / action / mic controls, no authoring UI. This is the dev proof that a
  * scene runs purely from its config + source files, decoupled from the editor
- * and without touching the production energy-orb. It mirrors what Nivel 2 will
+ * and without touching the production energy-orb. It mirrors what Level 2 will
  * do once the assets live in Supabase instead of IndexedDB.
  */
 

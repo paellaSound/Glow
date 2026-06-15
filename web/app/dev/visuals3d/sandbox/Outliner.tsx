@@ -31,7 +31,7 @@ export function Outliner({
               <button
                 onClick={() => {
                   selectLevel(i);
-                  setWorkspace('niveles');
+                  setWorkspace('levels');
                 }}
                 title={lv.glb ? `Level ${i}: ${lv.glb}` : `Level ${i}: no GLB`}
                 className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left ${
@@ -49,7 +49,7 @@ export function Outliner({
           <button
             onClick={() => {
               setSelection({ kind: 'actions' });
-              setWorkspace('acciones');
+              setWorkspace('actions');
             }}
             title="Global named actions"
             className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left ${

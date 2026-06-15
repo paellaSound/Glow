@@ -17,21 +17,21 @@ import { Label } from './widgets';
 type Props = { state: SandboxState };
 
 const LEVEL_TABS: { id: LevelTab; icon: string; label: string }[] = [
-  { id: 'nivel', icon: '🎚', label: 'Level' },
+  { id: 'level', icon: '🎚', label: 'Level' },
   { id: 'camera', icon: '🎥', label: 'Camera' },
   { id: 'light', icon: '💡', label: 'Light' },
   { id: 'material', icon: '🎨', label: 'Material' },
 ];
 
 export function Properties({ state }: Props) {
-  const [levelTab, setLevelTab] = useState<LevelTab>('nivel');
+  const [levelTab, setLevelTab] = useState<LevelTab>('level');
   const { workspace, selection } = state;
 
   const colorUtils = { hslToHex, hexToHsl };
 
   let content: React.ReactNode;
 
-  if (selection.kind === 'actions' || workspace === 'acciones') {
+  if (selection.kind === 'actions' || workspace === 'actions') {
     content = <ActionsPanel {...state} {...colorUtils} />;
   } else if (workspace === 'audio') {
     content = <AudioPanel {...state} />;
@@ -68,7 +68,7 @@ export function Properties({ state }: Props) {
             </button>
           ))}
         </div>
-        {levelTab === 'nivel' && <LevelPanel {...state} {...colorUtils} />}
+        {levelTab === 'level' && <LevelPanel {...state} {...colorUtils} />}
         {levelTab === 'camera' && <CameraPanel {...state} />}
         {levelTab === 'light' && <LightPanel {...state} {...colorUtils} />}
         {levelTab === 'material' && <MaterialPanel {...state} />}

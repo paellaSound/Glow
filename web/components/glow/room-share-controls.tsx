@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Download, ExternalLink, QrCode, Share2, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,12 @@ export function RoomShareControls({
 }: RoomShareControlsProps) {
   const [copied, setCopied] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [shareInfo, setShareInfo] = useState<ShareInfo>({ rigName: null, socials: [] });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const joinUrl = useMemo(
     () => buildPlayerJoinUrl(roomCode, { matrix: matrixEnabled }),
@@ -146,45 +152,48 @@ export function RoomShareControls({
         </div>
       )}
 
-      {qrModalOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
-          onClick={() => setQrModalOpen(false)}
-        >
-          <div
-            className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
+      {mounted && qrModalOpen
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm"
               onClick={() => setQrModalOpen(false)}
-              className="absolute right-4 top-4 rounded-full border border-white/10 p-1.5 text-zinc-400 transition-colors hover:border-white/20 hover:text-white"
-              aria-label="Close QR preview"
             >
-              <X className="h-4 w-4" />
-            </button>
+              <div
+                className="relative my-auto w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-950 p-6 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={() => setQrModalOpen(false)}
+                  className="absolute right-4 top-4 rounded-full border border-white/10 p-1.5 text-zinc-400 transition-colors hover:border-white/20 hover:text-white"
+                  aria-label="Close QR preview"
+                >
+                  <X className="h-4 w-4" />
+                </button>
 
-            <RoomQrPanel
-              roomCode={roomCode}
-              matrixEnabled={matrixEnabled}
-              rigName={shareInfo.rigName}
-              socials={shareInfo.socials}
-              customQrBranding={shareInfo.customQrBranding ?? false}
-              glowBrandName={shareInfo.glowBrandName}
-              qrSize={480}
-              variant="dark"
-              showJoinUrl={false}
-            />
+                <RoomQrPanel
+                  roomCode={roomCode}
+                  matrixEnabled={matrixEnabled}
+                  rigName={shareInfo.rigName}
+                  socials={shareInfo.socials}
+                  customQrBranding={shareInfo.customQrBranding ?? false}
+                  glowBrandName={shareInfo.glowBrandName}
+                  qrSize={480}
+                  variant="dark"
+                  showJoinUrl={false}
+                />
 
-            <div className="mt-4 flex justify-center">
-              <Button type="button" variant="outline" size="sm" onClick={openQrInNewTab}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Open fullscreen
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+                <div className="mt-4 flex justify-center">
+                  <Button type="button" variant="outline" size="sm" onClick={openQrInNewTab}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Open fullscreen
+                  </Button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </>
   );
 }

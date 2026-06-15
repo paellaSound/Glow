@@ -6,7 +6,7 @@ import { BillingPageTracker } from '@/components/glow/billing-page-tracker';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
 import { GLOW_BRAND_NAME } from '@/lib/glow/branding';
 import { buildBillingPresentation } from '@/lib/plans/billing-cards';
-import { getPlanMeta, type PlanCode } from '@/lib/plans/plan-meta';
+import { formatDeviceCap, getPlanMeta, type PlanCode } from '@/lib/plans/plan-meta';
 import Link from 'next/link';
 
 const PLAN_ORDER: PlanCode[] = ['free', 'plus_25', 'plus_50', 'pro'];
@@ -46,7 +46,7 @@ export default async function BillingPage() {
               PLANS & BILLING
             </NeonTitle>
             <p className="mt-2 text-xs font-cyber tracking-wider text-muted-foreground uppercase max-w-xl">
-              Control the floor and the stage — scale as much as you need.
+              Every plan ships every feature. You only pay to grow your crowd and put your brand on stage.
             </p>
             <p className="mt-1 text-xs font-cyber tracking-wider text-muted-foreground uppercase">
               Current plan:{' '}
@@ -79,11 +79,11 @@ export default async function BillingPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center font-cyber text-xs">
               <div className="rounded-lg bg-black/10 dark:bg-white/5 p-3 border border-white/5">
                 <span className="block text-muted-foreground uppercase text-[10px] tracking-widest">Devices</span>
-                <span className="block text-xl font-bold text-foreground mt-1">{entitlements.maxDevices}</span>
+                <span className="block text-xl font-bold text-foreground mt-1">{formatDeviceCap(entitlements.maxDevices)}</span>
               </div>
               <div className="rounded-lg bg-black/10 dark:bg-white/5 p-3 border border-white/5">
                 <span className="block text-muted-foreground uppercase text-[10px] tracking-widest">Matrix cells</span>
-                <span className="block text-xl font-bold text-foreground mt-1">{entitlements.maxMatrixCells}</span>
+                <span className="block text-xl font-bold text-foreground mt-1">{formatDeviceCap(entitlements.maxMatrixCells)}</span>
               </div>
               <div className="rounded-lg bg-black/10 dark:bg-white/5 p-3 border border-white/5">
                 <span className="block text-muted-foreground uppercase text-[10px] tracking-widest">Grid cap</span>

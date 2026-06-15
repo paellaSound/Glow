@@ -126,6 +126,22 @@ export function getRequiredPlanForFeature(feature: GateFeature): Exclude<PlanCod
   return FEATURE_MIN_PLAN[feature];
 }
 
+/** Paid tiers ordered by device capacity (cheapest first). */
+const DEVICE_TIER_ORDER: Exclude<PlanCode, 'free'>[] = ['plus_25', 'plus_50', 'pro'];
+
+/**
+ * El plan de pago más barato que ofrece MÁS dispositivos que `currentMaxDevices`.
+ * Úsalo para los upsells de escala (device cap, matrix) en vez de un plan estático,
+ * para que un usuario que ya paga vea el SIGUIENTE tier y no el suyo. Como
+ * `max_matrix_cells === max_devices`, sirve también para el upsell de matrix.
+ */
+export function getNextPlanForDevices(currentMaxDevices: number): Exclude<PlanCode, 'free'> {
+  for (const code of DEVICE_TIER_ORDER) {
+    if (PLAN_META[code].deviceCap > currentMaxDevices) return code;
+  }
+  return 'pro';
+}
+
 export function isFeatureAllowed(
   feature: GateFeature,
   entitlements: PlanEntitlements,
@@ -186,9 +202,9 @@ export function buildLimitTitle(
     case 'visualsSurface':
       return 'Visuals surface requires Party';
     case 'customRigLogo':
-      return 'Custom rig logo requires Venue';
+      return 'Put your own logo on stage';
     case 'customQrBranding':
-      return 'Custom QR & socials require Venue';
+      return 'Your QR, your socials';
     case 'gifSearchFull':
       return 'Full GIF search requires Venue';
     case 'visualsEmit':
@@ -219,7 +235,7 @@ export function buildLimitBody(feature: GateFeature, planCode: Exclude<PlanCode,
       return `${meta.marketingName} unlocks live camera mosaic — ${price}`;
     case 'customRigLogo':
     case 'customQrBranding':
-      return `${meta.marketingName} puts your brand on stage & QR — ${price}`;
+      return `${meta.marketingName} puts your logo on stage, your QR & socials, and removes the Glow watermark — ${price}`;
     case 'gifSearchFull':
       return `${meta.marketingName} unlocks full GIF search — ${price}`;
     case 'visualsEmit':

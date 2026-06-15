@@ -42,17 +42,17 @@ export const DEFAULT_BINDINGS: AudioBinding[] = [
   { source: 'treble', target: 'animationSpeed', amount: 1.0, smoothing: 0.6, enabled: true },
 ];
 
-export type Workspace = 'layout' | 'niveles' | 'acciones' | 'audio' | 'export';
+export type Workspace = 'layout' | 'levels' | 'actions' | 'audio' | 'export';
 export type OutlinerSelection =
   | { kind: 'level'; level: number }
   | { kind: 'actions' }
   | { kind: 'scene' };
-export type LevelTab = 'nivel' | 'camera' | 'light' | 'material';
+export type LevelTab = 'level' | 'camera' | 'light' | 'material';
 
 export const WORKSPACES: { id: Workspace; label: string }[] = [
   { id: 'layout', label: 'Layout' },
-  { id: 'niveles', label: 'Levels' },
-  { id: 'acciones', label: 'Actions' },
+  { id: 'levels', label: 'Levels' },
+  { id: 'actions', label: 'Actions' },
   { id: 'audio', label: 'Audio' },
   { id: 'export', label: 'Export' },
 ];

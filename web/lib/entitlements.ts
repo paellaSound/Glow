@@ -183,7 +183,7 @@ export const PLAN_SEED_DATA = [
   {
     code: 'free',
     name: 'Free',
-    description: 'Prueba el show completo — marca Glow, hasta 15 dispositivos',
+    description: 'Run the whole product free — Glow branded, up to 15 phones',
     monthlyPriceCents: 0,
     sortOrder: 0,
     entitlements: {
@@ -207,7 +207,7 @@ export const PLAN_SEED_DATA = [
   {
     code: 'plus_25',
     name: 'Party',
-    description: 'Escala tu fiesta — 50 dispositivos, sin ads, marca Glow',
+    description: 'Scale up your night — 50 phones, no ads, Glow branding',
     monthlyPriceCents: 299,
     sortOrder: 1,
     entitlements: {
@@ -230,7 +230,7 @@ export const PLAN_SEED_DATA = [
   {
     code: 'plus_50',
     name: 'Venue',
-    description: 'Tu marca en escena — logo, QR social, sin marca de agua, 300 dispositivos',
+    description: 'Make the stage yours — your logo, custom QR, no watermark, 300 phones',
     monthlyPriceCents: 500,
     sortOrder: 2,
     entitlements: {
@@ -252,7 +252,7 @@ export const PLAN_SEED_DATA = [
   {
     code: 'pro',
     name: 'Pro',
-    description: 'Dispositivos ilimitados — tu marca + producción en vivo',
+    description: 'Unlimited phones — your brand + live production',
     monthlyPriceCents: 2500,
     sortOrder: 3,
     entitlements: {

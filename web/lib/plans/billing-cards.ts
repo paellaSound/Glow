@@ -8,12 +8,13 @@ import {
   type PlanCode,
 } from './plan-meta';
 
-// MODELO ACTUAL: todas las features están incluidas en todos los planes. Lo que
-// diferencia a los planes es la ESCALA (dispositivos) y el BRANDING (logo + marca
-// de agua). La copy de abajo lo refleja: las secciones Stage/Floor/Crowd muestran
-// "todo incluido" igual en todos, y Scale/Branding son los diferenciadores.
+// PRICING MODEL: every plan ships the full product. You only pay for two things:
+//   1. Crowd size  — how many phones can join (the real server cost)
+//   2. Your brand  — your logo on stage, your QR, no Glow watermark
+// The card copy below makes that explicit: "Crowd size" and "Your brand" are the
+// differentiators, and "Every feature included" reassures that nothing is locked.
 
-export type BillingSectionKey = 'scale' | 'branding' | 'show' | 'crowd';
+export type BillingSectionKey = 'crowd' | 'brand' | 'included';
 
 export type BillingSection = {
   key: BillingSectionKey;
@@ -33,84 +34,77 @@ export type BillingPlanPresentation = {
 };
 
 const SECTION_LABELS: Record<BillingSectionKey, string> = {
-  scale: 'Scale (lo que pagas)',
-  branding: 'Branding',
-  show: 'Show — todo incluido',
-  crowd: 'Crowd — todo incluido',
+  crowd: 'Crowd size — what you pay for',
+  brand: 'Your brand',
+  included: 'Every feature included',
 };
 
 function devicesLabel(maxDevices: number): string {
   return maxDevices >= UNLIMITED_DEVICES_THRESHOLD
-    ? 'Dispositivos ilimitados'
-    : `Hasta ${maxDevices} dispositivos`;
+    ? 'Unlimited phones'
+    : `Up to ${maxDevices} phones`;
 }
 
 function matrixLabel(cells: number, rows: number, cols: number): string {
-  if (cells >= UNLIMITED_DEVICES_THRESHOLD) return 'Matrix sin límite práctico';
-  return `Hasta ${cells} celdas de matrix (grid máx ${rows}×${cols})`;
+  if (cells >= UNLIMITED_DEVICES_THRESHOLD) return 'Matrix grids with no practical limit';
+  return `Up to ${cells} matrix cells (grid ${rows}×${cols})`;
 }
 
-function buildSections(planCode: PlanCode, ents: PlanEntitlements): BillingSection[] {
-  // Scale = el eje que se paga
-  const scaleItems: string[] = [
+function buildSections(ents: PlanEntitlements): BillingSection[] {
+  // 1. Crowd size — the thing that scales, and the thing you pay for
+  const crowdItems: string[] = [
     devicesLabel(ents.maxDevices),
     matrixLabel(ents.maxMatrixCells, ents.maxGridRows, ents.maxGridCols),
-    ents.adsEnabled ? 'House ads al entrar' : 'Sin ads',
+    ents.adsEnabled ? 'House ad on join' : 'No ads',
   ];
   if (ents.requiresCoverageAck) {
-    scaleItems.push('Aforo masivo (sujeto a cobertura de red de la zona)');
+    crowdItems.push('Massive crowds (best with solid venue coverage)');
   }
 
-  // Branding = el otro eje que se paga
-  const brandingItems: string[] = [
-    ents.removeWatermark ? 'Sin marca de agua Glow' : `Marca de agua ${GLOW_BRAND_NAME}`,
-    ents.customRigLogo ? 'Tu logo en escena' : `Logo ${GLOW_BRAND_NAME} en escena`,
-    ents.customQrBranding ? 'Tu QR + redes sociales' : `QR ${GLOW_BRAND_NAME}`,
+  // 2. Your brand — the second paid axis
+  const brandItems: string[] = [
+    ents.removeWatermark ? 'No Glow watermark on stage' : `${GLOW_BRAND_NAME} watermark on stage`,
+    ents.customRigLogo ? 'Your logo on the projector' : `${GLOW_BRAND_NAME} logo on the projector`,
+    ents.customQrBranding ? 'Your QR + social links' : `${GLOW_BRAND_NAME} join QR`,
   ];
 
-  // Show / Crowd = mismas features en todos los planes (todo incluido)
-  const showItems: string[] = [
-    'Visuals surface + preview en el desk',
-    'YouTube & 3D, todos los modos',
-    'Todos los presets de luz + audio-reactivo',
-    'Capas de efectos, secuencias y texto',
-    'Subida de imágenes + búsqueda GIF completa',
-    'Flash / linterna de dispositivos',
-  ];
-
-  const crowdItems: string[] = [
-    'Reacciones de la audiencia',
-    'Encuestas en directo',
-    'Mosaico de cámara en vivo (live call)',
+  // 3. Everything included — identical on every plan (nothing is locked behind a tier)
+  const includedItems: string[] = [
+    'Stage visuals: YouTube, 3D & shaders',
+    'Every light preset + audio-reactive FX',
+    'Effect layering, sequences & text',
+    'Image uploads + full GIF search',
+    'Phone flash / torch control',
+    'Audience reactions & live polls',
+    'Live camera mosaic (WebRTC)',
   ];
 
   return [
-    { key: 'scale', title: SECTION_LABELS.scale, items: scaleItems },
-    { key: 'branding', title: SECTION_LABELS.branding, items: brandingItems },
-    { key: 'show', title: SECTION_LABELS.show, items: showItems },
     { key: 'crowd', title: SECTION_LABELS.crowd, items: crowdItems },
+    { key: 'brand', title: SECTION_LABELS.brand, items: brandItems },
+    { key: 'included', title: SECTION_LABELS.included, items: includedItems },
   ];
 }
 
 const BRANDING_NOTES: Record<PlanCode, string> = {
-  free: `Marca ${GLOW_BRAND_NAME} — ideal para que te descubran`,
-  plus_25: `Marca ${GLOW_BRAND_NAME} en logo / QR`,
-  plus_50: 'Tu logo en escena + QR social, sin marca de agua',
-  pro: 'Tu marca + escala ilimitada',
+  free: `Run the whole product free — ${GLOW_BRAND_NAME} branded, up to 15 phones.`,
+  plus_25: 'More phones and zero ads — the easiest way to grow the floor.',
+  plus_50: `Your logo on stage, your QR, no ${GLOW_BRAND_NAME} watermark — and room for 300.`,
+  pro: 'Unlimited phones for festivals, tours and big rooms.',
 };
 
 const TAGLINES: Record<PlanCode, string> = {
-  free: 'Prueba el show completo',
-  plus_25: 'Escala tu fiesta',
-  plus_50: 'Tu marca en escena',
-  pro: 'Escala ilimitada',
+  free: 'The full show, on us',
+  plus_25: 'Scale up your night',
+  plus_50: 'Make the stage yours',
+  pro: 'No limits',
 };
 
 const CTAS: Record<PlanCode, string> = {
-  free: 'Plan actual',
-  plus_25: 'Escala tu fiesta',
-  plus_50: 'Tu marca en escena',
-  pro: 'Escala sin límites',
+  free: 'Current plan',
+  plus_25: 'Get Party',
+  plus_50: 'Get Venue',
+  pro: 'Go Pro',
 };
 
 export function buildBillingPresentation(
@@ -125,11 +119,11 @@ export function buildBillingPresentation(
     ctaLabel: CTAS[planCode],
     recommended: planCode === 'plus_50',
     brandingNote: BRANDING_NOTES[planCode],
-    sections: buildSections(planCode, ents),
+    sections: buildSections(ents),
     priceLabel:
       planCode === 'free' ? 'Free' : formatPlanPrice(meta?.priceCents ?? 0),
   };
 }
 
-// Reexport para consumidores que muestren el cap de dispositivos.
+// Re-export for consumers that display the device cap.
 export { formatDeviceCap };

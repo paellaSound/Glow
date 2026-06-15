@@ -8,7 +8,7 @@
  * config + palette + per-level GLB blobs + optional HDR — lives in one object
  * store keyed by id, so saving/loading is a single structured-clone round-trip.
  *
- * This is the dev stand-in for the future Nivel 2 (Supabase): same shape of
+ * This is the dev stand-in for the future Level 2 (Supabase): same shape of
  * data, persisted locally so we can validate the config-driven render without a
  * backend and without touching the production energy-orb.
  */

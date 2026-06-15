@@ -48,7 +48,7 @@ export function useSandboxState() {
     Array(ENERGY_LEVEL_COUNT).fill(null),
   );
   const [editingLevel, setEditingLevel] = useState(0);
-  const [workspace, setWorkspace] = useState<Workspace>('niveles');
+  const [workspace, setWorkspace] = useState<Workspace>('levels');
   const [selection, setSelection] = useState<OutlinerSelection>({ kind: 'level', level: 0 });
   const [transitionMode, setTransitionMode] = useState<TransitionMode>('crossfade');
   const [cameraMode, setCameraMode] = useState<CameraMode>('free');

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { NeonButton, NeonCard, NeonTitle } from '@/components/ui/neon';
 import { UpgradeModal } from '@/components/glow/upgrade-modal';
 import { usePlanGate } from '@/lib/plans/use-plan-gate';
-import { getRequiredPlanForFeature } from '@/lib/plans/plan-meta';
+import { getNextPlanForDevices } from '@/lib/plans/plan-meta';
 
 type DeviceCapBannerProps = {
   deviceCount: number;
@@ -14,9 +14,13 @@ type DeviceCapBannerProps = {
 
 export function DeviceCapBanner({ deviceCount, maxDevices, returnUrl }: DeviceCapBannerProps) {
   const atCap = deviceCount >= maxDevices;
+  // Point at the NEXT tier above the user's current cap, so a paying user sees a
+  // real upgrade (not their own plan again).
+  const requiredPlan = getNextPlanForDevices(maxDevices);
   const gate = usePlanGate('max_devices', {
     state: atCap ? 'blocked' : 'allowed',
     deviceCount,
+    requiredPlan,
     limitReason: `You've reached ${maxDevices} connected devices`,
   });
   const [modalOpen, setModalOpen] = useState(false);
@@ -29,8 +33,6 @@ export function DeviceCapBanner({ deviceCount, maxDevices, returnUrl }: DeviceCa
   }, [atCap, deviceCount]);
 
   if (!atCap || dismissed) return null;
-
-  const requiredPlan = getRequiredPlanForFeature('max_devices');
 
   return (
     <>

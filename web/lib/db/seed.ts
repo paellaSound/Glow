@@ -80,10 +80,13 @@ async function syncStripeProducts() {
 
   console.log('Syncing Stripe products for paid plans...');
 
+  // Stripe-facing product names = marketing names (Party / Venue / Pro).
+  // NOTE: only used when creating a NEW Stripe product (empty stripe_price_id).
+  // Products already in Stripe keep their old name until renamed in the dashboard.
   const paidPlans = [
-    { code: 'plus_25', name: 'Plus 25', amount: 299 },
-    { code: 'plus_50', name: 'Plus 50', amount: 500 },
-    { code: 'pro', name: 'Pro', amount: 2500 },
+    { code: 'plus_25', name: 'Glow Party', amount: 299 },
+    { code: 'plus_50', name: 'Glow Venue', amount: 500 },
+    { code: 'pro', name: 'Glow Pro', amount: 2500 },
   ];
 
   for (const planDef of paidPlans) {
@@ -103,7 +106,7 @@ async function syncStripeProducts() {
     try {
       const product = await stripe.products.create({
         name: planDef.name,
-        description: `Glow ${planDef.name} plan`,
+        description: `${planDef.name} subscription`,
       });
 
       const price = await stripe.prices.create({
