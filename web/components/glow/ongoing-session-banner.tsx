@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import useSWR from 'swr';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,8 @@ export function useActiveRoom() {
 }
 
 export function useEndActiveRoom(roomCode: string | undefined) {
+  const router = useRouter();
+  const pathname = usePathname();
   const { mutate } = useActiveRoom();
   const { emitWithCallback, connected } = useGlowSocket();
   const [ending, setEnding] = useState(false);
@@ -30,11 +33,20 @@ export function useEndActiveRoom(roomCode: string | undefined) {
     setEnding(true);
     try {
       if (connected) {
-        await emitWithCallback<{ ok: boolean; reason?: string }>('orchestrator:close_room', {
-          roomCode,
-        });
+        const response = await emitWithCallback<{ ok: boolean; reason?: string }>(
+          'orchestrator:close_room',
+          { roomCode }
+        );
+        if (!response.ok && response.reason !== 'Room not found') {
+          alert(response.reason ?? 'Could not end the session. Open the control desk to terminate it manually.');
+          return;
+        }
       }
       await mutate(null, { revalidate: true });
+
+      if (/^\/room\/[^/]+\/(control|control-device)(\/|$)/.test(pathname)) {
+        router.push('/');
+      }
     } catch {
       alert('Could not end the session. Open the control desk to terminate it manually.');
     } finally {

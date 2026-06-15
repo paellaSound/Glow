@@ -40,7 +40,7 @@ Optional embed for AI video when ready.
 
 ### B. Empty states
 
-- [x] Device list empty: “Share the QR — waiting for first phone”
+- [x] Device list empty: “Share the QR — waiting for first device”
 - [x] Auto-advance step 2 when `device_count >= 1`
 
 ### C. Create room

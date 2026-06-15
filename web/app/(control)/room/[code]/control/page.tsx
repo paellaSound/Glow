@@ -3,7 +3,8 @@
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { captureClientEvent } from '@/lib/posthog-client';
-import { ChevronDown, ChevronUp, Smartphone } from 'lucide-react';
+import { ChevronDown, ChevronUp, EyeOff, Plus, Smartphone } from 'lucide-react';
+import { toast } from 'sonner';
 import QRCode from 'qrcode';
 import { parseMatrixParam } from '@/lib/glow/join-url';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
@@ -13,7 +14,9 @@ import { FirstPartyOnboarding } from '@/components/glow/first-party-onboarding';
 import { OnboardingDebugPanel } from '@/components/glow/onboarding-debug-panel';
 import type { OnboardingStepId } from '@/lib/onboarding/constants';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
+import { ControlHeader, type ActiveTab } from '@/components/glow/control-header';
 import { RoomShareControls } from '@/components/glow/room-share-controls';
+import type { ConsoleMode } from '@/lib/glow/console-mode';
 import {
   PatternSequenceEditor,
   toDistributionEffects,
@@ -35,8 +38,6 @@ import { cn } from '@/lib/utils';
 import { LiveCallDeskProvider } from '@/lib/glow/use-live-call-desk';
 
 
-type ActiveTab = 'patterns' | 'visuals';
-
 type RigConsoleConfig = {
   visibleTabs?: Array<'patterns' | 'visuals' | 'devices'>;
   hiddenButtons?: string[];
@@ -52,6 +53,48 @@ function getConsoleConfig(rig: RigWithCues | null): { visibleTabs: ActiveTab[]; 
       : ['patterns', 'visuals'],
     hiddenButtons: config.hiddenButtons ?? [],
   };
+}
+
+const PLAY_SECTIONS = [
+  { id: 'preset-sequences', label: 'Patterns / Play Devices' },
+  { id: 'torch-controls', label: 'Flash / Torch' },
+  { id: 'connected-screens', label: 'Connected Screens' },
+  { id: 'matrix-grid', label: 'Grid Matrix', when: 'matrix' as const },
+] as const;
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((value, index) => value === sortedB[index]);
+}
+
+function EditSectionChrome({
+  mode,
+  onHide,
+  children,
+}: {
+  mode: ConsoleMode;
+  onHide: () => void;
+  children: React.ReactNode;
+}) {
+  if (mode !== 'edit') return <>{children}</>;
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-white/10">
+      <div className="flex items-center justify-end border-b border-white/10 bg-white/5 px-3 py-1.5">
+        <button
+          type="button"
+          onClick={onHide}
+          className="inline-flex items-center gap-1.5 text-[10px] font-cyber uppercase tracking-widest text-zinc-400 transition-colors hover:text-zinc-200"
+        >
+          <EyeOff className="size-3.5" />
+          Hide
+        </button>
+      </div>
+      {children}
+    </div>
+  );
 }
 
 function ControlContent({ code }: { code: string }) {
@@ -75,6 +118,10 @@ function ControlContent({ code }: { code: string }) {
   const [hasRunPreset, setHasRunPreset] = useState(false);
   const [shareAcknowledged, setShareAcknowledged] = useState(false);
   const [onboardingActiveStep, setOnboardingActiveStep] = useState<OnboardingStepId | null>(null);
+  const [mode, setMode] = useState<ConsoleMode>('play');
+  const [workingHidden, setWorkingHidden] = useState<string[]>([]);
+  const [baselineHidden, setBaselineHidden] = useState<string[]>([]);
+  const [savingConfig, setSavingConfig] = useState(false);
 
   useEffect(() => {
     if (onboardingActiveStep === 2) {
@@ -116,12 +163,94 @@ function ControlContent({ code }: { code: string }) {
   const orchestratorAudio = useAudioAnalyzer({ enabled: streamOrchestratorAudio });
   const consoleConfig = useMemo(() => getConsoleConfig(loadedRig), [loadedRig]);
   const visibleTabs = consoleConfig.visibleTabs;
-  const isButtonHidden = (buttonId: string) => consoleConfig.hiddenButtons.includes(buttonId);
+  const isHidden = useCallback(
+    (buttonId: string) => workingHidden.includes(buttonId),
+    [workingHidden]
+  );
+  const configDirty = useMemo(
+    () => !arraysEqual(workingHidden, baselineHidden),
+    [workingHidden, baselineHidden]
+  );
+
+  useEffect(() => {
+    if (!loadedRig) return;
+    const hidden = getConsoleConfig(loadedRig).hiddenButtons;
+    setWorkingHidden(hidden);
+    setBaselineHidden(hidden);
+  }, [loadedRig?.id]);
+
+  function hideSection(sectionId: string) {
+    setWorkingHidden((prev) => (prev.includes(sectionId) ? prev : [...prev, sectionId]));
+  }
+
+  function showSection(sectionId: string) {
+    setWorkingHidden((prev) => prev.filter((id) => id !== sectionId));
+  }
+
+  async function saveConsoleConfig(): Promise<boolean> {
+    if (!loadedRig || savingConfig) return false;
+
+    setSavingConfig(true);
+    try {
+      const res = await fetch(`/api/rigs/${loadedRig.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consoleConfig: {
+            ...loadedRig.console_config,
+            hiddenButtons: workingHidden,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+      }
+
+      const updated = normalizeRigResponse(await res.json());
+      setLoadedRig(updated);
+      setBaselineHidden(workingHidden);
+      toast.success('Configuration saved');
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save configuration');
+      return false;
+    } finally {
+      setSavingConfig(false);
+    }
+  }
+
+  function enterEditMode() {
+    setMode('edit');
+  }
+
+  async function doneEditMode() {
+    if (configDirty) {
+      const saved = await saveConsoleConfig();
+      if (!saved) return;
+    }
+    setMode('play');
+  }
+
+  function discardEditMode() {
+    setWorkingHidden(baselineHidden);
+    setMode('play');
+  }
 
   const roomHasMatrix = useMemo(() => {
     if (!roomState) return parseMatrixParam(searchParams.get('matrix')) ?? false;
     return roomState.matrix.rows > 1 || roomState.matrix.cols > 1;
   }, [roomState, searchParams]);
+
+  const hiddenPlaySections = useMemo(
+    () =>
+      PLAY_SECTIONS.filter((section) => {
+        if ('when' in section && section.when === 'matrix' && !roomHasMatrix) return false;
+        return isHidden(section.id);
+      }),
+    [isHidden, roomHasMatrix]
+  );
 
   const pathname = usePathname();
   const { teamEntitlements, mutate: mutateEntitlements } = useTeamEntitlements();
@@ -406,110 +535,67 @@ function ControlContent({ code }: { code: string }) {
         <SectionGlow glowColor="mixed" position="top" />
 
         <PageTransitionWrapper>
-          <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 sm:p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <NeonTitle as="h1" color="cyan" className="text-2xl font-black tracking-widest sm:text-3xl">
-                  ROOM {code.toUpperCase()}
-                </NeonTitle>
-                <p className="mt-2 text-xs font-cyber uppercase tracking-wider text-muted-foreground">
-                  Status:{' '}
-                  <span className={connected ? 'text-neon-cyan' : 'text-zinc-500'}>
-                    {connected ? 'Online' : 'Connecting...'}
-                  </span>
-                  {' · '}
-                  {roomState?.devices.length ?? 0} active screens
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <RoomShareControls
-                  roomCode={code}
-                  matrixEnabled={shareMatrixEnabled}
-                  onMatrixEnabledChange={setShareMatrixEnabled}
-                  showMatrixOption={roomHasMatrix}
-                  compact
-                  onShareAction={() => setShareAcknowledged(true)}
-                />
-                <NeonButton
-                  color="cyan"
-                  variant="outline"
-                  className="h-9 px-3 text-xs uppercase tracking-widest gap-1.5"
-                  onClick={() => setShowMobileModal(true)}
-                >
-                  <Smartphone className="size-3.5" />
-                  Phone Mode
-                </NeonButton>
-                {/* {!isButtonHidden('auto-strobe') ? (
-                  <NeonButton
-                    color="cyan"
-                    variant="outline"
-                    onClick={toggleFallback}
-                    className="h-9 px-4 text-xs uppercase tracking-widest"
-                  >
-                    Auto-Strobe {fallbackEnabled ? 'On' : 'Off'}
-                  </NeonButton>
-                ) : null} */}
-                {!isButtonHidden('terminate-rave') ? (
-                  <NeonButton
-                    color="magenta"
-                    variant="outline"
-                    className="h-9 px-4 text-xs uppercase tracking-widest border-red-500/20 text-red-400"
-                    disabled={closingRoom}
-                    onClick={() => void handleCloseRoom()}
-                  >
-                    {closingRoom ? 'Closing...' : 'End session'}
-                  </NeonButton>
-                ) : null}
-              </div>
-            </div>
-
-            {visibleTabs.length > 1 ? (
-              <div
-                role="tablist"
-                aria-label="Control desk sections"
-                className={cn(
-                  'grid gap-2 rounded-xl border border-white/10 bg-black/30 p-1 sm:max-w-md',
-                  visibleTabs.length === 3
-                    ? 'grid-cols-3'
-                    : visibleTabs.length === 2
-                    ? 'grid-cols-2'
-                    : 'grid-cols-1'
-                )}
-              >
-                {visibleTabs.map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeTab === tab}
-                    id={`tab-${tab}`}
-                    data-onboarding={tab === 'visuals' ? 'visuals' : undefined}
-                    onClick={() => switchTab(tab)}
-                    className={cn(
-                      'rounded-lg px-4 py-2.5 text-xs font-cyber uppercase tracking-widest transition-all',
-                      activeTab === tab
-                        ? 'bg-neon-cyan/15 text-neon-cyan border border-neon-cyan/30'
-                        : 'text-zinc-500 hover:text-zinc-200'
-                    )}
-                  >
-                    {tab === 'patterns' ? 'Play Devices' : 'Visuals'}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          <ControlHeader
+            roomCode={code}
+            connected={connected}
+            deviceCount={roomState?.devices.length ?? 0}
+            mode={mode}
+            onEnterEdit={enterEditMode}
+            onDoneEdit={() => void doneEditMode()}
+            onDiscardEdit={discardEditMode}
+            configDirty={configDirty}
+            savingConfig={savingConfig}
+            visibleTabs={visibleTabs}
+            activeTab={activeTab}
+            onTabChange={switchTab}
+            onOpenPhoneMode={() => setShowMobileModal(true)}
+            onEndSession={() => void handleCloseRoom()}
+            endingSession={closingRoom}
+            showEndButton={!isHidden('terminate-rave')}
+            shareControls={
+              <RoomShareControls
+                roomCode={code}
+                matrixEnabled={shareMatrixEnabled}
+                onMatrixEnabledChange={setShareMatrixEnabled}
+                showMatrixOption={roomHasMatrix}
+                compact
+                onShareAction={() => setShareAcknowledged(true)}
+              />
+            }
+          />
 
           {activeTab === 'patterns' && visibleTabs.includes('patterns') ? (
             <div className="flex flex-col gap-6">
-              {!isButtonHidden('preset-sequences') ? (
-                <NeonCard
-                  glowColor="violet"
-                  borderVariant="violet"
-                  hoverEffect={false}
-                  className="p-5 sm:p-6"
-                  data-onboarding="preset"
-                >
+              {mode === 'edit' && hiddenPlaySections.length > 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/15 bg-black/20 p-4">
+                  <p className="mb-3 flex items-center gap-1.5 text-xs font-cyber uppercase tracking-wider text-muted-foreground">
+                    <Plus className="size-3.5" />
+                    Add section
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {hiddenPlaySections.map((section) => (
+                      <button
+                        key={section.id}
+                        type="button"
+                        onClick={() => showSection(section.id)}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-cyber uppercase tracking-wider text-zinc-300 transition-colors hover:border-neon-violet/30 hover:text-neon-violet"
+                      >
+                        {section.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {!isHidden('preset-sequences') ? (
+                <EditSectionChrome mode={mode} onHide={() => hideSection('preset-sequences')}>
+                  <NeonCard
+                    glowColor="violet"
+                    borderVariant="violet"
+                    hoverEffect={false}
+                    className={cn('p-5 sm:p-6', mode === 'edit' && 'rounded-none border-0')}
+                    data-onboarding="preset"
+                  >
                   <div className="mb-5">
                     <NeonTitle as="h2" color="violet" className="text-lg font-black tracking-widest">
                       Rave Pattern Sequences
@@ -539,17 +625,25 @@ function ControlContent({ code }: { code: string }) {
                     roomState={roomState || undefined}
                   />
                 </NeonCard>
+                </EditSectionChrome>
               ) : null}
 
-              {roomState ? (
-                <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5 sm:p-6">
-                  <TorchControls
-                    roomCode={code}
-                    roomState={roomState}
-                    socket={socket}
-                    disabled={!connected}
-                  />
-                </NeonCard>
+              {roomState && !isHidden('torch-controls') ? (
+                <EditSectionChrome mode={mode} onHide={() => hideSection('torch-controls')}>
+                  <NeonCard
+                    glowColor="cyan"
+                    borderVariant="cyan"
+                    hoverEffect={false}
+                    className={cn('p-5 sm:p-6', mode === 'edit' && 'rounded-none border-0')}
+                  >
+                    <TorchControls
+                      roomCode={code}
+                      roomState={roomState}
+                      socket={socket}
+                      disabled={!connected}
+                    />
+                  </NeonCard>
+                </EditSectionChrome>
               ) : null}
 
               {roomState ? (
@@ -560,13 +654,15 @@ function ControlContent({ code }: { code: string }) {
                 />
               ) : null}
 
-              <NeonCard
-                glowColor="none"
-                borderVariant="default"
-                hoverEffect={false}
-                className="overflow-hidden"
-                data-onboarding="devices"
-              >
+              {!isHidden('connected-screens') ? (
+                <EditSectionChrome mode={mode} onHide={() => hideSection('connected-screens')}>
+                  <NeonCard
+                    glowColor="none"
+                    borderVariant="default"
+                    hoverEffect={false}
+                    className={cn('overflow-hidden', mode === 'edit' && 'rounded-none border-0')}
+                    data-onboarding="devices"
+                  >
                 <button
                   type="button"
                   className="flex w-full items-center justify-between px-5 py-4 text-left"
@@ -597,10 +693,18 @@ function ControlContent({ code }: { code: string }) {
                     />
                   </div>
                 ) : null}
-              </NeonCard>
+                  </NeonCard>
+                </EditSectionChrome>
+              ) : null}
 
-              {roomHasMatrix && !isButtonHidden('matrix-grid') && roomState ? (
-                <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-5 sm:p-6">
+              {roomHasMatrix && !isHidden('matrix-grid') && roomState ? (
+                <EditSectionChrome mode={mode} onHide={() => hideSection('matrix-grid')}>
+                  <NeonCard
+                    glowColor="cyan"
+                    borderVariant="cyan"
+                    hoverEffect={false}
+                    className={cn('p-5 sm:p-6', mode === 'edit' && 'rounded-none border-0')}
+                  >
                   <NeonTitle as="h3" color="cyan" className="mb-4 text-base font-black tracking-widest">
                     Grid Matrix
                   </NeonTitle>
@@ -610,6 +714,7 @@ function ControlContent({ code }: { code: string }) {
                     onCellClick={(row, col) => setSelectedCell({ row, col })}
                   />
                 </NeonCard>
+                </EditSectionChrome>
               ) : null}
             </div>
           ) : null}
@@ -640,7 +745,7 @@ function ControlContent({ code }: { code: string }) {
             onActiveStepChange={setOnboardingActiveStep}
           />
 
-          {/* Mobile Phone Control QR Modal */}
+          {/* Mobile Device Control QR Modal */}
           {showMobileModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in duration-200">
               <NeonCard glowColor="cyan" borderVariant="cyan" className="p-6 max-w-sm w-full relative">
@@ -654,7 +759,7 @@ function ControlContent({ code }: { code: string }) {
                 <div className="text-center">
                   <Smartphone className="size-8 mx-auto text-neon-cyan mb-2" />
                   <NeonTitle as="h3" color="cyan" className="text-lg font-black tracking-wider uppercase">
-                    Control from Phone
+                    Control from Device
                   </NeonTitle>
                   <p className="mt-2 text-xs text-zinc-400">
                     Scan this QR code to load the operate-only interface on your mobile or tablet.

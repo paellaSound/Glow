@@ -161,7 +161,7 @@ function StepCallout({
             <>
               <p className="text-[10px] text-zinc-500">
                 {deviceCount > 0
-                  ? `${deviceCount} phone${deviceCount === 1 ? '' : 's'} connected.`
+                  ? `${deviceCount} device${deviceCount === 1 ? '' : 's'} connected.`
                   : 'Join from another device using Share or View QR above.'}
               </p>
               <NeonButton
@@ -171,7 +171,7 @@ function StepCallout({
                 disabled={deviceCount < 1}
                 onClick={() => onContinue(2)}
               >
-                {deviceCount > 0 ? 'Continue' : 'Waiting for a phone…'}
+                {deviceCount > 0 ? 'Continue' : 'Waiting for a device…'}
               </NeonButton>
               <NeonButton
                 color="cyan"
@@ -179,7 +179,7 @@ function StepCallout({
                 className="h-8 w-full text-[10px] uppercase tracking-widest"
                 onClick={() => onContinue(2)}
               >
-                Skip — no phone yet
+                Skip — no device yet
               </NeonButton>
             </>
           ) : null}

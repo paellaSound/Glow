@@ -1750,7 +1750,7 @@ export default function RigsPage() {
                             Devices Control Tab
                           </span>
                           <span className="text-[10px] text-muted-foreground font-cyber tracking-wide uppercase mt-0.5 block">
-                            Provides control over phone matrix strobe, grid, and fallback sync colors
+                            Provides control over device matrix strobe, grid, and fallback sync colors
                           </span>
                         </div>
                         <div className="flex items-center">

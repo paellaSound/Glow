@@ -847,6 +847,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         playerVisualState: room.playerVisualState,
         rigName: room.rigName,
         rigSocials: getPublicRigSocials(room),
+        removeWatermark: room.entitlements.removeWatermark,
       });
 
       // Emit visual state backup
@@ -925,6 +926,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         playerVisualState: room.playerVisualState,
         rigName: room.rigName,
         rigSocials: getPublicRigSocials(room),
+        removeWatermark: room.entitlements.removeWatermark,
       });
 
       // Emit visual state backup
@@ -1524,6 +1526,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         reason?: string;
         matrix?: { rows: number; cols: number };
         visualsState?: VisualsState;
+        removeWatermark?: boolean;
       }) => void,
     ) => {
       const roomCode = payload.roomCode?.toUpperCase();
@@ -1547,6 +1550,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         sessionId: room.sessionId,
         matrix: { rows: room.matrix.rows, cols: room.matrix.cols },
         visualsState: room.visualsState,
+        removeWatermark: room.entitlements.removeWatermark,
       });
 
       // Replay visualsState to the newly joined surface as backup
@@ -1571,14 +1575,14 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
   // ── Resync events ────────────────────────────────────────────────────────
   socket.on(
     'visuals:resync',
-    (payload: { roomCode: string }, callback?: (response: { ok: boolean; visualsState?: VisualsState; reason?: string }) => void) => {
+    (payload: { roomCode: string }, callback?: (response: { ok: boolean; visualsState?: VisualsState; reason?: string; removeWatermark?: boolean }) => void) => {
       const roomCode = payload.roomCode?.toUpperCase();
       const room = rooms.get(roomCode);
       if (!room) {
         callback?.({ ok: false, reason: 'room_not_found' });
         return;
       }
-      callback?.({ ok: true, visualsState: room.visualsState });
+      callback?.({ ok: true, visualsState: room.visualsState, removeWatermark: room.entitlements.removeWatermark });
     }
   );
 

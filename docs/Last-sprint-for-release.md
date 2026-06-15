@@ -136,7 +136,7 @@ Certain features are **tryable without a paid plan** via test/preview mode. They
 ### 7.1 Raffle mode — `docs/improvements/09-raffle-mode.md` (to create)
 
 - DJ picks N winners from connected devices.
-- Winner phone: logo + custom win color/animation.
+- Winner device: logo + custom win color/animation.
 - Pro: optional WebRTC call to winner (“come on stage”).
 - Gating: see §6 test vs production.
 
@@ -154,7 +154,7 @@ Certain features are **tryable without a paid plan** via test/preview mode. They
 
 ### 7.3 Song requests — future — `docs/features/10-song-requests.md` (to create)
 
-- **Venue+:** audience suggests tracks from phone; DJ queue (pending / played / dismissed); public vote priority.
+- **Venue+:** audience suggests tracks from device; DJ queue (pending / played / dismissed); public vote priority.
 
 ### 7.4 Live polls — future — `docs/features/11-live-polls.md` (to create)
 
@@ -196,7 +196,7 @@ Free plan shows a **short sponsored slot** before room create and before room jo
 | Placements | `room_create`, `room_join` |
 | Skip rule | 3 s countdown, then **Continue** (unchanged) |
 | Video | Silent MP4/WebM, **~3 s**, loops once or holds last frame |
-| **Release v1** | **HTML/CSS house ad** in `mock-ad.tsx` (logo + animated phone ring) — no video asset |
+| **Release v1** | **HTML/CSS house ad** in `mock-ad.tsx` (logo + animated device ring) — no video asset |
 | Aspect | **16:9** recommended (`aspect-video` in card — bump slot from `h-40`) |
 | Asset path | e.g. `web/public/ads/glow-house-ad.mp4` |
 | Message | Self-promo: scale the party, remove ads with Party, phones as lights |

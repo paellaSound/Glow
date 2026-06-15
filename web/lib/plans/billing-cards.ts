@@ -79,7 +79,7 @@ function buildDetailSections(ents: PlanEntitlements): BillingSection[] {
     'Every light preset + audio-reactive FX',
     'Effect layering, sequences & text',
     'Image uploads + full GIF search',
-    'Phone flash / torch control',
+    'Device flash / torch control',
     'Audience reactions & live polls',
     'Live camera mosaic (WebRTC)',
   ];

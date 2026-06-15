@@ -5,7 +5,7 @@
 **Security issue (high priority).** Anyone who knows a room code can take over orchestrator
 control of a live session. The `orchestrator:rejoin_room` handler grants orchestrator
 control **without validating identity or ownership**. The new mobile **Control Device**
-surface ([05](./05-control-device-page.md)) and its "Phone Mode" QR amplify the exposure,
+surface ([05](./05-control-device-page.md)) and its "Device Mode" QR amplify the exposure,
 since the QR carries the room code and the page only gates client-side.
 
 ---
@@ -73,8 +73,8 @@ effectively client-side only.
 - [ ] `web/app/(control)/room/[code]/control/page.tsx`: send
       `accessToken: session.access_token` in the rejoin call; redirect to sign-in if no
       session.
-- [ ] `web/app/(control)/room/[code]/control-device/page.tsx`: same. The "Phone Mode" QR
-      target requires the phone to be **logged in as the owner**; otherwise the page must
+- [ ] `web/app/(control)/room/[code]/control-device/page.tsx`: same. The "Device Mode" QR
+      target requires the device to be **logged in as the owner**; otherwise the page must
       send to sign-in (with a return URL) and the server rejects the rejoin.
 
 ### Phase 4 — Audit other orchestrator entry points
@@ -83,7 +83,7 @@ effectively client-side only.
       authenticated create/rejoin (they all check `orchestratorSocketId === socket.id`,
       which is now safe once rejoin is authenticated).
 - [ ] Consider a short-lived **orchestrator token** (like the visuals token) if you want the
-      Phone Mode QR to hand off control without a full login on the phone — optional, design
+      Device Mode QR to hand off control without a full login on the device — optional, design
       first.
 
 ---
@@ -104,7 +104,7 @@ effectively client-side only.
 - A user who is **not** the room owner cannot become the orchestrator, even with the room
   code and a valid (other) account; the server rejects `rejoin_room` (`Forbidden`).
 - An unauthenticated client (no session) is rejected and routed to sign-in.
-- The legitimate owner can still rejoin from desktop and from the Control Device (Phone
+- The legitimate owner can still rejoin from desktop and from the Control Device (Device
   Mode) after logging in.
 - `close_room` and all `orchestrator:*` actions remain owner-only.
 - Typecheck clean in `web` and `realtime`.

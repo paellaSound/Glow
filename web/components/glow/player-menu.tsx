@@ -290,7 +290,7 @@ export function PlayerMenu({
                       Flash Effects
                     </p>
                     <p className="mt-1 text-[11px] leading-relaxed text-zinc-400">
-                      Enable camera access to blink your phone LED during rave effects.
+                      Enable camera access to blink your device LED during rave effects.
                       You can disable this anytime.
                     </p>
                     {isIOS && (

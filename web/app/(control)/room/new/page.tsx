@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
+import { AlertTriangle, HelpCircle } from 'lucide-react';
 import { captureClientEvent } from '@/lib/posthog-client';
-import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
+import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow, Tooltip } from '@/components/ui/neon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MockAd } from '@/components/glow/mock-ad';
@@ -19,11 +19,33 @@ import {
   formatDeviceCap,
   getNextPlanForDevices,
 } from '@/lib/plans/plan-meta';
-import { AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { PlanEntitlements } from '@/lib/glow/types';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+const ROOM_CREATE_MODE_TIP_KEY = 'glow:room-create-mode-tip-seen';
+
+const MATRIX_MODE_TOOLTIP = (
+  <>
+    <p>
+      <strong className="font-cyber text-[10px] uppercase tracking-wide text-foreground">
+        Unified strobe (default)
+      </strong>
+      {' — '}
+      Leave matrix off. Every phone flashes the same color in sync — best when guests hold
+      their devices or move around.
+    </p>
+    <p className="mt-2">
+      <strong className="font-cyber text-[10px] uppercase tracking-wide text-foreground">
+        Grid matrix
+      </strong>
+      {' — '}
+      Only enable when phones stay in fixed positions forming a visual grid — waves and
+      spatial patterns.
+    </p>
+  </>
+);
 
 type Rig = {
   id: string;
@@ -49,7 +71,7 @@ export default function CreateRoomPage() {
   const [showAd, setShowAd] = useState(false);
   const [pendingCreate, setPendingCreate] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const [firstPartyTipOpen, setFirstPartyTipOpen] = useState(false);
+  const [showModeTip, setShowModeTip] = useState(false);
   const [coverageAck, setCoverageAck] = useState(false);
   const [coverageError, setCoverageError] = useState(false);
   const searchParams = useSearchParams();
@@ -84,6 +106,18 @@ export default function CreateRoomPage() {
       router.replace(next ? `/room/new?${next}` : '/room/new', { scroll: false });
     }
   }, [searchParams, mutateEntitlements, mutateTeam, router]);
+
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem(ROOM_CREATE_MODE_TIP_KEY) === '1';
+      if (!seen) {
+        setShowModeTip(true);
+        localStorage.setItem(ROOM_CREATE_MODE_TIP_KEY, '1');
+      }
+    } catch {
+      // localStorage unavailable (private browsing, etc.)
+    }
+  }, []);
 
   // Auto-select default rig on load
   useEffect(() => {
@@ -249,52 +283,36 @@ export default function CreateRoomPage() {
                   className="mt-1 rounded-full border-border bg-transparent text-neon-magenta focus:ring-neon-magenta"
                 />
                 <span className="flex flex-col gap-1">
-                  <span className="font-cyber text-sm font-semibold tracking-wide text-foreground">Position Screens in a Grid Matrix?</span>
+                  <span className="flex items-center gap-1.5 font-cyber text-sm font-semibold tracking-wide text-foreground">
+                    Position phones in a fixed grid matrix?
+                    {showModeTip ? (
+                      <Tooltip
+                        title="Which mode?"
+                        color="cyan"
+                        panelClassName="w-72"
+                        content={MATRIX_MODE_TOOLTIP}
+                      >
+                        <button
+                          type="button"
+                          aria-label="Learn about unified strobe vs grid matrix"
+                          className="inline-flex shrink-0 rounded-full text-neon-cyan transition-colors hover:text-neon-cyan/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neon-cyan"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                        >
+                          <HelpCircle className="size-3.5" />
+                        </button>
+                      </Tooltip>
+                    ) : null}
+                  </span>
                   <span className="text-xs text-muted-foreground leading-normal">
                     {positionRequired
-                      ? 'Screens will lock to specific coordinates. Perfect for scrolling wave patterns and visual gradients.'
-                      : 'Screens join as one unified strobe unit. Colors and flashes sync globally.'}
+                      ? 'Each phone locks to a grid cell. Use only when devices stay in fixed positions for spatial patterns.'
+                      : 'All devices flash in sync as one unified light — the default for handheld or moving devices. (Only recommended when you left the play devices ex. smartphones in a fixed position)'}
                   </span>
                 </span>
               </label>
-            </div>
-
-            <div className="rounded-xl border border-neon-cyan/15 bg-neon-cyan/5">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
-                onClick={() => setFirstPartyTipOpen((open) => !open)}
-              >
-                <span className="flex items-center gap-2 text-xs font-cyber font-semibold uppercase tracking-wide text-neon-cyan">
-                  <HelpCircle className="size-3.5 shrink-0" />
-                  First party?
-                </span>
-                {firstPartyTipOpen ? (
-                  <ChevronUp className="size-4 shrink-0 text-zinc-400" />
-                ) : (
-                  <ChevronDown className="size-4 shrink-0 text-zinc-400" />
-                )}
-              </button>
-              {firstPartyTipOpen ? (
-                <div className="border-t border-neon-cyan/10 px-4 pb-4 pt-3 text-xs leading-relaxed text-muted-foreground">
-                  <p>
-                    <strong className="font-cyber text-[10px] uppercase tracking-wide text-foreground">
-                      Unified strobe (recommended)
-                    </strong>
-                    {' — '}
-                    Leave matrix off. Guests join, pick a nickname, and every phone flashes the same
-                    color in sync. Simplest for your first hangout.
-                  </p>
-                  <p className="mt-2">
-                    <strong className="font-cyber text-[10px] uppercase tracking-wide text-foreground">
-                      Grid matrix
-                    </strong>
-                    {' — '}
-                    Enable the checkbox and set rows × columns. Each phone picks a grid cell — best
-                    for waves and spatial patterns once you know the flow. Just use if the phoes or playing devices are in a fixed position.
-                  </p>
-                </div>
-              ) : null}
             </div>
 
             {positionRequired ? (
@@ -326,32 +344,33 @@ export default function CreateRoomPage() {
               </div>
             ) : null}
 
-            {/* Rig Selector */}
-            <div className="space-y-2">
-              <Label htmlFor="rig-select" className="font-cyber text-xs uppercase tracking-wider text-zinc-300">
-                Load Performance Rig
-              </Label>
-              <select
-                id="rig-select"
-                value={selectedRigId || ''}
-                onChange={(e) => setSelectedRigId(e.target.value || null)}
-                className="w-full h-10 bg-black/30 border border-white/10 rounded-lg text-white font-cyber px-3 focus:ring-1 focus:ring-neon-magenta focus:border-neon-magenta focus:outline-none text-xs uppercase tracking-wider"
-              >
-                <option value="" className="bg-zinc-900 text-white">Default / Branded Rig</option>
-                {rigsList?.map((rig) => (
-                  <option key={rig.id} value={rig.id} className="bg-zinc-900 text-white">
-                    {rig.name} {rig.isDefault ? '(DEFAULT)' : ''}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[10px] text-muted-foreground font-sans leading-normal">
-                Rigs load your preset cue lists, custom color palettes, and social links. Manage them under{' '}
-                <Link href="/rigs" className="text-neon-magenta hover:underline font-cyber tracking-wide text-[9px] uppercase">
-                  Rigs Manager
-                </Link>
-                .
-              </p>
-            </div>
+            {rigsList && rigsList.length > 1 ? (
+              <div className="space-y-2">
+                <Label htmlFor="rig-select" className="font-cyber text-xs uppercase tracking-wider text-zinc-300">
+                  Load Performance Rig
+                </Label>
+                <select
+                  id="rig-select"
+                  value={selectedRigId || ''}
+                  onChange={(e) => setSelectedRigId(e.target.value || null)}
+                  className="w-full h-10 bg-black/30 border border-white/10 rounded-lg text-white font-cyber px-3 focus:ring-1 focus:ring-neon-magenta focus:border-neon-magenta focus:outline-none text-xs uppercase tracking-wider"
+                >
+                  <option value="" className="bg-zinc-900 text-white">Default / Branded Rig</option>
+                  {rigsList.map((rig) => (
+                    <option key={rig.id} value={rig.id} className="bg-zinc-900 text-white">
+                      {rig.name} {rig.isDefault ? '(DEFAULT)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground font-sans leading-normal">
+                  Rigs load your preset cue lists, custom color palettes, and social links. Manage them under{' '}
+                  <Link href="/rigs" className="text-neon-magenta hover:underline font-cyber tracking-wide text-[9px] uppercase">
+                    Rigs Manager
+                  </Link>
+                  .
+                </p>
+              </div>
+            ) : null}
 
             <p className="text-xs font-cyber tracking-wide text-muted-foreground text-center">
               Rave Limit: {formatDeviceCap(entitlements?.maxDevices ?? 15)} synced screens
@@ -380,8 +399,8 @@ export default function CreateRoomPage() {
                       Massive crowd — check your coverage
                     </span>
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      With unlimited phones, the show depends on the venue&apos;s network
-                      coverage. If the area has weak signal or congestion, some phones
+                      With unlimited devices, the show depends on the venue&apos;s network
+                      coverage. If the area has weak signal or congestion, some devices
                       won&apos;t sync cleanly. Test the connectivity before you go live.
                     </p>
                     <label className="flex cursor-pointer items-start gap-2">

@@ -38,7 +38,7 @@ v2 adds four big ideas:
    **Visuals** (control of the visuals surface, including the rig cue list + Next).
    Live palette editing with a "save to rig" action.
 4. **Richer broadcasting.** Custom images, sequenced text, GIFs (Klipy), audience
-   emoji reactions, phone flash/torch control, layered/mixed effects, and an
+   emoji reactions, device flash/torch control, layered/mixed effects, and an
    optional WebRTC live-call mosaic.
 
 ---
@@ -50,7 +50,7 @@ Glow now has **four** client surfaces. Each is a different role on the same room
 | Surface | Route | Auth | Realtime role | Purpose |
 | --- | --- | --- | --- | --- |
 | Control desk | `/room/[code]/control` | Supabase session (orchestrator) | `orchestrator:{code}` | Drive devices + visuals |
-| Player | `/room/[code]/play` | Anonymous (nickname) | `room:{code}`, `player:{publicId}` | Phone = light surface, sends reactions |
+| Player | `/room/[code]/play` | Anonymous (nickname) | `room:{code}`, `player:{publicId}` | Device = light surface, sends reactions |
 | **Visuals** | `/room/[code]/visuals` | **Signed visuals token** | `visuals:{code}` (consumer) | Projector / big screen output |
 | QR | `/room/[code]/qr` | Public | — | Static join QR |
 
@@ -172,7 +172,7 @@ These extend the existing `plan_entitlements` model. Defaults must be safe (off)
 | `custom_media_upload` | boolean | Can broadcast uploaded images |
 | `sequenced_text` | boolean | Can broadcast scrolling/sequenced text |
 | `gif_broadcast` | boolean | Can search + broadcast Klipy GIFs |
-| `device_flash_control` | boolean | Can control phone torch/flash |
+| `device_flash_control` | boolean | Can control device torch/flash |
 | `effect_layering` | boolean | Can stack/mix multiple effects |
 | `webrtc_live_call` | boolean | Can start a WebRTC mosaic |
 | `max_live_call_devices` | number | Max devices in a live call |
@@ -218,8 +218,8 @@ Adds:
 - Klipy proxy API route (keeps the Klipy key server-side, adds attribution).
 - Image upload API (size/type validation, Supabase Storage).
 - **Control Device surface** (`/room/[code]/control-device`): a touch-first, operate-only
-  console for phone/tablet. Reuses the desk controls in `mode="operate"` (no rig/sequence
-  CRUD). Reached via a "Phone Mode" QR on the desktop desk. **Auth:** must rejoin as the
+  console for device/tablet. Reuses the desk controls in `mode="operate"` (no rig/sequence
+  CRUD). Reached via a "Device Mode" QR on the desktop desk. **Auth:** must rejoin as the
   authenticated room owner — see
   [improvements/07-orchestrator-auth-hardening.md](./improvements/07-orchestrator-auth-hardening.md).
 

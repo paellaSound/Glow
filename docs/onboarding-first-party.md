@@ -15,7 +15,7 @@ Glow connects many phones (and optionally a projector) into **one synchronized s
                     ┌─────────────────┐
                     │  YOU (host)     │
                     │  Control desk   │
-                    │  laptop/phone   │
+                    │  laptop/device   │
                     └────────┬────────┘
                              │ commands
                              ▼
@@ -26,7 +26,7 @@ Glow connects many phones (and optionally a projector) into **one synchronized s
               ┌──────────────┼──────────────┐
               ▼              ▼              ▼
         ┌──────────┐  ┌──────────┐  ┌──────────┐
-        │ Phone 1  │  │ Phone 2  │  │ Phone N  │
+        │ Device 1  │  │ Device 2  │  │ Device N  │
         │  color   │  │  color   │  │  color   │
         └──────────┘  └──────────┘  └──────────┘
 
@@ -63,11 +63,11 @@ Glow connects many phones (and optionally a projector) into **one synchronized s
 
 1. **You create a room** → Glow generates a **room code** (e.g. `A7B9`).
 2. **You share** the code, link, or QR → guests open it on their phones.
-3. Each phone **joins the room** through the Glow hub (realtime server).
+3. Each device **joins the room** through the Glow hub (realtime server).
 4. You send **commands** (color, preset, effect) → hub broadcasts → all phones update **in sync**.
-5. Each phone renders **one flat color** (or media on that screen). In **matrix mode**, each phone is assigned a **grid cell** (e.g. `A1`, `B3`) for spatial patterns.
+5. Each device renders **one flat color** (or media on that screen). In **matrix mode**, each device is assigned a **grid cell** (e.g. `A1`, `B3`) for spatial patterns.
 
-**No direct phone-to-phone connection.** Everything goes through the room hub. That is why everyone stays in sync even on different networks (guests can use mobile data if Wi‑Fi is weak, though same LAN is best for latency).
+**No direct device-to-device connection.** Everything goes through the room hub. That is why everyone stays in sync even on different networks (guests can use mobile data if Wi‑Fi is weak, though same LAN is best for latency).
 
 ### Matrix mode vs unified mode
 
@@ -133,11 +133,11 @@ Guests **do not** need an account.
 
 | Step | Action | What you should see |
 | --- | --- | --- |
-| 4.1 | On a second phone, open the share link or enter the code | Join flow |
+| 4.1 | On a second device, open the share link or enter the code | Join flow |
 | 4.2 | Enter a nickname (optional) → **Connect Device** | Fullscreen player |
 | 4.3 | On the **control desk**, open the **Devices** tab | Device list shows the new connection |
 | 4.4 | Repeat for more phones | Count increases in device list |
-| 4.5 | Tap **Identify** on a device (if available) | That phone flashes so you know which physical device it is |
+| 4.5 | Tap **Identify** on a device (if available) | That device flashes so you know which physical device it is |
 
 **Matrix mode only:** each guest picks an empty cell before entering the player screen.
 
@@ -193,10 +193,10 @@ The projector shows **full-screen visuals**; phones stay **per-device lights**. 
 | Role | Who | Needs account? | Typical device |
 | --- | --- | --- | --- |
 | **Orchestrator** | You | Yes | Laptop / tablet |
-| **Player** | Guest | No | Phone |
+| **Player** | Guest | No | Device |
 | **Visuals surface** | Output only | No (token link) | Projector / smart TV browser |
 
-**Phone Mode:** scan the QR on the control desk to operate a simplified desk from your phone — useful when you are away from the laptop.
+**Device Mode:** scan the QR on the control desk to operate a simplified desk from your device — useful when you are away from the laptop.
 
 ---
 
@@ -254,7 +254,7 @@ tools cannot reliably reproduce Glow screens. Use **abstract, schematic, univers
 | --- | --- |
 | Explain hub-and-spoke sync | Phones never talk to each other; one conductor, one cloud |
 | Explain two outputs | Big screen vs hand screens |
-| Explain guest flow | Code / QR → phone lights up |
+| Explain guest flow | Code / QR → device lights up |
 | Feel like a party | Energy, music, crowd — not a tutorial screencast |
 
 **Target length:** 60–90 seconds  
@@ -269,10 +269,10 @@ tools cannot reliably reproduce Glow screens. Use **abstract, schematic, univers
 | # | Duration | Visual (schematic) | Message |
 | --- | --- | --- | --- |
 | 1 | 0–12 s | Dark room; one laptop icon pulses; thin lines radiate to a central **glowing orb** (hub) | “One host controls the show” |
-| 2 | 12–25 s | Orb sends ripples outward; **phone rectangles** around a table light up **same color** in sync | “Every phone becomes a synchronized light” |
-| 3 | 25–38 s | **QR-like square** (abstract, not scannable) floats; a hand holds phone; line connects phone to orb | “Guests scan or tap a link — no app install, no account” |
+| 2 | 12–25 s | Orb sends ripples outward; **device rectangles** around a table light up **same color** in sync | “Every device becomes a synchronized light” |
+| 3 | 25–38 s | **QR-like square** (abstract, not scannable) floats; a hand holds device; line connects device to orb | “Guests scan or tap a link — no app install, no account” |
 | 4 | 38–52 s | Split frame: **large rectangle** (projector) shows flowing abstract waves; **small phones** show solid colors; thin line links palette between them | “Projector and phones — two layers, one party” |
-| 5 | 52–68 s | Grid of empty cells; phones slide into cells; **wave of color** travels across the grid | “Optional grid — each phone is one pixel in the room” |
+| 5 | 52–68 s | Grid of empty cells; phones slide into cells; **wave of color** travels across the grid | “Optional grid — each device is one pixel in the room” |
 | 6 | 68–90 s | Wide shot: orb + many glowing phones + projector; fade to tagline space | “Start your first Glow party” |
 
 ---
@@ -286,7 +286,7 @@ Abstract motion-graphics explainer, 70 seconds, 16:9, dark nightclub environment
 
 STYLE: Minimal schematic diagram aesthetic — flat geometric shapes, soft neon glow (magenta and cyan on black), thin connection lines, no photorealistic people faces, no readable text, no software UI, no brand logos. Isometric or top-down table view. Clean, universal, Apple-style simplicity applied to a party metaphor.
 
-STORY: (1) A single laptop icon on a table sends commands to a central pulsing sphere (cloud hub). (2) Six smartphone rectangles around the table flash the same color in perfect sync, connected to the hub by glowing lines. (3) An abstract floating square pattern (QR metaphor, not literal) leads one phone to connect to the hub. (4) Split screen: a large wall screen shows fluid abstract shader waves; phones show solid colors; a color palette beam links wall and phones. (5) Top-down grid; phones snap into grid cells; a rainbow wave propagates across the grid. (6) Pull back — hub, phones, and wall screen all pulse together; space for short tagline overlay added in post.
+STORY: (1) A single laptop icon on a table sends commands to a central pulsing sphere (cloud hub). (2) Six smartphone rectangles around the table flash the same color in perfect sync, connected to the hub by glowing lines. (3) An abstract floating square pattern (QR metaphor, not literal) leads one device to connect to the hub. (4) Split screen: a large wall screen shows fluid abstract shader waves; phones show solid colors; a color palette beam links wall and phones. (5) Top-down grid; phones snap into grid cells; a rainbow wave propagates across the grid. (6) Pull back — hub, phones, and wall screen all pulse together; space for short tagline overlay added in post.
 
 CAMERA: Slow smooth dolly, no shaky cam. Gentle particle dust in air. Music-synced pulse on beats (visual rhythm only).
 
@@ -314,7 +314,7 @@ Top-down view: six simplified smartphone rectangles arranged around a table, all
 ### Scene 3 — Guest joins
 
 ```text
-Abstract join metaphor: floating luminous square grid pattern (QR-like but not scannable), simplified hand silhouette holding phone, glowing line from phone to central hub orb, dark festive background, minimal motion graphics, no text, 13 seconds.
+Abstract join metaphor: floating luminous square grid pattern (QR-like but not scannable), simplified hand silhouette holding device, glowing line from device to central hub orb, dark festive background, minimal motion graphics, no text, 13 seconds.
 ```
 
 ### Scene 4 — Two outputs
@@ -326,7 +326,7 @@ Split composition: left side large wall rectangle with flowing abstract liquid l
 ### Scene 5 — Matrix grid
 
 ```text
-Top-down abstract grid of empty square cells on black floor, simplified phone icons slide into cells one by one, then a wave of color travels diagonally across the grid like a stadium wave, minimal neon schematic, no text, 16 seconds.
+Top-down abstract grid of empty square cells on black floor, simplified device icons slide into cells one by one, then a wave of color travels diagonally across the grid like a stadium wave, minimal neon schematic, no text, 16 seconds.
 ```
 
 ### Scene 6 — Hero wide + tagline plate
@@ -341,7 +341,7 @@ Wide cinematic schematic: central hub orb, ring of glowing phones, large project
 
 | Element | Content |
 | --- | --- |
-| Tagline (EN) | “Turn every phone into a light. Control the show.” |
+| Tagline (EN) | “Turn every device into a light. Control the show.” |
 | Tagline (ES) | “Convierte cada móvil en una luz. Controla el show.” |
 | End card | “Create your room — glow.app” (or real URL) |
 | Captions | Optional EN/ES from voiceover script below |

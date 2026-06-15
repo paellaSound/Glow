@@ -19,7 +19,7 @@ Glow is not “more phones on a grid.” It is a **dual-output show system**:
 | Output | What it is | User mental model |
 | --- | --- | --- |
 | **Stage** (Visuals surface) | Projector / TV / second screen — arts, YouTube, 3D, overlays | “What the crowd watches on the big screen” |
-| **Floor** (Player devices) | Each phone = one light pixel in the matrix | “What people hold in their hands” |
+| **Floor** (Player devices) | Each device = one light pixel in the matrix | “What people hold in their hands” |
 
 The two systems share only the **palette**. They are independent render pipelines ([visuals-architecture.md](./visuals-architecture.md)).
 
@@ -298,7 +298,7 @@ Some features must be **tryable on Free** without granting production scale.
 ### Raffle mode (release sprint)
 
 - DJ triggers draw; N random connected devices win.
-- Winner phone: logo + custom color / animation.
+- Winner device: logo + custom color / animation.
 - **Pro variant:** WebRTC call to winner → stage moment.
 
 **Marketing angle:** *“Turn your crowd into a game show.”*

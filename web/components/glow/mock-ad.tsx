@@ -18,7 +18,7 @@ const PHONE_DELAYS = ['delay-0', 'delay-75', 'delay-150', 'delay-300', 'delay-50
 const PLACEMENT_COPY = {
   room_create: {
     headline: 'Host the show',
-    subline: 'Every phone becomes a synchronized light',
+    subline: 'Every device becomes a synchronized light',
     badge: 'Free plan',
   },
   room_join: {
@@ -61,7 +61,7 @@ function GlowHouseAdCreative({
         </span>
       </div>
 
-      {/* Phone ring */}
+      {/* Device ring */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
         <div className="relative h-28 w-28">
           {PHONE_DELAYS.map((delay, index) => {

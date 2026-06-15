@@ -17,7 +17,7 @@ export const SITE_TAGLINE =
 
 /** Longer descriptor for meta descriptions and JSON-LD. */
 export const SITE_DESCRIPTION =
-  'Connect every screen in the room — synced phone lights, live visuals on the big screen, polls, raffles, and crowd reactions. One host runs the show; guests join in the browser, no app install.';
+  'Connect every screen in the room — synced device lights, live visuals on the big screen, polls, raffles, and crowd reactions. One host runs the show; guests join in the browser, no app install.';
 
 export const OG_IMAGE_PATH = '/logo-wide.png';
 
@@ -48,7 +48,7 @@ export function buildMarketingMetadata(overrides?: Partial<Metadata>): Metadata 
     description: SITE_DESCRIPTION,
     keywords: [
       'Glow',
-      'sync phone lights',
+      'sync device lights',
       'rave lighting',
       'live event visuals',
       'crowd connectivity',

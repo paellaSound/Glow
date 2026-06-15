@@ -56,9 +56,9 @@ one projector/second screen for the visuals surface. For cross-network, configur
 
 ## F. Control Device (05) + security (07)
 
-- [ ] "Phone Mode" QR on the desktop desk opens `/room/[code]/control-device`.
+- [ ] "Device Mode" QR on the desktop desk opens `/room/[code]/control-device`.
 - [ ] As the **owner** (logged in), operate lights/effects/text/GIF/torch/visuals/live call
-      from the phone; changes reflect on players + surface.
+      from the device; changes reflect on players + surface.
 - [ ] Operate-only: no rig/sequence create/edit/delete reachable.
 - [ ] **Security:** a non-owner (different valid account) cannot become orchestrator with the
       room code → `Forbidden`. No session → redirected to sign-in.

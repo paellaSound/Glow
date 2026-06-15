@@ -27,7 +27,7 @@ export function DeviceList({ roomState, onIdentify, showOnboardingHint = false }
         {roomState.devices.length === 0 ? (
           <div className="rounded-lg border border-dashed border-neon-cyan/20 bg-neon-cyan/5 px-4 py-5 text-center">
             <p className="text-sm font-medium text-foreground">
-              Share the QR — waiting for your first phone
+              Share the QR — waiting for your first device
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {showOnboardingHint

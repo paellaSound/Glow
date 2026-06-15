@@ -40,7 +40,7 @@ const CTAS = [
     tooltipTitle: 'JOIN AS A LIGHT',
     tooltip:
       'Guest path — no account needed. Enter the room code or open the host’s link. This screen becomes a synced light in the crowd.',
-    hint: 'No signup · enter code or link · phone becomes a synced light',
+    hint: 'No signup · enter code or link · device becomes a synced light',
   },
   {
     href: '/standalone',
@@ -106,7 +106,7 @@ export default function HomePage() {
           </h1>
 
           <p className="max-w-xl text-base md:text-lg text-muted-foreground font-sans leading-relaxed">
-            {SITE_NAME} connects the room — synced phone lights, live visuals on the big screen,
+            {SITE_NAME} connects the room — synced device lights, live visuals on the big screen,
             polls, raffles, and crowd reactions. Whether it&apos;s a rave, a meeting, or a
             festival moment, one host runs the show; everyone else joins via link or QR in the
             browser.

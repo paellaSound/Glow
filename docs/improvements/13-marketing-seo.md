@@ -222,7 +222,7 @@ market expands.
 
 Use naturally in copy — avoid stuffing:
 
-- sync phone lights · rave lighting · live event visuals
+- sync device lights · rave lighting · live event visuals
 - crowd connectivity · live polls · raffle · audience reactions
 - projector visuals · matrix grid · audio-reactive
 - no app install · QR room join · browser-based

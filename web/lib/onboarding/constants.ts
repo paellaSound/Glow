@@ -19,7 +19,7 @@ export const ONBOARDING_STEPS = [
   },
   {
     id: 2,
-    title: 'Connect first phone',
+    title: 'Connect first device',
     description: 'Waiting for a guest to open the link and join the room.',
     target: 'devices' as const,
   },

@@ -9,7 +9,7 @@ helpers, found during the demo:
 2. **E2** — Media overlay (text/GIF) does not appear in the desk Play-Devices preview,
    although effects do.
 3. **E3** — Live-call camera request asks for the **microphone** unnecessarily.
-4. **E4** — Phone **flash (LED)** doesn't fire; only the white screen-flash works.
+4. **E4** — Device **flash (LED)** doesn't fire; only the white screen-flash works.
 5. **E5** — **Fullscreen** button doesn't work on mobile.
 6. **E6** — DJ **social links** are not shown to the player (not in the share URL, not at
    start, not at the end).

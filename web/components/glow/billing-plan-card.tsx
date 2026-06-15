@@ -96,9 +96,9 @@ export function BillingPlanCard({
       <div className="mt-6 space-y-3">
         <p className="text-3xl font-black font-cyber tracking-tight text-foreground">
           {presentation.priceLabel}
-          {!isFree && presentation.priceLabel !== 'Free' ? (
+          {/* {!isFree && presentation.priceLabel !== 'Free' ? (
             <span className="text-xs text-muted-foreground font-normal tracking-wide">/mo</span>
-          ) : null}
+          ) : null} */}
         </p>
 
         {isCurrentPlan ? (

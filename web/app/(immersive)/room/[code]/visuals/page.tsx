@@ -11,6 +11,7 @@ import type { AudioFeatures } from 'glow-visuals';
 import QRCode from 'qrcode';
 import { buildPlayerJoinUrl } from '@/lib/glow/join-url';
 import { FullscreenButton } from '@/components/glow/fullscreen-button';
+import { GlowWatermark } from '@/components/glow/glow-watermark';
 import { WakeLock } from '@/components/glow/wake-lock';
 import { getRealtimeUrl } from '@/lib/glow/matrix';
 import { useLiveCallViewer } from '@/lib/glow/use-live-call-viewer';
@@ -143,6 +144,8 @@ function VisualsContent({ code }: { code: string }) {
   const [showInfo, setShowInfo] = useState(false);
   const [activeMedia, setActiveMedia] = useState<any | null>(null);
   const [matrixSize, setMatrixSize] = useState({ rows: 3, cols: 3 });
+  // Branding: show the Glow watermark unless the room's plan removes it (Venue+).
+  const [removeWatermark, setRemoveWatermark] = useState(false);
 
   const liveCall = useLiveCallViewer({
     socketRef,
@@ -332,9 +335,10 @@ function VisualsContent({ code }: { code: string }) {
   );
 
   const resync = useCallback((socket: Socket) => {
-    socket.emit('visuals:resync', { roomCode }, (response: { ok: boolean; visualsState?: any; reason?: string }) => {
+    socket.emit('visuals:resync', { roomCode }, (response: { ok: boolean; visualsState?: any; reason?: string; removeWatermark?: boolean }) => {
       if (response.ok && response.visualsState) {
         applyVisualsState(response.visualsState);
+        setRemoveWatermark(Boolean(response.removeWatermark));
       }
     });
   }, [roomCode, applyVisualsState]);
@@ -351,9 +355,11 @@ function VisualsContent({ code }: { code: string }) {
         reason?: string;
         matrix?: { rows: number; cols: number };
         visualsState?: any;
+        removeWatermark?: boolean;
       }) => {
         if (response.ok) {
           setConnectionState('subscribed');
+          setRemoveWatermark(Boolean(response.removeWatermark));
           if (response.matrix) {
             setMatrixSize(response.matrix);
           }
@@ -586,6 +592,9 @@ function VisualsContent({ code }: { code: string }) {
   return (
     <div className="relative h-[100dvh] w-screen overflow-hidden bg-black">
       <WakeLock />
+
+      {/* ── Glow watermark (Free / Party) ── */}
+      {!removeWatermark ? <GlowWatermark position="bottom-right" /> : null}
 
       {/* ── Media Overlay ── */}
       {activeMedia && (

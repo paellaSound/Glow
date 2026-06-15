@@ -451,7 +451,7 @@ end-to-end demo, a wave of fixes/enhancements shipped:
   support gate hides dead button (E5), DJ socials at start + SESSION ENDED via room state +
   `/api/rooms/[code]/share-info` (E6).
 - **05 Control Device (done):** touch-first operate-only console (`mode="operate"` hides
-  CRUD) at `/room/[code]/control-device` + "Phone Mode" QR on the desktop desk.
+  CRUD) at `/room/[code]/control-device` + "Device Mode" QR on the desktop desk.
 - **Clock sync:** `clockOffset` (NTP-style over socket) in `use-orchestrator-delay.ts`, fed
   into `visual-engine.ts` + `torch.ts` so scheduled transitions/flashes land together across
   devices. See [architecture.md §5.1](./architecture.md).
@@ -459,7 +459,7 @@ end-to-end demo, a wave of fixes/enhancements shipped:
   `create_room`. `orchestrator:rejoin_room` now requires `accessToken`, validates it, and
   verifies owner (or room team) before granting control — returns `Unauthorized`/`Forbidden`
   otherwise. Both desks (`control` + `control-device`) pass `session.access_token` and
-  redirect to sign-in / home on failure. Closes the room-code takeover hole (incl. Phone
+  redirect to sign-in / home on failure. Closes the room-code takeover hole (incl. Device
   Mode QR).
 
 ### 2026-06-08 (v2.10 — Railway monorepo deploy fix + WebRTC Phase 4 + entitlements merge)

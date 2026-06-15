@@ -394,7 +394,7 @@ export function PatternSequencePreview({
         <div className="flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-black/75 p-1">
           <IconToggle
             icons={[Layers, Tv]}
-            labels={['Group View (Room)', 'Single Device View (Phone)']}
+            labels={['Group View (Room)', 'Single Device View (Device)']}
             activeIndex={previewMode === 'split' ? 0 : 1}
             onToggle={() =>
               setPreviewMode((value) => (value === 'split' ? 'device' : 'split'))

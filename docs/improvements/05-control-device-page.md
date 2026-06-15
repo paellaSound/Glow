@@ -2,7 +2,7 @@
 
 ## Summary
 
-A new **operate-only** control surface so the DJ can run the show from a phone or tablet
+A new **operate-only** control surface so the DJ can run the show from a device or tablet
 placed next to the mixer — without a laptop. It exposes the **same live tools** as the
 control desk (both **Devices** and **Visuals** tabs), but with **no create/edit
 operations** (no rig CRUD, no sequence library management) so it cannot break stored state.
@@ -79,7 +79,7 @@ hardened controls and the lifted live-call state.
 
 ## Acceptance criteria
 
-- The DJ can fully run a live session from a phone/tablet: lights, effects, text/GIF to
+- The DJ can fully run a live session from a device/tablet: lights, effects, text/GIF to
   players, torch, art/palette/logo, custom text/QR to the surface, and live call.
 - No create/edit/delete of rigs or sequences is reachable from this surface.
 - Only the room's orchestrator can open it (same gating as `/control`).

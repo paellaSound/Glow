@@ -43,7 +43,7 @@ export function buildHomePageJsonLd() {
           description: 'Free tier with optional paid plans for larger events.',
         },
         featureList: [
-          'Synchronized phone lights and matrix grid',
+          'Synchronized device lights and matrix grid',
           'Live visuals for projectors and TVs',
           'Live polls and audience reactions',
           'Raffles and crowd engagement',

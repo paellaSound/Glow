@@ -20,7 +20,7 @@ only share the *palette* concept (and propagate it through different channels):
 
 | | **Visuals surface** (projector/TV) | **Player devices** (phones) |
 | --- | --- | --- |
-| Renders | One full-screen **art** (Canvas2D/WebGL) | One **flat color per device** (each phone = 1 matrix cell) |
+| Renders | One full-screen **art** (Canvas2D/WebGL) | One **flat color per device** (each device = 1 matrix cell) |
 | Package | `web/packages/glow-visuals` | `web/packages/glow-presets` (via `visual-engine.ts`) |
 | Page | `web/app/(immersive)/room/[code]/visuals/page.tsx` | `web/app/(immersive)/room/[code]/play/page.tsx` |
 | Server state | `room.visualsState` | `room.playerVisualState` |
@@ -125,7 +125,7 @@ screen color by a priority chain:
   see [architecture.md §5.1](./architecture.md)), so all devices fire together.
 - Audio source per effect: `local` (device mic) or `orchestrator` (relayed features).
 - **Pattern sequences** (palette + weighted effects) live here: desk →
-  `orchestrator:run_distribution` → `visual:effect_distribution`; each phone renders its
+  `orchestrator:run_distribution` → `visual:effect_distribution`; each device renders its
   weighted slice.
 
 ---

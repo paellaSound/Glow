@@ -53,7 +53,7 @@ Turn the phases into a plan and execute one doc per chat.
 `01 → 06 → 02 → 03 → 04 → 05 → 07`
 
 01–06 shipped (high-impact live bugs + controls + mobile surface). **07 is a security fix
-(do it next, before relying on Phone Mode in production):** the orchestrator `rejoin_room`
+(do it next, before relying on Device Mode in production):** the orchestrator `rejoin_room`
 must validate token + ownership.
 
 ---
@@ -66,7 +66,7 @@ must validate token + ownership.
 | 02 | Visuals desk controls & preview | **done** (2026-06-09) — embedded visuals preview + Mix/Out-of-Mix cards for logo/text/QR; live `visuals_set_text`/`visuals_set_qr` + rig display name; QR natural-language periodic timer |
 | 03 | Live-call state persistence | **done** (2026-06-09) — Option A: `use-live-call-desk` context/provider at control page + `orchestrator:get_live_call_state` server resync; `live-call-controls` consumes lifted state |
 | 04 | Play devices fixes | **done** (2026-06-09) — E1 verified (playerVisualState replay), E2 media in preview, E3 video-only call, E4 torch/live-call conflict + iOS note, E5 fullscreen support gate, E6 DJ socials at start/end via room state + share-info |
-| 05 | Control Device page | **done** (2026-06-09) — touch-first operate-only console (`mode="operate"` hides CRUD), `control-device` route + orchestrator rejoin, "Phone Mode" QR on desktop desk |
+| 05 | Control Device page | **done** (2026-06-09) — touch-first operate-only console (`mode="operate"` hides CRUD), `control-device` route + orchestrator rejoin, "Device Mode" QR on desktop desk |
 | 06 | Pattern sequence live sync & preview parity | **done** (2026-06-09) — palette/effect edits push live (200ms debounce); preview Split vs Single-Device modes via shared device render path |
 | 07 | Orchestrator auth hardening (rejoin) | **done** (2026-06-09) — `RoomState.ownerUserId`; `rejoin_room` validates `accessToken` + owner/team; both desks pass the token and redirect on Unauthorized/Forbidden |
 | 08 | QA / regression checklist | `checklist` — run end-to-end before next live use |

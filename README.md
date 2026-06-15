@@ -78,7 +78,7 @@ cd web && pnpm dev
 cd realtime && pnpm dev
 ```
 
-Verify realtime from the phone browser: `http://YOUR_IP:4000` should return `{"status":"ok","service":"glow-realtime"}`.
+Verify realtime from the device browser: `http://YOUR_IP:4000` should return `{"status":"ok","service":"glow-realtime"}`.
 
 If it still hangs on "Connecting...", check macOS firewall allows incoming connections on port 4000.
 

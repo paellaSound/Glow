@@ -217,13 +217,20 @@ export function PageTransitionWrapper({
 // 6. Tooltip Component
 // ==========================================
 interface TooltipProps {
-  content: string;
+  content: React.ReactNode;
   children: React.ReactNode;
   title?: string;
   color?: 'cyan' | 'magenta' | 'violet';
+  panelClassName?: string;
 }
 
-export function Tooltip({ content, children, title = 'HELP / INFO', color = 'cyan' }: TooltipProps) {
+export function Tooltip({
+  content,
+  children,
+  title = 'HELP / INFO',
+  color = 'cyan',
+  panelClassName,
+}: TooltipProps) {
   const colorTitles = {
     cyan: 'text-neon-cyan',
     magenta: 'text-neon-magenta',
@@ -239,7 +246,10 @@ export function Tooltip({ content, children, title = 'HELP / INFO', color = 'cya
   return (
     <div className="group relative inline-block">
       {children}
-      <div className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 w-64 -translate-x-1/2 scale-95 rounded-xl border border-border bg-card/95 p-4 text-[11px] leading-relaxed text-muted-foreground opacity-0 shadow-xl backdrop-blur-md transition-all duration-300 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:scale-100 group-focus-within:opacity-100 select-none">
+      <div className={cn(
+        "pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 w-64 -translate-x-1/2 scale-95 rounded-xl border border-border bg-card/95 p-4 text-[11px] leading-relaxed text-muted-foreground opacity-0 shadow-xl backdrop-blur-md transition-all duration-300 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:scale-100 group-focus-within:opacity-100 select-none",
+        panelClassName,
+      )}>
         <div className={cn("font-cyber uppercase tracking-widest mb-1.5 text-[9px] font-bold", colorTitles[color])}>
           {title}
         </div>
