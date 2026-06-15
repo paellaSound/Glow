@@ -1,6 +1,7 @@
 export { mountEnergyOrb } from './energy-orb.js';
-export { mountSandboxScene, MAX_ENERGY, ENERGY_LEVEL_COUNT } from './sandbox.js';
+export { mountSandboxScene, MAX_ENERGY, ENERGY_LEVEL_COUNT, DEFAULT_LIGHT, DEFAULT_POOL_PLAYBACK } from './sandbox.js';
 export type {
+  Action,
   ActionTrigger,
   AudioBinding,
   AudioSource,
@@ -8,9 +9,12 @@ export type {
   AutoConfig,
   CameraConfig,
   CameraMode,
+  Effect,
   EnergyLevelConfig,
   EnergyMode,
   HSL,
+  LightConfig,
+  PoolPlayback,
   TransitionMode,
   SandboxController,
   SandboxInput,

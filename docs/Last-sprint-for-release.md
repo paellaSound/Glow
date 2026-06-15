@@ -1,5 +1,10 @@
 # Last Sprint for Release — Glow MVP
 
+> ⚠️ **SUPERSEDED (2026-06-15) para el modelo de planes.** La matriz de feature-gating por
+> tier de este doc ya no aplica: ahora se cobra solo por escala (devices) + branding y todas
+> las features están desbloqueadas en todos los planes. Fuente de verdad actual:
+> **[plans.md](./plans.md)**.
+
 **Status:** planning · **Target:** release-ready product definition + implementation backlog  
 **Execution order:** [release-attack-plan/00-index.md](./release-attack-plan/00-index.md) — **7 parts, one per chat**  
 **Supersedes / updates:** [plans.md](./plans.md), [product-intent.md](./product-intent.md) § Plans, billing UX  

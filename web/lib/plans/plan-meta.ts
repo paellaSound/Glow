@@ -28,37 +28,56 @@ export type PlanMeta = {
   ctaLabel: string;
 };
 
+// Device cap "∞" del plan Pro: el seed usa 100000 como tope práctico.
+// Cualquier valor >= UNLIMITED_DEVICES_THRESHOLD se muestra como "Unlimited".
+export const UNLIMITED_DEVICES_THRESHOLD = 100000;
+
 export const PLAN_META: Record<Exclude<PlanCode, 'free'>, PlanMeta> = {
   plus_25: {
     planCode: 'plus_25',
     marketingName: 'Party',
     priceCents: 299,
-    deviceCap: 25,
-    matrixCellCap: 25,
+    deviceCap: 50,
+    matrixCellCap: 50,
     ctaLabel: 'Activate Party',
   },
   plus_50: {
     planCode: 'plus_50',
     marketingName: 'Venue',
     priceCents: 500,
-    deviceCap: 50,
-    matrixCellCap: 50,
+    deviceCap: 300,
+    matrixCellCap: 300,
     ctaLabel: 'Activate Venue',
   },
   pro: {
     planCode: 'pro',
     marketingName: 'Pro',
     priceCents: 2500,
-    deviceCap: 999,
-    matrixCellCap: 999,
+    deviceCap: UNLIMITED_DEVICES_THRESHOLD,
+    matrixCellCap: UNLIMITED_DEVICES_THRESHOLD,
     ctaLabel: 'Activate Pro',
   },
 };
 
-/** Minimum paid plan that unlocks each gated feature. */
+/**
+ * Plan mínimo que desbloquea cada feature gateada.
+ *
+ * MODELO ACTUAL (2026-06): solo se cobra por escala (devices) y branding. El resto
+ * de features están desbloqueadas en todos los planes (su entitlement es `true`
+ * siempre → `isFeatureAllowed` devuelve `true`), por lo que sus entradas aquí son
+ * INERTES: nunca disparan un gate. Se mantienen para no romper imports y para poder
+ * re-gatear con solo poner el flag a `false` en el seed (web/lib/entitlements.ts).
+ *
+ * Entradas VIVAS hoy: `max_devices`, `matrix_too_large` (escala) y
+ * `customRigLogo`/`customQrBranding` (branding, Venue+).
+ */
 export const FEATURE_MIN_PLAN: Record<GateFeature, Exclude<PlanCode, 'free'>> = {
   max_devices: 'plus_25',
   matrix_too_large: 'plus_25',
+  // Branding (Venue+) — vivas
+  customRigLogo: 'plus_50',
+  customQrBranding: 'plus_50',
+  // Inertes en el modelo actual (todas desbloqueadas en el seed)
   sequencedText: 'plus_25',
   deviceFlashControl: 'plus_25',
   visualsSurface: 'plus_25',
@@ -66,8 +85,6 @@ export const FEATURE_MIN_PLAN: Record<GateFeature, Exclude<PlanCode, 'free'>> = 
   gifBroadcast: 'plus_50',
   effect_layering: 'plus_50',
   webrtcLiveCall: 'pro',
-  customRigLogo: 'plus_50',
-  customQrBranding: 'plus_50',
   gifSearchFull: 'plus_50',
   visualsEmit: 'plus_50',
 };
@@ -93,6 +110,11 @@ export function formatPlanPrice(priceCents: number): string {
   const euros = priceCents / 100;
   const formatted = Number.isInteger(euros) ? euros.toFixed(0) : euros.toFixed(2);
   return `€${formatted}/mo`;
+}
+
+/** Muestra "Unlimited" para el plan ∞, o el número de dispositivos en el resto. */
+export function formatDeviceCap(cap: number): string {
+  return cap >= UNLIMITED_DEVICES_THRESHOLD ? 'Unlimited' : String(cap);
 }
 
 export function getPlanMeta(planCode: PlanCode): PlanMeta | null {
@@ -182,9 +204,9 @@ export function buildLimitBody(feature: GateFeature, planCode: Exclude<PlanCode,
 
   switch (feature) {
     case 'max_devices':
-      return `${meta.marketingName} supports up to ${meta.deviceCap} devices — ${price}`;
+      return `${meta.marketingName} supports up to ${formatDeviceCap(meta.deviceCap)} devices — ${price}`;
     case 'matrix_too_large':
-      return `${meta.marketingName} supports up to ${meta.matrixCellCap} matrix cells — ${price}`;
+      return `${meta.marketingName} supports up to ${formatDeviceCap(meta.matrixCellCap)} matrix cells — ${price}`;
     case 'customMediaUpload':
     case 'gifBroadcast':
     case 'effect_layering':

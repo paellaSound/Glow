@@ -62,11 +62,39 @@ export type EnergyMode = 'manual' | 'auto';
 /** Auto-energy tuning: how long to dwell on a level, and the silence floor. */
 export type AutoConfig = { dwellMs: number; silenceFloor: number };
 
-/** Fire a clip when an audio band crosses a threshold (rising edge + cooldown). */
+/** Key light per energy level. direction = unit vector toward which the light points. */
+export type LightConfig = {
+  hsl: HSL;
+  intensity: number;
+  direction: [number, number, number];
+};
+
+/** How the clip pool advances between idle animations. */
+export type PoolPlayback = {
+  mode: 'random' | 'sequential';
+  minHoldMs: number;
+};
+
+/** One atomic effect inside a named action. */
+export type Effect =
+  | { kind: 'animation'; clip: string }
+  | { kind: 'camera'; to: CameraConfig; durationMs: number }
+  | { kind: 'background'; hsl: HSL }
+  | { kind: 'light'; hsl: HSL; intensity: number };
+
+/** Named bundle of effects that can be fired from a button or audio trigger. */
+export type Action = {
+  id: string;
+  name: string;
+  effects: Effect[];
+  transition: { mode: 'cut' | 'crossfade'; durationMs: number };
+};
+
+/** Fire an action when an audio band crosses a threshold (rising edge + cooldown). */
 export type ActionTrigger = {
   source: AudioSource;
   threshold: number;
-  clip: string;
+  actionId: string;
   cooldownMs: number;
   enabled: boolean;
 };
@@ -90,10 +118,12 @@ export type EnergyLevelConfig = {
   glb: string | null;
   /** Background color + global ambient tint for this level. */
   hsl: HSL;
-  /** Looping clip while at this level. */
-  idleClip: string | null;
-  /** Triggerable one-shot clips at this level. */
-  actions: string[];
+  /** Key light for this level (runtime interpolates between levels). */
+  light: LightConfig;
+  /** Idle clips that rotate while at this level. */
+  clipPool: string[];
+  /** How the clip pool advances between idle animations. */
+  poolPlayback: PoolPlayback;
   /** Camera framing for this level (runtime interpolates between levels). */
   camera: CameraConfig;
   /** Use the engine's per-level camera, or the one baked into the GLB. */
@@ -101,8 +131,10 @@ export type EnergyLevelConfig = {
 };
 
 export type Scene3DConfig = {
+  schemaVersion: 2;
   paletteTargets: string[];
   energyLevels: EnergyLevelConfig[];
+  actions: Action[];
   audioBindings: AudioBinding[];
   transition: TransitionMode;
   /** manual = operator-driven level; auto = audio-driven (avg energy → level). */
@@ -113,6 +145,14 @@ export type Scene3DConfig = {
   hdrName: string | null;
   useHdrBackground: boolean;
 };
+
+export const DEFAULT_LIGHT: LightConfig = {
+  hsl: { h: 0, s: 0, l: 1 },
+  intensity: 2.2,
+  direction: [4, 8, 4],
+};
+
+export const DEFAULT_POOL_PLAYBACK: PoolPlayback = { mode: 'random', minHoldMs: 6000 };
 
 export type SandboxInput = {
   timeMs: number;
@@ -127,7 +167,7 @@ export type SandboxController = {
   clearHdr: () => void;
   setPaletteTargets: (names: string[]) => void;
   setAudioBindings: (bindings: AudioBinding[]) => void;
-  /** Per-level metadata (hsl + idle clip); GLBs are loaded separately. */
+  /** Per-level metadata (hsl, clip pool, light); GLBs are loaded separately. */
   setEnergyLevels: (levels: EnergyLevelConfig[]) => void;
   setTransitionMode: (mode: TransitionMode) => void;
   setEnergy: (level: number) => void;
@@ -148,6 +188,11 @@ export type SandboxController = {
   previewFov: (fov: number) => void;
   /** Play one of a level's action clips once. */
   playAction: (level: number, clip: string) => void;
+  setActions: (actions: Action[]) => void;
+  playActionById: (id: string) => void;
+  setLevelLight: (level: number, light: LightConfig) => void;
+  lockCurrentClip: () => void;
+  skipClip: () => void;
   /** Live audio for the UI meters: raw bands, per-binding smoothed values, the
    * normalized average energy (0–1), the auto-selected level, and which triggers
    * just fired (for a flash indicator). */
@@ -161,6 +206,7 @@ export type SandboxController = {
   readConfig: (partial: {
     paletteTargets: string[];
     energyLevels: EnergyLevelConfig[];
+    actions: Action[];
     audioBindings: AudioBinding[];
     transition: TransitionMode;
     energyMode: EnergyMode;
@@ -187,6 +233,7 @@ type LevelModel = {
   idleAction: THREE.AnimationAction | null;
   currentIdleName: string | null;
   glbCamera: CameraConfig | null;
+  loopHandler: ((e: { action: THREE.AnimationAction }) => void) | null;
 };
 
 function hexColor(hex: string | undefined, fallback: number): THREE.Color {
@@ -204,11 +251,44 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+function lerpHsl(a: HSL, b: HSL, t: number): HSL {
+  return { h: lerp(a.h, b.h, t), s: lerp(a.s, b.s, t), l: lerp(a.l, b.l, t) };
+}
+
+function lerpLight(a: LightConfig, b: LightConfig, t: number): LightConfig {
+  return {
+    hsl: lerpHsl(a.hsl, b.hsl, t),
+    intensity: lerp(a.intensity, b.intensity, t),
+    direction: [
+      lerp(a.direction[0], b.direction[0], t),
+      lerp(a.direction[1], b.direction[1], t),
+      lerp(a.direction[2], b.direction[2], t),
+    ],
+  };
+}
+
+function lerpCamera(a: CameraConfig, b: CameraConfig, t: number): CameraConfig {
+  return {
+    position: [
+      lerp(a.position[0], b.position[0], t),
+      lerp(a.position[1], b.position[1], t),
+      lerp(a.position[2], b.position[2], t),
+    ],
+    target: [
+      lerp(a.target[0], b.target[0], t),
+      lerp(a.target[1], b.target[1], t),
+      lerp(a.target[2], b.target[2], t),
+    ],
+    fov: lerp(a.fov, b.fov, t),
+  };
+}
+
 const NEUTRAL_LEVEL: EnergyLevelConfig = {
   glb: null,
   hsl: { h: 0.62, s: 0.5, l: 0.05 },
-  idleClip: null,
-  actions: [],
+  light: DEFAULT_LIGHT,
+  clipPool: [],
+  poolPlayback: DEFAULT_POOL_PLAYBACK,
   camera: { position: [3.5, 2, 5], target: [0, 1, 0], fov: 50 },
   cameraSource: 'engine',
 };
@@ -297,6 +377,23 @@ export function mountSandboxScene(
   const camTmpPos = new THREE.Vector3();
   const camTmpTgt = new THREE.Vector3();
   const camDir = new THREE.Vector3();
+  const keyLightColor = new THREE.Color();
+
+  // Composite actions + temporary overrides (cleared on energy-level change).
+  let actions: Action[] = [];
+  let camOverride: {
+    from: CameraConfig;
+    to: CameraConfig;
+    start: number;
+    durationMs: number;
+  } | null = null;
+  let bgOverride: HSL | null = null;
+  let lightOverride: { hsl: HSL; intensity: number } | null = null;
+
+  // Clip pool state (keyed by active energy level, not by model).
+  let poolLastSwitchMs = 0;
+  let poolLocked = false;
+  let poolIndex = 0;
 
   function levelAt(i: number): EnergyLevelConfig {
     return levels[Math.max(0, Math.min(levels.length - 1, i))] ?? NEUTRAL_LEVEL;
@@ -355,7 +452,117 @@ export function mountSandboxScene(
     model.currentIdleName = name;
   }
 
+  function pickInitialPoolClip(lv: EnergyLevelConfig): string | null {
+    const pool = lv.clipPool;
+    if (pool.length === 0) return null;
+    if (pool.length === 1) return pool[0]!;
+    if (lv.poolPlayback.mode === 'random') {
+      const idx = Math.floor(Math.random() * pool.length);
+      poolIndex = idx;
+      return pool[idx]!;
+    }
+    poolIndex = 0;
+    return pool[0]!;
+  }
+
+  function pickNextPoolClip(
+    pool: string[],
+    current: string | null,
+    mode: 'random' | 'sequential',
+  ): string {
+    if (pool.length <= 1) return pool[0] ?? '';
+    if (mode === 'sequential') {
+      poolIndex = (poolIndex + 1) % pool.length;
+      return pool[poolIndex]!;
+    }
+    if (pool.length === 2) return pool.find((c) => c !== current) ?? pool[0]!;
+    let pick: string;
+    do {
+      pick = pool[Math.floor(Math.random() * pool.length)]!;
+    } while (pick === current);
+    poolIndex = pool.indexOf(pick);
+    return pick;
+  }
+
+  function syncPoolIdle(nowMs: number) {
+    if (!currentModel) return;
+    const lv = levelAt(activeLevel);
+    const pool = lv.clipPool;
+    if (pool.length === 0) {
+      setModelIdle(currentModel, null);
+      return;
+    }
+    const clip = pickInitialPoolClip(lv);
+    setModelIdle(currentModel, clip);
+    poolLastSwitchMs = nowMs;
+  }
+
+  function advancePoolClip(nowMs: number) {
+    if (!currentModel) return;
+    const lv = levelAt(activeLevel);
+    const pool = lv.clipPool;
+    if (pool.length <= 1) return;
+    const next = pickNextPoolClip(pool, currentModel.currentIdleName, lv.poolPlayback.mode);
+    setModelIdle(currentModel, next);
+    poolLastSwitchMs = nowMs;
+  }
+
+  function onMixerLoop(e: { action: THREE.AnimationAction }) {
+    if (!currentModel || e.action !== currentModel.idleAction) return;
+    const lv = levelAt(activeLevel);
+    const pool = lv.clipPool;
+    if (pool.length <= 1 || poolLocked) return;
+    const nowMs = performance.now();
+    if (nowMs - poolLastSwitchMs < lv.poolPlayback.minHoldMs) return;
+    advancePoolClip(nowMs);
+  }
+
+  function attachLoopListener(model: LevelModel) {
+    if (!model.mixer) return;
+    if (model.loopHandler) model.mixer.removeEventListener('loop', model.loopHandler as never);
+    model.loopHandler = onMixerLoop;
+    model.mixer.addEventListener('loop', model.loopHandler as never);
+  }
+
+  function readLiveCamera(): CameraConfig {
+    return {
+      position: [camera.position.x, camera.position.y, camera.position.z],
+      target: [controls.target.x, controls.target.y, controls.target.z],
+      fov: camera.fov,
+    };
+  }
+
+  function playActionById(id: string) {
+    const action = actions.find((a) => a.id === id);
+    if (!action) return;
+    const nowMs = performance.now();
+    for (const effect of action.effects) {
+      switch (effect.kind) {
+        case 'animation':
+          playAction(activeLevel, effect.clip);
+          break;
+        case 'camera':
+          camOverride = {
+            from: readLiveCamera(),
+            to: effect.to,
+            start: nowMs,
+            durationMs: effect.durationMs,
+          };
+          break;
+        case 'background':
+          bgOverride = effect.hsl;
+          break;
+        case 'light':
+          lightOverride = { hsl: effect.hsl, intensity: effect.intensity };
+          break;
+      }
+    }
+  }
+
   function disposeModel(model: LevelModel) {
+    if (model.mixer && model.loopHandler) {
+      model.mixer.removeEventListener('loop', model.loopHandler as never);
+    }
     scene.remove(model.root);
     model.mixer?.stopAllAction();
     model.root.traverse((obj) => {
@@ -459,7 +666,10 @@ export function mountSandboxScene(
       idleAction: null,
       currentIdleName: null,
       glbCamera,
+      loopHandler: null,
     });
+    const loaded = models.get(level)!;
+    attachLoopListener(loaded);
 
     if (!framed) {
       frameModel(root);
@@ -516,7 +726,17 @@ export function mountSandboxScene(
   /** Pick the model for the active level; start a transition when it changes. */
   function syncActiveModel(nowMs: number) {
     const desiredLevel = Math.max(0, Math.min(MAX_ENERGY, Math.round(energySmooth)));
-    if (desiredLevel !== activeLevel || !currentModel) {
+    const levelChanged = desiredLevel !== activeLevel;
+
+    if (levelChanged) {
+      camOverride = null;
+      bgOverride = null;
+      lightOverride = null;
+      poolLastSwitchMs = nowMs;
+      poolLocked = false;
+    }
+
+    if (levelChanged || !currentModel) {
       const next = modelForLevel(desiredLevel);
       activeLevel = desiredLevel;
       if (next && next !== currentModel) {
@@ -545,6 +765,7 @@ export function mountSandboxScene(
         setModelOpacity(transition.from, 1);
         currentModel = transition.to;
         transition = null;
+        syncPoolIdle(nowMs);
       }
     }
 
@@ -555,7 +776,15 @@ export function mountSandboxScene(
         m === currentModel || (transition !== null && (m === transition.from || m === transition.to));
     }
 
-    if (currentModel) setModelIdle(currentModel, levelAt(activeLevel).idleClip);
+    if (currentModel && levelChanged) {
+      syncPoolIdle(nowMs);
+    } else if (
+      currentModel &&
+      !currentModel.currentIdleName &&
+      levelAt(activeLevel).clipPool.length > 0
+    ) {
+      syncPoolIdle(nowMs);
+    }
   }
 
   function resize() {
@@ -616,7 +845,7 @@ export function mountSandboxScene(
       const st = triggerState[i] ?? (triggerState[i] = { lastFireMs: 0, armed: true });
       const v = clamp01(feats[tr.source]);
       if (st.armed && v >= tr.threshold && nowMs - st.lastFireMs >= tr.cooldownMs) {
-        if (tr.clip) playAction(activeLevel, tr.clip);
+        if (tr.actionId) playActionById(tr.actionId);
         st.lastFireMs = nowMs;
         st.armed = false;
       } else if (!st.armed && v < tr.threshold - 0.08) {
@@ -682,18 +911,38 @@ export function mountSandboxScene(
 
     // Background + ambient tint from the interpolated level HSL (audio shifts hue).
     if (!useHdrBackground || !envTexture) {
-      const h = (lerp(lvLo.hsl.h, lvHi.hsl.h, frac) + hueAdd) % 1;
-      const s = lerp(lvLo.hsl.s, lvHi.hsl.s, frac);
-      const l = lerp(lvLo.hsl.l, lvHi.hsl.l, frac);
+      let h: number;
+      let s: number;
+      let l: number;
+      if (bgOverride) {
+        h = (bgOverride.h + hueAdd) % 1;
+        s = bgOverride.s;
+        l = bgOverride.l;
+      } else {
+        h = (lerp(lvLo.hsl.h, lvHi.hsl.h, frac) + hueAdd) % 1;
+        s = lerp(lvLo.hsl.s, lvHi.hsl.s, frac);
+        l = lerp(lvLo.hsl.l, lvHi.hsl.l, frac);
+      }
       bgBase.setHSL((h + 1) % 1, s, l);
       (scene.background as THREE.Color).copy(bgBase);
       scene.fog?.color.copy(bgBase);
       // Global tint: ambient leans to the level hue at a brighter lightness.
-      tintColor.setHSL((h + 1) % 1, s, Math.min(0.7, l + 0.5));
+      const tintH = bgOverride ? bgOverride.h : lerp(lvLo.hsl.h, lvHi.hsl.h, frac);
+      const tintS = bgOverride ? bgOverride.s : lerp(lvLo.hsl.s, lvHi.hsl.s, frac);
+      const tintL = bgOverride ? bgOverride.l : lerp(lvLo.hsl.l, lvHi.hsl.l, frac);
+      tintColor.setHSL((tintH + 1) % 1, tintS, Math.min(0.7, tintL + 0.5));
       ambient.color.copy(tintColor);
     } else {
       ambient.color.setRGB(1, 1, 1);
     }
+
+    const levelLight = lerpLight(lvLo.light, lvHi.light, frac);
+    const lightHsl = lightOverride?.hsl ?? levelLight.hsl;
+    const lightIntensity = lightOverride?.intensity ?? levelLight.intensity;
+    keyLightColor.setHSL(lightHsl.h, lightHsl.s, lightHsl.l);
+    key.color.copy(keyLightColor);
+    key.intensity = lightIntensity;
+    key.position.set(levelLight.direction[0], levelLight.direction[1], levelLight.direction[2]);
 
     for (const model of models.values()) model.mixer?.update(dt);
 
@@ -702,18 +951,18 @@ export function mountSandboxScene(
     // 'free' OrbitControls drive it (authoring / inspection).
     if (cameraMode === 'driven') {
       controls.enabled = false;
-      const c0 = effectiveCamera(lo);
-      const c1 = effectiveCamera(hi);
-      camTmpPos.set(
-        lerp(c0.position[0], c1.position[0], frac),
-        lerp(c0.position[1], c1.position[1], frac),
-        lerp(c0.position[2], c1.position[2], frac),
-      );
-      camTmpTgt.set(
-        lerp(c0.target[0], c1.target[0], frac),
-        lerp(c0.target[1], c1.target[1], frac),
-        lerp(c0.target[2], c1.target[2], frac),
-      );
+      let baseCam: CameraConfig;
+      if (camOverride) {
+        const t =
+          camOverride.durationMs <= 0
+            ? 1
+            : clamp01((nowMs - camOverride.start) / camOverride.durationMs);
+        baseCam = lerpCamera(camOverride.from, camOverride.to, t);
+      } else {
+        baseCam = lerpCamera(effectiveCamera(lo), effectiveCamera(hi), frac);
+      }
+      camTmpPos.set(baseCam.position[0], baseCam.position[1], baseCam.position[2]);
+      camTmpTgt.set(baseCam.target[0], baseCam.target[1], baseCam.target[2]);
       camDir.subVectors(camTmpTgt, camTmpPos).normalize();
       camTmpPos.addScaledVector(camDir, camDollyAdd);
       if (camShakeAdd > 0) {
@@ -721,7 +970,7 @@ export function mountSandboxScene(
         camTmpPos.y += (Math.random() - 0.5) * camShakeAdd;
       }
       camera.position.copy(camTmpPos);
-      camera.fov = Math.min(150, Math.max(5, lerp(c0.fov, c1.fov, frac) + camFovAdd));
+      camera.fov = Math.min(150, Math.max(5, baseCam.fov + camFovAdd));
       camera.lookAt(camTmpTgt);
       camera.updateProjectionMatrix();
     } else {
@@ -817,9 +1066,25 @@ export function mountSandboxScene(
       camera.updateProjectionMatrix();
     },
     playAction,
+    setActions: (next) => {
+      actions = next;
+    },
+    playActionById,
+    setLevelLight: (level, light) => {
+      if (level < 0 || level >= levels.length) return;
+      levels = levels.map((lv, i) => (i === level ? { ...lv, light } : lv));
+    },
+    lockCurrentClip: () => {
+      poolLocked = !poolLocked;
+    },
+    skipClip: () => {
+      advancePoolClip(performance.now());
+    },
     readConfig: (partial) => ({
+      schemaVersion: 2 as const,
       paletteTargets: partial.paletteTargets,
       energyLevels: partial.energyLevels,
+      actions: partial.actions,
       audioBindings: partial.audioBindings,
       transition: partial.transition,
       energyMode: partial.energyMode,

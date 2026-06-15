@@ -1,5 +1,10 @@
 # Glow — Plans Marketing Strategy
 
+> ⚠️ **SUPERSEDED (2026-06-15) para el modelo de planes.** El packaging por feature-gating
+> que describe este doc ya no aplica: ahora se cobra solo por escala (devices) + branding, y
+> todas las features están desbloqueadas en todos los planes. Fuente de verdad actual:
+> **[plans.md](./plans.md)**. Conserva este doc solo para contexto de posicionamiento/copy.
+
 **Purpose:** positioning, packaging, copy, and upgrade psychology for Glow’s four plans.  
 **Implementation backlog:** [Last-sprint-for-release.md](./Last-sprint-for-release.md)  
 **Technical entitlements:** [plans.md](./plans.md) · **Product vision:** [product-intent.md](./product-intent.md)  

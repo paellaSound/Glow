@@ -17,7 +17,7 @@ import type { Scene3DConfig } from 'glow-visuals-3d';
 
 const DB_NAME = 'glow-visuals3d-dev';
 const STORE = 'scenes';
-const VERSION = 1;
+const VERSION = 2;
 
 export type StoredAsset = { name: string; blob: Blob };
 
@@ -44,7 +44,8 @@ function openDb(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: 'id' });
+      if (db.objectStoreNames.contains(STORE)) db.deleteObjectStore(STORE);
+      db.createObjectStore(STORE, { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);

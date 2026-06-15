@@ -38,6 +38,10 @@ export type PlanEntitlements = {
   visualsEmitSlotsPerMode: number;
   liveCallTestModeOnly: boolean;
   pollProductionEnabled: boolean;
+  // Branding (paid axis #2) — quitar marca de agua Glow del surface/proyector
+  removeWatermark: boolean;
+  // Escala — el plan ∞ exige confirmar cobertura de red antes de abrir sala
+  requiresCoverageAck: boolean;
 };
 
 export { DEFAULT_ENTITLEMENTS };
@@ -75,6 +79,8 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   visuals_emit_slots_per_mode: 'visualsEmitSlotsPerMode',
   live_call_test_mode_only: 'liveCallTestModeOnly',
   poll_production_enabled: 'pollProductionEnabled',
+  remove_watermark: 'removeWatermark',
+  requires_coverage_ack: 'requiresCoverageAck',
 };
 
 export function buildEntitlementsFromRows(
@@ -130,169 +136,141 @@ export async function getTeamEntitlements(teamId: string): Promise<PlanEntitleme
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MODELO DE NEGOCIO (2026-06): se cobra SOLO por dos ejes
+//   1) Escala de dispositivos/usuarios  → el coste real del servidor de realtime
+//   2) Branding                          → logo custom + quitar marca de agua Glow
+// TODAS las demás features están desbloqueadas en TODOS los planes (true/ilimitado).
+// Para re-gatear una feature en el futuro: pon su flag a `false` aquí y corre
+// `pnpm db:seed`. El enforcement del servidor (realtime/src/room-manager.ts) y los
+// <PlanGate> de la UI volverán a actuar automáticamente. Ver docs/plans.md.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Features desbloqueadas para todos los planes en el modelo actual.
+ * Mantener una sola fuente evita divergencias entre planes; lo que SÍ cambia por
+ * plan (escala + branding) se define explícitamente en cada plan más abajo.
+ */
+const ALL_FEATURES_UNLOCKED = {
+  available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow', 'diagonal', 'strobe', 'audio'],
+  audio_reactive: true,
+  matrix_mode: true,
+  advanced_matrix: true,
+  custom_grid_size: true,
+  manual_fallback_mode: true,
+  gif_search_mode: 'full',
+  visuals_surface: true,
+  available_visual_arts: ['audio-shader'],
+  effect_layering: true,
+  audience_reactions: true,
+  custom_media_upload: true,
+  gif_broadcast: true,
+  sequenced_text: true,
+  device_flash_control: true,
+  webrtc_live_call: true,
+  live_call_test_mode_only: false,
+  visuals_emit_slots_per_mode: 999,
+  poll_production_enabled: true,
+  // Palancas latentes: hoy uniformes para no diferenciar; son reactivables como
+  // límites de coste si hiciera falta (ver docs/plans.md → "Palancas latentes").
+  max_room_duration_minutes: 720,
+  priority_reconnect_window_seconds: 180,
+  max_rigs: 50,
+  max_pattern_sequences: 50,
+} as const;
+
 export const PLAN_SEED_DATA = [
   {
     code: 'free',
     name: 'Free',
-    description: 'Try the full show — Glow branded, up to 10 devices',
+    description: 'Prueba el show completo — marca Glow, hasta 15 dispositivos',
     monthlyPriceCents: 0,
     sortOrder: 0,
     entitlements: {
-      max_devices: 10,
-      max_matrix_cells: 10,
-      ads_enabled: true,
-      available_presets: ['solid', 'flash', 'pulse', 'audio'],
-      audio_reactive: true,
-      matrix_mode: true,
-      advanced_matrix: false,
-      custom_grid_size: false,
+      ...ALL_FEATURES_UNLOCKED,
+      // Escala
+      max_devices: 15,
+      max_matrix_cells: 15,
       max_grid_rows: 5,
       max_grid_cols: 5,
-      max_room_duration_minutes: 60,
-      manual_fallback_mode: true,
-      priority_reconnect_window_seconds: 60,
+      max_live_call_devices: 2,
+      // Monetización: el plan gratis muestra house ads
+      ads_enabled: true,
+      // Branding: marca Glow (sin logo custom, con marca de agua)
       custom_rig_logo: false,
       custom_qr_branding: false,
-      gif_search_mode: 'featured_page1',
-      // v2
-      visuals_surface: true,
-      available_visual_arts: ['audio-shader'],
-      max_rigs: 1,
-      effect_layering: false,
-      max_pattern_sequences: 1,
-      audience_reactions: true,
-      custom_media_upload: false,
-      gif_broadcast: false,
-      sequenced_text: false,
-      device_flash_control: false,
-      webrtc_live_call: false,
-      max_live_call_devices: 0,
-      visuals_emit_slots_per_mode: 1,
-      live_call_test_mode_only: true,
-      poll_production_enabled: false,
+      remove_watermark: false,
+      // Escala: sin tope que requiera confirmar cobertura
+      requires_coverage_ack: false,
     },
   },
   {
     code: 'plus_25',
-    name: 'Plus 25',
-    description: 'Scale your party — 25 devices, ad-free, Glow branding',
+    name: 'Party',
+    description: 'Escala tu fiesta — 50 dispositivos, sin ads, marca Glow',
     monthlyPriceCents: 299,
     sortOrder: 1,
     entitlements: {
-      max_devices: 25,
-      max_matrix_cells: 25,
+      ...ALL_FEATURES_UNLOCKED,
+      // Escala
+      max_devices: 50,
+      max_matrix_cells: 50,
+      max_grid_rows: 10,
+      max_grid_cols: 10,
+      max_live_call_devices: 8,
+      // Pagar quita los ads
       ads_enabled: false,
-      available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow'],
-      audio_reactive: true,
-      matrix_mode: true,
-      advanced_matrix: true,
-      custom_grid_size: false,
-      max_grid_rows: 5,
-      max_grid_cols: 5,
-      max_room_duration_minutes: 180,
-      manual_fallback_mode: true,
-      priority_reconnect_window_seconds: 120,
+      // Branding: todavía marca Glow (branding propio empieza en Venue)
       custom_rig_logo: false,
       custom_qr_branding: false,
-      gif_search_mode: 'featured_page1',
-      // v2
-      visuals_surface: true,
-      available_visual_arts: ['audio-shader'],
-      max_rigs: 3,
-      effect_layering: false,
-      max_pattern_sequences: 3,
-      audience_reactions: true,
-      custom_media_upload: false,
-      gif_broadcast: false,
-      sequenced_text: true,
-      device_flash_control: true,
-      webrtc_live_call: false,
-      max_live_call_devices: 0,
-      visuals_emit_slots_per_mode: 2,
-      live_call_test_mode_only: true,
-      poll_production_enabled: true,
+      remove_watermark: false,
+      requires_coverage_ack: false,
     },
   },
   {
     code: 'plus_50',
-    name: 'Plus 50',
-    description: 'Your brand on stage — logo, QR socials, 50 devices',
+    name: 'Venue',
+    description: 'Tu marca en escena — logo, QR social, sin marca de agua, 300 dispositivos',
     monthlyPriceCents: 500,
     sortOrder: 2,
     entitlements: {
-      max_devices: 50,
-      max_matrix_cells: 50,
+      ...ALL_FEATURES_UNLOCKED,
+      // Escala
+      max_devices: 300,
+      max_matrix_cells: 300,
+      max_grid_rows: 20,
+      max_grid_cols: 20,
+      max_live_call_devices: 50,
       ads_enabled: false,
-      available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow', 'diagonal', 'audio'],
-      audio_reactive: true,
-      matrix_mode: true,
-      advanced_matrix: true,
-      custom_grid_size: true,
-      max_grid_rows: 10,
-      max_grid_cols: 10,
-      max_room_duration_minutes: 360,
-      manual_fallback_mode: true,
-      priority_reconnect_window_seconds: 180,
+      // Branding propio desbloqueado
       custom_rig_logo: true,
       custom_qr_branding: true,
-      gif_search_mode: 'full',
-      // v2
-      visuals_surface: true,
-      available_visual_arts: ['audio-shader'],
-      max_rigs: 10,
-      effect_layering: true,
-      max_pattern_sequences: 10,
-      audience_reactions: true,
-      custom_media_upload: true,
-      gif_broadcast: true,
-      sequenced_text: true,
-      device_flash_control: true,
-      webrtc_live_call: false,
-      max_live_call_devices: 0,
-      visuals_emit_slots_per_mode: 999,
-      live_call_test_mode_only: false,
-      poll_production_enabled: true,
+      remove_watermark: true,
+      requires_coverage_ack: false,
     },
   },
   {
     code: 'pro',
     name: 'Pro',
-    description: 'Live production — unlimited scale, camera mosaic, all effects',
+    description: 'Dispositivos ilimitados — tu marca + producción en vivo',
     monthlyPriceCents: 2500,
     sortOrder: 3,
     entitlements: {
-      max_devices: 999,
-      max_matrix_cells: 999,
+      ...ALL_FEATURES_UNLOCKED,
+      // Escala "infinita" (capada alto; el cuello de botella real es la cobertura
+      // de la zona, por eso este plan exige confirmación antes de abrir sala)
+      max_devices: 100000,
+      max_matrix_cells: 100000,
+      max_grid_rows: 100,
+      max_grid_cols: 100,
+      max_live_call_devices: 200,
       ads_enabled: false,
-      available_presets: ['solid', 'flash', 'pulse', 'wave', 'rainbow', 'diagonal', 'strobe', 'audio'],
-      audio_reactive: true,
-      matrix_mode: true,
-      advanced_matrix: true,
-      custom_grid_size: true,
-      max_grid_rows: 31,
-      max_grid_cols: 31,
-      max_room_duration_minutes: 720,
-      manual_fallback_mode: true,
-      priority_reconnect_window_seconds: 300,
+      // Branding propio desbloqueado
       custom_rig_logo: true,
       custom_qr_branding: true,
-      gif_search_mode: 'full',
-      // v2
-      visuals_surface: true,
-      available_visual_arts: ['audio-shader'],
-      max_rigs: 50,
-      effect_layering: true,
-      max_pattern_sequences: 50,
-      audience_reactions: true,
-      custom_media_upload: true,
-      gif_broadcast: true,
-      sequenced_text: true,
-      device_flash_control: true,
-      webrtc_live_call: true,
-      max_live_call_devices: 6,
-      visuals_emit_slots_per_mode: 999,
-      live_call_test_mode_only: false,
-      poll_production_enabled: true,
+      remove_watermark: true,
+      // Único plan que pide confirmar cobertura de red antes de abrir sala
+      requires_coverage_ack: true,
     },
   },
 ] as const;

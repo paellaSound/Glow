@@ -33,6 +33,10 @@ export type PlanEntitlements = {
   visualsEmitSlotsPerMode: number;
   liveCallTestModeOnly: boolean;
   pollProductionEnabled: boolean;
+  // Branding — quitar marca de agua Glow (Venue+)
+  removeWatermark: boolean;
+  // Escala — el plan ∞ exige confirmar cobertura de red antes de abrir sala
+  requiresCoverageAck: boolean;
 };
 
 // ── WebRTC live-call ─────────────────────────────────────────────────────────

@@ -16,8 +16,10 @@ import { useTeamEntitlements } from '@/lib/glow/use-team-entitlements';
 import {
   buildLimitBody,
   buildLimitTitle,
+  formatDeviceCap,
   getRequiredPlanForFeature,
 } from '@/lib/plans/plan-meta';
+import { AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import type { PlanEntitlements } from '@/lib/glow/types';
 
@@ -48,6 +50,8 @@ export default function CreateRoomPage() {
   const [pendingCreate, setPendingCreate] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [firstPartyTipOpen, setFirstPartyTipOpen] = useState(false);
+  const [coverageAck, setCoverageAck] = useState(false);
+  const [coverageError, setCoverageError] = useState(false);
   const searchParams = useSearchParams();
   const { team, mutate: mutateEntitlements } = useTeamEntitlements();
 
@@ -58,6 +62,9 @@ export default function CreateRoomPage() {
   const maxMatrixCells = entitlements?.maxMatrixCells ?? entitlements?.maxDevices ?? 10;
   const matrixCells = positionRequired ? rows * cols : 1;
   const matrixTooLarge = positionRequired && matrixCells > maxMatrixCells;
+  // Plan ∞: exige confirmar cobertura de red antes de abrir sala (el aforo masivo
+  // depende de la cobertura de la zona, no del servidor). Ver docs/plans.md.
+  const requiresCoverageAck = entitlements?.requiresCoverageAck ?? false;
 
   function clampRows(value: number) {
     return Math.min(Math.max(1, value), maxGridRows);
@@ -111,6 +118,8 @@ export default function CreateRoomPage() {
         matrix: positionRequired ? { rows, cols } : { rows: 1, cols: 1 },
         rigId: selectedRigId,
         paletteSnapshot: selectedRig ? selectedRig.palette : undefined,
+        // Plan ∞: el host confirmó haber comprobado la cobertura de red (advisory)
+        coverageAck: requiresCoverageAck ? coverageAck : undefined,
       });
 
       if (response.error === 'ACTIVE_SESSION' && response.roomCode) {
@@ -159,6 +168,10 @@ export default function CreateRoomPage() {
   }
 
   function handleCreateClick() {
+    if (requiresCoverageAck && !coverageAck) {
+      setCoverageError(true);
+      return;
+    }
     if (matrixTooLarge) {
       captureClientEvent('plan_limit_hit', {
         limit_key: 'matrix_too_large',
@@ -340,7 +353,7 @@ export default function CreateRoomPage() {
             </div>
 
             <p className="text-xs font-cyber tracking-wide text-muted-foreground text-center">
-              Rave Limit: Up to {entitlements?.maxDevices ?? 10} synced screens
+              Rave Limit: {formatDeviceCap(entitlements?.maxDevices ?? 15)} synced screens
               {positionRequired
                 ? ` · max ${maxMatrixCells} matrix cells · grid up to ${maxGridRows}×${maxGridCols}`
                 : ''}
@@ -350,7 +363,50 @@ export default function CreateRoomPage() {
                 {rows}×{cols} = {matrixCells} cells — exceeds your plan limit of {maxMatrixCells}
               </p>
             ) : null}
-            
+
+            {requiresCoverageAck ? (
+              <div
+                className={`rounded-xl border p-4 transition-colors ${
+                  coverageError && !coverageAck
+                    ? 'border-amber-400/60 bg-amber-400/10'
+                    : 'border-amber-400/20 bg-amber-400/5'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
+                  <div className="flex flex-col gap-2">
+                    <span className="font-cyber text-xs font-semibold uppercase tracking-wide text-amber-300">
+                      Aforo masivo — comprueba la cobertura
+                    </span>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      Con dispositivos ilimitados, el resultado depende del nivel de cobertura
+                      de red del recinto. Si la zona tiene mala señal o saturación, algunos
+                      móviles no sincronizarán bien. Comprueba la conectividad antes de lanzar.
+                    </p>
+                    <label className="flex cursor-pointer items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={coverageAck}
+                        onChange={(e) => {
+                          setCoverageAck(e.target.checked);
+                          if (e.target.checked) setCoverageError(false);
+                        }}
+                        className="mt-0.5 rounded border-border bg-transparent text-amber-400 focus:ring-amber-400"
+                      />
+                      <span className="text-xs font-medium leading-snug text-foreground">
+                        Conozco los riesgos y he comprobado la conectividad / cobertura de la zona.
+                      </span>
+                    </label>
+                    {coverageError && !coverageAck ? (
+                      <span className="text-[10px] font-cyber uppercase tracking-wide text-amber-400">
+                        Marca la casilla para lanzar la sala.
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <NeonButton
               onClick={handleCreateClick}
               color="magenta"

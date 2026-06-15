@@ -16,6 +16,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   mountSandboxScene,
   MAX_ENERGY,
+  DEFAULT_LIGHT,
+  DEFAULT_POOL_PLAYBACK,
   type SandboxController,
   type SandboxInput,
   type Scene3DConfig,
@@ -48,16 +50,26 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
         return;
       }
       inputRef.current = { ...inputRef.current, palette: scene.palette };
-      // Backfill camera for scenes saved before per-level cameras existed.
-      const levels = scene.config.energyLevels.map((lv) => ({
-        ...lv,
-        camera: lv.camera ?? { position: [3.5, 2, 5] as [number, number, number], target: [0, 1, 0] as [number, number, number], fov: 50 },
+      // Backfill v2 fields for scenes saved before schemaVersion 2.
+      const levels = scene.config.energyLevels.map((lv, i) => ({
+        glb: lv.glb ?? null,
+        hsl: lv.hsl ?? { h: 0.62, s: 0.55, l: 0.04 + (i / MAX_ENERGY) * 0.04 },
+        light: lv.light ?? DEFAULT_LIGHT,
+        clipPool: lv.clipPool ?? [],
+        poolPlayback: lv.poolPlayback ?? DEFAULT_POOL_PLAYBACK,
+        camera: lv.camera ?? {
+          position: [3.5, 2, 5] as [number, number, number],
+          target: [0, 1, 0] as [number, number, number],
+          fov: 50,
+        },
+        cameraSource: lv.cameraSource ?? 'engine',
       }));
       controller.setEnergyLevels(levels);
       controller.setTransitionMode(scene.config.transition);
       controller.setPaletteTargets(scene.config.paletteTargets);
       controller.setAudioBindings(scene.config.audioBindings);
       controller.setActionTriggers(scene.config.actionTriggers ?? []);
+      controller.setActions(scene.config.actions ?? []);
       controller.setAutoConfig(scene.config.autoConfig ?? { dwellMs: 4000, silenceFloor: 0.04 });
       controller.setEnergyMode(scene.config.energyMode ?? 'manual');
       controller.setExposure(scene.config.exposure);
@@ -116,7 +128,11 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
     controllerRef.current?.setEnergy(n);
   }
 
-  const actions = config?.energyLevels[level]?.actions ?? [];
+  const sceneActions = config?.actions ?? [];
+
+  function playSceneAction(actionId: string) {
+    controllerRef.current?.playActionById(actionId);
+  }
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black text-zinc-200">
@@ -185,16 +201,16 @@ export default function Visuals3DPlayerClient({ sceneId }: { sceneId: string | n
               edit
             </Link>
           </div>
-          {actions.length > 0 && (
+          {sceneActions.length > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-zinc-500">actions</span>
-              {actions.map((clip) => (
+              {sceneActions.map((action) => (
                 <button
-                  key={clip}
-                  onClick={() => controllerRef.current?.playAction(level, clip)}
+                  key={action.id}
+                  onClick={() => playSceneAction(action.id)}
                   className="rounded bg-violet-500/20 px-3 py-1 text-violet-200 ring-1 ring-violet-500/40 hover:bg-violet-500/30"
                 >
-                  {clip}
+                  {action.name}
                 </button>
               ))}
             </div>
