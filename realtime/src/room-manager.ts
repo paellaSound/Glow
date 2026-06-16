@@ -485,7 +485,10 @@ export function startCleanupInterval(io: Server) {
 
       purgeExpiredDisconnectedPlayers(room, now);
 
-      if (getActivePlayerCount(room) === 0 && now - room.lastActivityAt > 5 * 60 * 1000) {
+      const activePlayerCount = getActivePlayerCount(room);
+      const visualsCount = io.sockets.adapter.rooms.get(`visuals:${room.code}`)?.size ?? 0;
+
+      if (activePlayerCount === 0 && visualsCount === 0 && now - room.lastActivityAt > 5 * 60 * 1000) {
         void closeRoom(io, room, 'empty_room');
       }
     }

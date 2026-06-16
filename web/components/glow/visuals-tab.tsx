@@ -61,6 +61,7 @@ export type VisualsWorkingState = {
   dirty: boolean;
   loadedRigId: string | null;
   displayName?: string;
+  micEnabled?: boolean;
 };
 
 export type RigWithCues = {
@@ -661,13 +662,13 @@ export function VisualsTab({
   }
 
   function handleMicToggle(enabled: boolean) {
+    onWorkingStateChange({ micEnabled: enabled, dirty: true });
     if (!canControlSurfaceForMode('standard')) return;
     socket.current?.emit('orchestrator:visuals_set_scene', {
       roomCode,
       artId: workingState.artId,
       palette: workingState.palette,
       params: {
-        ...roomState?.visualsState?.params,
         micEnabled: enabled,
       },
     });
@@ -1513,7 +1514,7 @@ export function VisualsTab({
                         <div className="grid grid-cols-1 gap-2">
                           {availableArts.map((art) => {
                             const active = art.id === workingState.artId;
-                            const micEnabled = roomState?.visualsState?.params?.micEnabled !== false;
+                            const micEnabled = workingState.micEnabled !== false;
 
                             if (active) {
                               return (
