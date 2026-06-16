@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, ImageIcon, Lock, Smile, Upload } from 'lucide-react';
-import { PlanGateUpsell } from '@/components/glow/plan-gate';
+import { PlanGateCtaButton } from '@/components/glow/plan-gate';
 import {
   getUserLogoLayer,
   isPlayerMenuItemVisible,
@@ -177,7 +177,12 @@ export function PlayerChromeLayersPanel({
               ) : null}
             </div>
           ) : (
-            <PlanGateUpsell feature="customRigLogo" roomEntitlements={entitlements} />
+            <PlanGateCtaButton
+              feature="customRigLogo"
+              roomEntitlements={entitlements}
+              label="Add logo"
+              className="h-8 px-3 text-[10px] font-cyber uppercase tracking-widest"
+            />
           )}
         </LayerRow>
 

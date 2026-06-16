@@ -209,6 +209,52 @@ export function PlanGateUpsell({
   );
 }
 
+/** Compact CTA button that opens the upgrade modal. */
+export function PlanGateCtaButton({
+  feature,
+  label,
+  className,
+  returnUrl,
+  ...gateOptions
+}: Omit<PlanGateProps, 'children' | 'overlay'> & { label: string }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const gate = usePlanGate(feature, gateOptions);
+  const { modalOpen, openModal, onModalOpenChange } = useUpgradeModal(
+    feature,
+    gate.requiredPlan,
+    'upsell'
+  );
+
+  const resolvedReturnUrl =
+    returnUrl ?? buildReturnUrl(pathname, searchParams.toString());
+
+  if (gate.state === 'allowed') return null;
+
+  return (
+    <>
+      <NeonButton
+        type="button"
+        color="magenta"
+        variant="solid"
+        className={className}
+        onClick={openModal}
+      >
+        {label}
+      </NeonButton>
+      <UpgradeModal
+        open={modalOpen}
+        onOpenChange={onModalOpenChange}
+        title={gate.limitReason}
+        body={gate.limitBody}
+        requiredPlan={gate.requiredPlan}
+        returnUrl={resolvedReturnUrl}
+        hasActiveSubscription={gate.hasActiveSubscription}
+      />
+    </>
+  );
+}
+
 function getPlanMetaLabel(planCode: string): string {
   const labels: Record<string, string> = {
     plus_25: 'Party',
