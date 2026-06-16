@@ -5,7 +5,7 @@ export function getSiteUrl(): string {
   const base =
     process.env.BASE_URL ||
     process.env.NEXT_PUBLIC_BASE_URL ||
-    'https://glow.app';
+    'https://glowtherave.com';
   return base.replace(/\/$/, '');
 }
 
