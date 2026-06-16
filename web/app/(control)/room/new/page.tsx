@@ -140,7 +140,31 @@ export default function CreateRoomPage() {
         return;
       }
 
-      const selectedRig = rigsList?.find((r) => r.id === selectedRigId);
+      let resolvedRigId = selectedRigId;
+      let paletteSnapshot: string[] | undefined = undefined;
+
+      if (!resolvedRigId) {
+        if (rigsList && rigsList.length > 0) {
+          const defaultRig = rigsList.find((r) => r.isDefault) ?? rigsList[0];
+          resolvedRigId = defaultRig.id;
+          paletteSnapshot = defaultRig.palette;
+        } else {
+          // Sin rigs: auto-crear uno "Default" (lazy provisioning)
+          const res = await fetch('/api/rigs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: 'Default', isDefault: true }),
+          });
+          if (res.ok) {
+            const newRig = await res.json();
+            resolvedRigId = newRig.id as string;
+            paletteSnapshot = newRig.palette;
+          }
+        }
+      } else {
+        const selectedRig = rigsList?.find((r) => r.id === resolvedRigId);
+        paletteSnapshot = selectedRig?.palette;
+      }
 
       const response = await emitWithCallback<{
         roomCode?: string;
@@ -150,8 +174,8 @@ export default function CreateRoomPage() {
       }>('orchestrator:create_room', {
         accessToken: session.access_token,
         matrix: positionRequired ? { rows, cols } : { rows: 1, cols: 1 },
-        rigId: selectedRigId,
-        paletteSnapshot: selectedRig ? selectedRig.palette : undefined,
+        rigId: resolvedRigId,
+        paletteSnapshot,
         // Plan ∞: el host confirmó haber comprobado la cobertura de red (advisory)
         coverageAck: requiresCoverageAck ? coverageAck : undefined,
       });
@@ -188,7 +212,7 @@ export default function CreateRoomPage() {
         matrix_enabled: positionRequired,
         matrix_rows: positionRequired ? rows : 1,
         matrix_cols: positionRequired ? cols : 1,
-        rig_id: selectedRigId,
+        rig_id: resolvedRigId ?? undefined,
       });
 
       const matrixQuery = positionRequired ? 'matrix=1' : 'matrix=0';

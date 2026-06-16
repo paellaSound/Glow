@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import {
   Loader2,
   Monitor,
@@ -38,6 +39,7 @@ import { VisualsPreview } from '@/components/glow/visuals-preview';
 import { EditSectionChrome } from '@/components/glow/edit-section-chrome';
 import { ResizableTwoColumn } from '@/components/glow/resizable-two-column';
 import type { ConsoleMode } from '@/lib/glow/console-mode';
+import type { RigSocial } from '@/lib/glow/social-kinds';
 import { parseYoutubeVideoId } from '@/lib/youtube';
 import {
   AlertDialog,
@@ -74,6 +76,7 @@ export type RigWithCues = {
   console_config: Record<string, unknown>;
   is_default?: boolean;
   cues: RigCue[];
+  socials: RigSocial[];
 };
 
 /**
@@ -100,6 +103,17 @@ export function normalizeRigResponse(raw: any): RigWithCues {
         transition: c.transition ?? undefined,
         label: c.label ?? undefined,
       }))
+      : [],
+    socials: Array.isArray(raw.socials)
+      ? raw.socials
+          .map((s: any) => ({
+            kind: s.kind,
+            label: s.label ?? null,
+            url: s.url,
+            enabled: s.enabled ?? true,
+            sortOrder: s.sortOrder ?? s.sort_order ?? 0,
+          }))
+          .sort((a: RigSocial, b: RigSocial) => a.sortOrder - b.sortOrder)
       : [],
   };
 }
@@ -269,6 +283,7 @@ export function VisualsTab({
     text: false,
     qr: false,
     rig: false,
+    socials: false,
   });
 
   // Live Text Overlay state
@@ -313,6 +328,12 @@ export function VisualsTab({
           ? { x: savedRect.x, y: savedRect.y, width: savedRect.width }
           : null
       );
+      const logoCfg = (loadedRig.console_config as any)?.logoConfig;
+      if (logoCfg) {
+        setLogoPosition(logoCfg.position ?? 'center');
+        setLogoEffect(logoCfg.effect ?? 'none');
+        setLogoOpacity(logoCfg.opacity ?? 0.8);
+      }
       const cfg = (loadedRig.console_config as any)?.qrConfig;
       if (cfg) {
         setQrEnabled(cfg.enabled ?? false);
@@ -335,6 +356,33 @@ export function VisualsTab({
     }
   }, [loadedRig]);
 
+  const [logoPosition, setLogoPosition] = useState<'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'>('center');
+  const [logoEffect, setLogoEffect] = useState<'none' | 'pulse' | 'spin' | 'float' | 'neon'>('none');
+  const [logoOpacity, setLogoOpacity] = useState<number>(0.8);
+  const showConfigPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  async function persistShowConfig(partial: Record<string, unknown>) {
+    if (!workingState.loadedRigId) return;
+    const existing = (loadedRig?.console_config ?? {}) as Record<string, unknown>;
+    try {
+      const res = await fetch(`/api/rigs/${workingState.loadedRigId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consoleConfig: { ...existing, ...partial } }),
+      });
+      if (res.ok) {
+        onLoadedRigChange?.(normalizeRigResponse(await res.json()));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  function debouncePersistShowConfig(partial: Record<string, unknown>, ms = 500) {
+    if (showConfigPersistTimer.current) clearTimeout(showConfigPersistTimer.current);
+    showConfigPersistTimer.current = setTimeout(() => void persistShowConfig(partial), ms);
+  }
+
   // Handle display name change
   const [displayNamePosition, setDisplayNamePosition] = useState<
     'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
@@ -347,6 +395,10 @@ export function VisualsTab({
       displayName: name,
       displayNamePosition,
     });
+    persistShowConfig({
+      displayName: name,
+      displayNameConfig: { position: displayNamePosition },
+    });
   }
 
   function handleDisplayNamePosition(position: typeof displayNamePosition) {
@@ -354,6 +406,9 @@ export function VisualsTab({
     socket.current?.emit('orchestrator:visuals_set_display', {
       roomCode,
       displayNamePosition: position,
+    });
+    persistShowConfig({
+      displayNameConfig: { position },
     });
   }
 
@@ -393,6 +448,42 @@ export function VisualsTab({
       qrConfig: config,
     });
     setActiveQrConfig(config);
+    persistShowConfig({ qrConfig: config });
+  }
+
+  function handleLogoPositionChange(position: typeof logoPosition) {
+    setLogoPosition(position);
+    persistShowConfig({ logoConfig: { position } });
+    if (workingState.logoEnabled) {
+      socket.current?.emit('orchestrator:visuals_set_logo', {
+        roomCode,
+        logo: buildSurfaceLogo(logoRect, position, logoEffect, logoOpacity),
+      });
+    }
+  }
+
+  // Handle logo animation/effect updates
+  function handleLogoEffectChange(effect: typeof logoEffect) {
+    setLogoEffect(effect);
+    persistShowConfig({ logoConfig: { effect } });
+    if (workingState.logoEnabled) {
+      socket.current?.emit('orchestrator:visuals_set_logo', {
+        roomCode,
+        logo: buildSurfaceLogo(logoRect, logoPosition, effect, logoOpacity),
+      });
+    }
+  }
+
+  // Handle logo opacity updates with a slight debounce on saving to disk
+  function handleLogoOpacityChange(opacity: number) {
+    setLogoOpacity(opacity);
+    debouncePersistShowConfig({ logoConfig: { opacity } });
+    if (workingState.logoEnabled) {
+      socket.current?.emit('orchestrator:visuals_set_logo', {
+        roomCode,
+        logo: buildSurfaceLogo(logoRect, logoPosition, logoEffect, opacity),
+      });
+    }
   }
 
   // Handle QR periodic mode toggle
@@ -742,22 +833,21 @@ export function VisualsTab({
     });
   }
 
-  function buildSurfaceLogo(rect: { x: number; y: number; width: number } | null) {
-    const logoConfig = (loadedRig?.console_config as any)?.logoConfig;
+  function buildSurfaceLogo(
+    rect: { x: number; y: number; width: number } | null,
+    posOverride?: typeof logoPosition,
+    effOverride?: typeof logoEffect,
+    opacOverride?: number
+  ) {
     const logoPath = loadedRig?.logo_asset_path;
     const base =
       entitlements.customRigLogo && logoPath
         ? {
-          url: rigLogoUrl(logoPath),
-          opacity: typeof logoConfig?.opacity === 'number' ? logoConfig.opacity : 0.8,
-          position: (logoConfig?.position ?? 'center') as
-            | 'center'
-            | 'top-left'
-            | 'top-right'
-            | 'bottom-left'
-            | 'bottom-right',
-          effect: (logoConfig?.effect ?? 'none') as 'none' | 'pulse' | 'spin' | 'float' | 'neon',
-        }
+            url: rigLogoUrl(logoPath),
+            opacity: opacOverride !== undefined ? opacOverride : logoOpacity,
+            position: posOverride !== undefined ? posOverride : logoPosition,
+            effect: effOverride !== undefined ? effOverride : logoEffect,
+          }
         : buildDefaultGlowSurfaceLogo();
     return rect ? { ...base, rect } : base;
   }
@@ -1711,19 +1801,81 @@ export function VisualsTab({
 
                           {entitlements.customRigLogo ? (
                             loadedRig?.logo_asset_path ? (
-                              <div className="flex items-center gap-4 pt-2">
-                                <div className="w-14 h-14 rounded-xl border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center flex-none">
-                                  <img
-                                    src={rigLogoUrl(loadedRig.logo_asset_path)}
-                                    alt="Rig logo"
-                                    className="max-w-full max-h-full object-contain"
-                                  />
+                              <div className="space-y-4">
+                                <div className="flex items-center gap-4 pt-2">
+                                  <div className="w-14 h-14 rounded-xl border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center flex-none">
+                                    <img
+                                      src={rigLogoUrl(loadedRig.logo_asset_path)}
+                                      alt="Rig logo"
+                                      className="max-w-full max-h-full object-contain"
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-cyber text-zinc-300 truncate mb-1">
+                                      {loadedRig.logo_asset_path.split('/').pop()}
+                                    </p>
+                                    <p className="text-[10px] text-zinc-500">From loaded rig</p>
+                                  </div>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-cyber text-zinc-300 truncate mb-1">
-                                    {loadedRig.logo_asset_path.split('/').pop()}
-                                  </p>
-                                  <p className="text-[10px] text-zinc-500">From loaded rig</p>
+                                <div className="space-y-4 mt-4 pt-4 border-t border-white/5">
+                                  {/* Logo Position */}
+                                  <div>
+                                    <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                                      Logo Position
+                                    </label>
+                                    <select
+                                      value={logoPosition}
+                                      onChange={(e) => handleLogoPositionChange(e.target.value as any)}
+                                      disabled={!connected}
+                                      className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-neon-cyan/50 focus:outline-none focus:ring-1 focus:ring-neon-cyan/50 font-cyber"
+                                    >
+                                      <option value="center">Center</option>
+                                      <option value="top-left">Top-Left corner</option>
+                                      <option value="top-right">Top-Right corner</option>
+                                      <option value="bottom-left">Bottom-Left corner</option>
+                                      <option value="bottom-right">Bottom-Right corner</option>
+                                    </select>
+                                  </div>
+
+                                  {/* Logo Effect */}
+                                  <div>
+                                    <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                                      Logo Effect
+                                    </label>
+                                    <select
+                                      value={logoEffect}
+                                      onChange={(e) => handleLogoEffectChange(e.target.value as any)}
+                                      disabled={!connected}
+                                      className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:border-neon-cyan/50 focus:outline-none focus:ring-1 focus:ring-neon-cyan/50 font-cyber"
+                                    >
+                                      <option value="none">None</option>
+                                      <option value="pulse">Pulse</option>
+                                      <option value="spin">Spin</option>
+                                      <option value="float">Float</option>
+                                      <option value="neon">Neon glow</option>
+                                    </select>
+                                  </div>
+
+                                  {/* Logo Opacity */}
+                                  <div>
+                                    <label className="block text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-1.5">
+                                      Logo Opacity
+                                    </label>
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <input
+                                        type="range"
+                                        min="0.1"
+                                        max="1.0"
+                                        step="0.05"
+                                        value={logoOpacity}
+                                        onChange={(e) => handleLogoOpacityChange(Number(e.target.value))}
+                                        className="flex-1 accent-neon-cyan"
+                                      />
+                                    </div>
+                                    <div className="text-[10px] font-cyber text-zinc-500 text-right mt-1">
+                                      {Math.round(logoOpacity * 100)}%
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             ) : (
@@ -1759,6 +1911,7 @@ export function VisualsTab({
               </EditSectionChrome>
             ) : null}
 
+            {/* ── 6.5. Social Links (Mix layout) ─────────────────────────────── */}
             {/* ── 7. Live Custom Text Overlay (Mix layout) ───────────────────── */}
             {!isSectionHidden('text') ? (
               <EditSectionChrome mode={mode} {...sectionChromeProps('text')}>

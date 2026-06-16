@@ -26,7 +26,7 @@ export const ONBOARDING_STEPS = [
   {
     id: 3,
     title: 'Run your first preset',
-    description: 'Pick a pattern sequence and tap Send Live.',
+    description: 'Pick a background and tap Send Live.',
     target: 'preset' as const,
   },
   {

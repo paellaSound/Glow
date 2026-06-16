@@ -1,11 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { ChevronDown, ChevronUp, ImageIcon, Lock, Smile, Upload } from 'lucide-react';
-import { PlanGateCtaButton } from '@/components/glow/plan-gate';
+import { ChevronDown, ChevronUp, ImageIcon, Lock, Smile } from 'lucide-react';
 import {
-  getUserLogoLayer,
   isPlayerMenuItemVisible,
   PLAYER_MENU_ITEMS,
   setPlayerMenuItemVisible,
@@ -90,13 +87,12 @@ export function PlayerChromeLayersPanel({
   playerChrome,
   onPlayerChromeChange,
   entitlements,
-  logoUrl,
-  uploadingLogo,
-  onLogoUpload,
+  logoUrl: _logoUrl,
+  uploadingLogo: _uploadingLogo,
+  onLogoUpload: _onLogoUpload,
   className,
 }: PlayerChromeLayersPanelProps) {
   const [hudOpen, setHudOpen] = useState(false);
-  const userLogo = getUserLogoLayer(playerChrome);
   const reactionsAvailable = entitlements.audienceReactions;
   const reactionsOn = shouldShowReactionsToolbar(playerChrome, entitlements);
   const flashOn = shouldShowFlashButton(playerChrome);
@@ -109,16 +105,6 @@ export function PlayerChromeLayersPanel({
     onPlayerChromeChange(setPlayerMenuItemVisible(playerChrome, itemId, visible));
   }
 
-  function patchUserLogo(patch: Partial<typeof userLogo>) {
-    onPlayerChromeChange({
-      ...playerChrome,
-      layers: {
-        ...playerChrome.layers,
-        userLogo: { ...userLogo, ...patch },
-      },
-    });
-  }
-
   return (
     <div className={cn('mt-4 space-y-4 border-t border-white/10 pt-4', className)}>
       <div>
@@ -126,73 +112,23 @@ export function PlayerChromeLayersPanel({
           Player screen
         </h3>
         <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          Layout guide for connected phones. Drag the logo on the preview to place it — every other
-          element is just on or off.
+          Layout guide for connected phones. Toggle HUD, flash, delay, and reactions on or off.
         </p>
       </div>
 
       <section className="space-y-2">
         <p className="text-[9px] font-cyber uppercase tracking-widest text-zinc-500">On screen</p>
 
+        {/* TODO: implement logo support in the future — disabled for now because it doesn't work yet */}
         <LayerRow
           title="Your logo"
-          description={
-            entitlements.customRigLogo
-              ? logoUrl
-                ? 'Upload a new image or toggle visibility. Drag on the preview to move.'
-                : 'Upload PNG/JPG/WebP/SVG (max 256KB). Then position it on the preview.'
-              : 'Upgrade to Venue to replace the watermark with your logo on player screens.'
-          }
+          description="Custom logo upload and placement on player screens. Coming soon."
+          locked
         >
-          {entitlements.customRigLogo ? (
-            <div className="flex flex-col items-end gap-2">
-              <label
-                className={cn(
-                  'inline-flex h-8 cursor-pointer items-center justify-center gap-1 rounded-full border border-neon-violet/40',
-                  'bg-transparent px-2.5 text-[10px] font-cyber uppercase tracking-widest text-neon-violet',
-                  'transition-colors hover:border-neon-violet hover:bg-neon-violet/10',
-                  uploadingLogo && 'pointer-events-none opacity-50'
-                )}
-              >
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif"
-                  className="sr-only"
-                  disabled={uploadingLogo}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) onLogoUpload(file);
-                    event.target.value = '';
-                  }}
-                />
-                <Upload className="size-3" />
-                {uploadingLogo ? 'Uploading…' : logoUrl ? 'Replace' : 'Upload'}
-              </label>
-              {logoUrl ? (
-                <ToggleSwitch
-                  checked={userLogo.visible}
-                  onChange={(visible) => patchUserLogo({ visible })}
-                  label="Show logo on player"
-                />
-              ) : null}
-            </div>
-          ) : (
-            <PlanGateCtaButton
-              feature="customRigLogo"
-              roomEntitlements={entitlements}
-              label="Add logo"
-              className="h-8 px-3 text-[10px] font-cyber uppercase tracking-widest"
-            />
-          )}
+          <span className="text-[10px] font-cyber uppercase tracking-widest text-zinc-600">
+            Soon
+          </span>
         </LayerRow>
-
-        {logoUrl && entitlements.customRigLogo ? (
-          <div className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2 py-1.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logoUrl} alt="" className="size-8 rounded object-contain bg-black/40" />
-            <span className="text-[10px] text-zinc-500">Current logo · select on preview to resize</span>
-          </div>
-        ) : null}
 
         <LayerRow
           title="Emoji reactions"
@@ -293,14 +229,6 @@ export function PlayerChromeLayersPanel({
         </LayerRow>
       </section>
 
-      {!entitlements.customRigLogo ? (
-        <p className="text-[10px] text-zinc-500">
-          <Link href="/billing" className="text-neon-cyan underline underline-offset-2">
-            Upgrade plan
-          </Link>{' '}
-          to use a custom logo on phones instead of the watermark.
-        </p>
-      ) : null}
     </div>
   );
 }

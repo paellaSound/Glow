@@ -1,4 +1,11 @@
 import { parsePlayerChromeConfig, type PlayerChromeConfig } from './player-chrome-config';
+import type { PatternSequenceEffect } from './pattern-sequences';
+
+/** The default background pattern of a layout (effects + palette), played on join. */
+export type LayoutBackgroundPattern = {
+  palette: string[];
+  effects: PatternSequenceEffect[];
+};
 
 /**
  * A named operator console layout. Stored as an array inside the rig's
@@ -18,7 +25,21 @@ export type ConsoleLayout = {
   visualsHidden: string[];
   /** Visuals desk section order (layout-only; not mirrored to top-level console_config). */
   visualsOrder: string[];
+  /** Default background pattern played on join. Mirrored to top-level console_config.backgroundPattern. */
+  backgroundPattern: LayoutBackgroundPattern | null;
 };
+
+function parseBackgroundPattern(raw: unknown): LayoutBackgroundPattern | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const source = raw as Record<string, unknown>;
+  const effects = Array.isArray(source.effects)
+    ? (source.effects as PatternSequenceEffect[]).filter(
+        (effect) => effect && typeof effect === 'object' && typeof effect.presetId === 'string'
+      )
+    : [];
+  if (effects.length === 0) return null;
+  return { palette: toStringArray(source.palette), effects };
+}
 
 export type ConsoleLayoutsState = {
   layouts: ConsoleLayout[];
@@ -42,6 +63,7 @@ function normalizeLayout(raw: unknown, index: number): ConsoleLayout {
     playerChrome: parsePlayerChromeConfig(source.playerChrome),
     visualsHidden: toStringArray(source.visualsHidden),
     visualsOrder: toStringArray(source.visualsOrder),
+    backgroundPattern: parseBackgroundPattern(source.backgroundPattern),
   };
 }
 
@@ -73,6 +95,7 @@ export function parseConsoleLayouts(
     playerChrome: parsePlayerChromeConfig(cfg.playerChrome),
     visualsHidden: toStringArray(cfg.visualsHidden),
     visualsOrder: toStringArray(cfg.visualsOrder),
+    backgroundPattern: parseBackgroundPattern(cfg.backgroundPattern),
   };
   return { layouts: [fallback], activeLayoutId: fallback.id };
 }

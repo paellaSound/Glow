@@ -41,6 +41,25 @@ export async function GET(
   }
 }
 
+const DEEP_MERGE_KEYS = ['logoConfig', 'qrConfig', 'displayNameConfig'] as const;
+
+function mergeConsoleConfig(
+  existing: Record<string, unknown> | null | undefined,
+  incoming: Record<string, unknown>
+): Record<string, unknown> {
+  const base = (existing ?? {}) as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...base, ...incoming };
+  // Sub-objetos conocidos: merge de un nivel para no perder p.ej. logoConfig.rect
+  for (const key of DEEP_MERGE_KEYS) {
+    const a = base[key];
+    const b = incoming[key];
+    if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) {
+      out[key] = { ...(a as object), ...(b as object) };
+    }
+  }
+  return out;
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -85,11 +104,17 @@ export async function PATCH(
       name: name !== undefined ? name : undefined,
       defaultVisualArtId: defaultVisualArtId !== undefined ? defaultVisualArtId : undefined,
       palette: palette !== undefined ? palette : undefined,
-      consoleConfig: consoleConfig !== undefined ? consoleConfig : undefined,
       metadata: metadata !== undefined ? metadata : undefined,
       isDefault: isDefault !== undefined ? isDefault : undefined,
       updatedAt: new Date(),
     };
+
+    if (consoleConfig !== undefined) {
+      patch.consoleConfig = mergeConsoleConfig(
+        rigExists.consoleConfig as Record<string, unknown>,
+        consoleConfig as Record<string, unknown>
+      );
+    }
 
     if (entitlements.customRigLogo) {
       if (logoAssetPath !== undefined) patch.logoAssetPath = logoAssetPath;

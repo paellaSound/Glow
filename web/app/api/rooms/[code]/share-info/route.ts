@@ -61,8 +61,13 @@ export async function GET(
         })) ?? [])
       : [];
 
+    // Never surface the internal auto-provisioned placeholder ("Default") to guests.
+    // Only a name the operator actually branded should appear as "who is inviting you".
+    const rawRigName = session.rig?.name?.trim() ?? '';
+    const brandedRigName = rawRigName && rawRigName.toLowerCase() !== 'default' ? rawRigName : null;
+
     return NextResponse.json({
-      rigName: customQrBranding ? (session.rig?.name ?? null) : null,
+      rigName: customQrBranding ? brandedRigName : null,
       socials,
       adsEnabled: session.adsEnabledSnapshot,
       customQrBranding,

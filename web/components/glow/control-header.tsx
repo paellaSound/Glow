@@ -14,10 +14,6 @@ export type ControlHeaderProps = {
   deviceCount: number;
   mode: ConsoleMode;
   onEnterEdit: () => void;
-  onDoneEdit: () => void;
-  onDiscardEdit: () => void;
-  configDirty: boolean;
-  savingConfig: boolean;
   visibleTabs: ActiveTab[];
   activeTab: ActiveTab;
   onTabChange: (tab: ActiveTab) => void;
@@ -25,6 +21,7 @@ export type ControlHeaderProps = {
   onEndSession: () => void;
   endingSession: boolean;
   showEndButton: boolean;
+  brandingControls?: React.ReactNode;
   patternsShareControls?: (segmentActive: boolean) => React.ReactNode;
   visualsShareControls?: (segmentActive: boolean) => React.ReactNode;
   sequenceSelector?: React.ReactNode;
@@ -41,10 +38,6 @@ export function ControlHeader({
   deviceCount,
   mode,
   onEnterEdit,
-  onDoneEdit,
-  onDiscardEdit,
-  configDirty,
-  savingConfig,
   visibleTabs,
   activeTab,
   onTabChange,
@@ -52,6 +45,7 @@ export function ControlHeader({
   onEndSession,
   endingSession,
   showEndButton,
+  brandingControls,
   patternsShareControls,
   visualsShareControls,
   sequenceSelector,
@@ -66,33 +60,6 @@ export function ControlHeader({
         editing ? 'border-neon-violet/40 bg-neon-violet/[0.04]' : 'border-white/10'
       )}
     >
-      {editing ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neon-violet/40 bg-neon-violet/10 px-3 py-2">
-          <span className="flex items-center gap-2 text-[10px] font-cyber uppercase tracking-widest text-neon-violet sm:text-xs">
-            <Pencil className="size-3.5" />
-            Editing layout — show, hide & arrange sections
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onDiscardEdit}
-              disabled={savingConfig}
-              className="rounded-full border border-white/15 px-3 py-1.5 text-[10px] font-cyber uppercase tracking-widest text-zinc-400 transition-colors hover:text-zinc-200 disabled:opacity-50"
-            >
-              Discard
-            </button>
-            <button
-              type="button"
-              onClick={onDoneEdit}
-              disabled={savingConfig}
-              className="rounded-full border border-neon-violet/50 bg-neon-violet/20 px-4 py-1.5 text-[10px] font-cyber uppercase tracking-widest text-neon-violet transition-colors hover:bg-neon-violet/30 disabled:opacity-50"
-            >
-              {savingConfig ? 'Saving...' : configDirty ? 'Save & done' : 'Done'}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <NeonTitle
@@ -124,6 +91,7 @@ export function ControlHeader({
             <Smartphone className="size-3.5" />
             Device Mode
           </NeonButton>
+          {brandingControls}
           {!editing ? (
             <NeonButton
               color="violet"

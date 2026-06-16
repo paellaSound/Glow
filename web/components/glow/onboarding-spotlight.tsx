@@ -189,7 +189,7 @@ function StepCallout({
               <p className="text-[10px] text-zinc-500">
                 {hasRunPreset
                   ? 'Preset sent live.'
-                  : 'Pick a pattern sequence below and tap Send Live.'}
+                  : 'Pick a background below and tap Send Live.'}
               </p>
               <NeonButton
                 color="cyan"

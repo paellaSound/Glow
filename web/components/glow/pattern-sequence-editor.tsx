@@ -63,6 +63,12 @@ type PatternSequenceEditorProps = {
   externalSelect?: { id: string | null; nonce: number };
   /** Hide the built-in control-variant sequence `<select>` (when it is rendered elsewhere). */
   hideInlineSelector?: boolean;
+  /**
+   * Use the editor as a pure effects/palette editor with no pattern_sequences library:
+   * hides the save/rename/delete + selector top panel and disables auto-loading the
+   * saved default. Used when the background is stored in the layout config instead.
+   */
+  hideLibraryControls?: boolean;
 };
 
 export function PatternSequenceEditor({
@@ -87,6 +93,7 @@ export function PatternSequenceEditor({
   onSelectionStateChange,
   externalSelect,
   hideInlineSelector = false,
+  hideLibraryControls = false,
 }: PatternSequenceEditorProps) {
   const { data: savedSequences = [], mutate } = useSWR<PatternSequenceRecord[]>(
     '/api/pattern-sequences',
@@ -127,6 +134,8 @@ export function PatternSequenceEditor({
   }, [draft.effects, activeEffects, previewEffectId]);
 
   const isControlVariant = variant === 'control';
+  const savedItemLabel = isControlVariant ? 'background' : 'sequence';
+  const savedItemLabelTitle = isControlVariant ? 'Background' : 'Sequence';
   const hasSavedSequences = (savedSequences?.length ?? 0) > 0;
   const selectedSequence = useMemo(
     () => savedSequences?.find((sequence) => sequence.id === selectedId) ?? null,
@@ -146,6 +155,7 @@ export function PatternSequenceEditor({
   }, [savedSequences, trimmedName, saveAsNew]);
 
   useEffect(() => {
+    if (hideLibraryControls) return;
     if (!isControlVariant || !hasSavedSequences || hasAutoSelectedRef.current) return;
 
     if (selectedId) {
@@ -329,7 +339,7 @@ export function PatternSequenceEditor({
 
   async function saveSequence() {
     if (saveAsNew && duplicateName) {
-      setStatus('A sequence with this name already exists');
+      setStatus(`A ${savedItemLabel} with this name already exists`);
       return;
     }
 
@@ -338,7 +348,7 @@ export function PatternSequenceEditor({
 
     try {
       const payload = {
-        name: trimmedName || 'Untitled Sequence',
+        name: trimmedName || `Untitled ${savedItemLabelTitle}`,
         palette: draft.palette,
         effects: draft.effects,
         media: draft.media,
@@ -356,7 +366,7 @@ export function PatternSequenceEditor({
 
       const data = await response.json();
       if (!response.ok) {
-        setStatus(data.error ?? 'Could not save sequence');
+        setStatus(data.error ?? `Could not save ${savedItemLabel}`);
         return;
       }
 
@@ -379,7 +389,67 @@ export function PatternSequenceEditor({
         });
       }
     } catch {
-      setStatus('Could not save sequence');
+      setStatus(`Could not save ${savedItemLabel}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function renameSequence() {
+    if (!selectedId || !trimmedName) return;
+
+    setSaving(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch(`/api/pattern-sequences/${selectedId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmedName }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setStatus(data.error ?? `Could not rename ${savedItemLabel}`);
+        return;
+      }
+
+      await mutate();
+      patchDraft({ name: data.name });
+      setStatus(`Renamed to "${data.name}"`);
+    } catch {
+      setStatus(`Could not rename ${savedItemLabel}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteSequence() {
+    if (!selectedId) return;
+    if (!window.confirm(`Delete ${savedItemLabel} "${draft.name}"? This cannot be undone.`)) return;
+
+    setSaving(true);
+    setStatus(null);
+
+    try {
+      const response = await fetch(`/api/pattern-sequences/${selectedId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setStatus(data.error ?? `Could not delete ${savedItemLabel}`);
+        return;
+      }
+
+      setSelectedId(null);
+      const fresh = createDefaultDraft(draft.palette);
+      setDraft(fresh);
+      onPreviewChange?.(fresh);
+      await mutate();
+      setStatus(`${savedItemLabelTitle} deleted`);
+    } catch {
+      setStatus(`Could not delete ${savedItemLabel}`);
     } finally {
       setSaving(false);
     }
@@ -404,7 +474,7 @@ export function PatternSequenceEditor({
 
   const effectsHelpText = isControlVariant ? (
     <>
-      <span className="text-neon-cyan">In mix</span> = sent to screens when this sequence is
+      <span className="text-neon-cyan">In mix</span> = sent to screens when this background is
       selected. <span className="text-neon-violet">Preview</span> = shown in the canvas above.
     </>
   ) : (
@@ -424,21 +494,24 @@ export function PatternSequenceEditor({
   const canSave = canOverwrite || canAddNew;
 
   const saveButtonLabel = !hasSavedSequences
-    ? 'Save first sequence'
+    ? isControlVariant
+      ? 'Save first background'
+      : 'Save first sequence'
     : saveAsNew
-      ? 'Add new sequence'
-      : 'Overwrite current pattern';
+      ? isControlVariant
+        ? 'Add new background'
+        : 'Add new sequence'
+      : isControlVariant
+        ? 'Overwrite current background'
+        : 'Overwrite current pattern';
 
   const namePlaceholder = !hasSavedSequences && isControlVariant
-    ? 'Save your first sequence'
-    : 'Sequence name';
+    ? 'Save your first background'
+    : isControlVariant
+      ? 'Background name'
+      : 'Sequence name';
 
-  const showTopPanel =
-    !isControlVariant ||
-    !hideInlineSelector ||
-    mode !== 'operate' ||
-    Boolean(status) ||
-    !effectLayering;
+  const showTopPanel = !hideLibraryControls;
 
   return (
     <div className="flex flex-col gap-6">
@@ -449,7 +522,7 @@ export function PatternSequenceEditor({
               {!hideInlineSelector ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <label className="text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">
-                    Pattern sequence
+                    Background
                   </label>
                   <select
                     value={selectedId ?? ''}
@@ -458,7 +531,7 @@ export function PatternSequenceEditor({
                     className="h-9 min-w-[12rem] flex-1 rounded-md border border-white/10 bg-black/40 px-2 text-xs text-foreground"
                   >
                     {!hasSavedSequences ? (
-                      <option value="">No saved sequences yet</option>
+                      <option value="">No saved backgrounds yet</option>
                     ) : (
                       savedSequences?.map((sequence) => (
                         <option key={sequence.id} value={sequence.id}>
@@ -471,60 +544,72 @@ export function PatternSequenceEditor({
                 </div>
               ) : null}
 
-              {mode !== 'operate' && (
-                <>
-                  <div className="flex flex-wrap gap-2">
-                    <Input
-                      value={draft.name}
-                      disabled={disabled}
-                      onChange={(event) => patchDraft({ name: event.target.value })}
-                      placeholder={namePlaceholder}
-                      aria-invalid={duplicateName}
-                      className={cn(
-                        'min-w-[12rem] flex-1',
-                        duplicateName && 'border-red-400/50 focus-visible:ring-red-400/30'
-                      )}
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={
-                        disabled || saving || !canSave || (saveAsNew && atSequenceLimit)
-                      }
-                      onClick={() => void saveSequence()}
-                    >
-                      <Save data-icon="inline-start" />
-                      {saveButtonLabel}
-                    </Button>
-                  </div>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  value={draft.name}
+                  disabled={disabled}
+                  onChange={(event) => patchDraft({ name: event.target.value })}
+                  placeholder={namePlaceholder}
+                  aria-invalid={duplicateName}
+                  className={cn(
+                    'min-w-[12rem] flex-1',
+                    duplicateName && 'border-red-400/50 focus-visible:ring-red-400/30'
+                  )}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    disabled || saving || !canSave || (saveAsNew && atSequenceLimit)
+                  }
+                  onClick={() => void saveSequence()}
+                >
+                  <Save data-icon="inline-start" />
+                  {saveButtonLabel}
+                </Button>
 
-                  {!hasSavedSequences ? (
-                    <p className="text-xs text-muted-foreground">
-                      Name and save your first sequence to load it in any room.
-                    </p>
-                  ) : duplicateName ? (
-                    <p className="text-xs text-red-400">
-                      A sequence with this name already exists. Choose a different name to add a new one.
-                    </p>
-                  ) : nameChanged ? (
-                    <p className="text-xs text-muted-foreground">
-                      Name changed — will create a new sequence. Keep the original name to overwrite.
-                    </p>
-                  ) : isDirty && selectedId ? (
-                    <p className="text-xs text-muted-foreground">
-                      Unsaved changes — Overwrite current pattern to save them.
-                    </p>
-                  ) : null}
+                {selectedId && nameChanged ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={disabled || saving || !trimmedName}
+                    onClick={() => void renameSequence()}
+                  >
+                    Rename
+                  </Button>
+                ) : null}
 
-                  <p className="text-xs text-muted-foreground">
-                    To rename or delete sequences, go to the{' '}
-                    <Link href="/pattern-sequences" className="text-neon-violet underline">
-                      sequence library
-                    </Link>
-                    .
-                  </p>
-                </>
-              )}
+                {selectedId ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    disabled={disabled || saving}
+                    onClick={() => void deleteSequence()}
+                  >
+                    Delete
+                  </Button>
+                ) : null}
+              </div>
+
+              {!hasSavedSequences ? (
+                <p className="text-xs text-muted-foreground">
+                  Name and save your first background to load it in any room.
+                </p>
+              ) : duplicateName ? (
+                <p className="text-xs text-red-400">
+                  A background with this name already exists. Choose a different name to add a new one.
+                </p>
+              ) : nameChanged ? (
+                <p className="text-xs text-muted-foreground">
+                  Name changed — click "{saveButtonLabel}" to add as new, or click "Rename" to update the existing one.
+                </p>
+              ) : isDirty && selectedId ? (
+                <p className="text-xs text-muted-foreground">
+                  Unsaved changes — Overwrite current background to save them.
+                </p>
+              ) : null}
             </>
           ) : (
             <>
@@ -863,7 +948,7 @@ export function PatternSequenceEditor({
 
               {isMediaExpanded && (
                 <p className="mt-1 text-xs text-zinc-400">
-                  Superimpose animated text or GIFs over the active background sequence.
+                  Superimpose animated text or GIFs over the active background.
                 </p>
               )}
             </div>

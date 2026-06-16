@@ -25,6 +25,7 @@ import {
   type ConsoleLayout,
 } from '@/lib/glow/console-layouts';
 import { RoomShareControls } from '@/components/glow/room-share-controls';
+import { ShareBrandingPanel } from '@/components/glow/share-branding-panel';
 import { VisualsSurfaceShareControls } from '@/components/glow/visuals-surface-share-controls';
 import type { ConsoleMode } from '@/lib/glow/console-mode';
 import {
@@ -72,8 +73,16 @@ function getConsoleConfig(rig: RigWithCues | null): { visibleTabs: ActiveTab[]; 
   };
 }
 
+const LEGACY_PLAY_SECTION_IDS: Record<string, string> = {
+  'preset-sequences': 'background',
+};
+
+function migratePlaySectionId(id: string): string {
+  return LEGACY_PLAY_SECTION_IDS[id] ?? id;
+}
+
 const PLAY_SECTIONS = [
-  { id: 'preset-sequences', label: 'Patterns / Play Devices' },
+  { id: 'background', label: 'Background / Play Devices' },
   { id: 'torch-controls', label: 'Flash / Torch' },
   { id: 'connected-screens', label: 'Connected Screens' },
   { id: 'matrix-grid', label: 'Grid Matrix', when: 'matrix' as const },
@@ -90,6 +99,7 @@ const PLAY_SECTION_IDS: string[] = PLAY_SECTIONS.map((section) => section.id);
 
 const VISUALS_SECTIONS = [
   { id: 'showName', label: 'Show Name & Logo' },
+  { id: 'socials', label: 'Social Links' },
   { id: 'text', label: 'Live Text Overlay' },
   { id: 'qr', label: 'Live QR Overlay' },
   { id: 'liveCall', label: 'Live Call Mosaic', when: 'room' as const },
@@ -99,12 +109,36 @@ const VISUALS_SECTIONS = [
   // { id: 'cues', label: 'Cue List' }, — hidden permanently
   { id: 'palette', label: 'Live Palette' },
   { id: 'rig', label: 'Rig' },
+  // 'socials' moved to the control-header "Branding" option (ShareBrandingPanel).
 ] as const;
 
 const VISUALS_SECTION_IDS: string[] = VISUALS_SECTIONS.map((section) => section.id);
 
 function sequenceEqual(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+/** Compare two background drafts by what we persist (palette + effects). */
+function backgroundsEqual(a: PatternSequenceDraft, b: PatternSequenceDraft): boolean {
+  return (
+    JSON.stringify({ palette: a.palette, effects: a.effects }) ===
+    JSON.stringify({ palette: b.palette, effects: b.effects })
+  );
+}
+
+/** Layout backgroundPattern → editable draft (falls back to a default pulse on the rig palette). */
+function backgroundToDraft(
+  pattern: { palette: string[]; effects: PatternSequenceDraft['effects'] } | null | undefined,
+  rigPalette: string[]
+): PatternSequenceDraft {
+  if (pattern && pattern.effects.length > 0) {
+    return {
+      name: 'Background',
+      palette: pattern.palette.length ? pattern.palette : rigPalette,
+      effects: pattern.effects,
+    };
+  }
+  return createDefaultDraft(rigPalette);
 }
 
 /** Known section ids in saved order, then any known ids missing from the saved order. */
@@ -115,7 +149,12 @@ function normalizeOrder(ids: string[], saved: string[] | undefined): string[] {
 }
 
 function normalizePlayOrder(saved: string[] | undefined): string[] {
-  return normalizeOrder(PLAY_SECTION_IDS, saved);
+  const migrated = (saved ?? []).map(migratePlaySectionId);
+  return normalizeOrder(PLAY_SECTION_IDS, migrated);
+}
+
+function migratePlaySectionIds(ids: string[]): string[] {
+  return ids.map(migratePlaySectionId);
 }
 
 function normalizeVisualsOrder(saved: string[] | undefined): string[] {
@@ -164,6 +203,11 @@ function ControlContent({ code }: { code: string }) {
   const [savingConfig, setSavingConfig] = useState(false);
   const [workingPlayerChrome, setWorkingPlayerChrome] = useState<PlayerChromeConfig>({});
   const [baselinePlayerChrome, setBaselinePlayerChrome] = useState<PlayerChromeConfig>({});
+  // Background pattern lives in the layout (console_config), edited in Edit layout mode
+  // and persisted by the layout header. createDefaultDraft seeds a single pulse.
+  const [workingBackground, setWorkingBackground] = useState<PatternSequenceDraft>(createDefaultDraft());
+  const [baselineBackground, setBaselineBackground] = useState<PatternSequenceDraft>(createDefaultDraft());
+  const [bgEditorKey, setBgEditorKey] = useState(0);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [visualsSurfaceConnected, setVisualsSurfaceConnected] = useState(false);
 
@@ -217,7 +261,8 @@ function ControlContent({ code }: { code: string }) {
       !sequenceEqual(workingOrder, baselineOrder) ||
       !playerChromeConfigsEqual(workingPlayerChrome, baselinePlayerChrome) ||
       !arraysEqual(workingVisualsHidden, baselineVisualsHidden) ||
-      !sequenceEqual(workingVisualsOrder, baselineVisualsOrder),
+      !sequenceEqual(workingVisualsOrder, baselineVisualsOrder) ||
+      !backgroundsEqual(workingBackground, baselineBackground),
     [
       workingHidden,
       baselineHidden,
@@ -229,6 +274,8 @@ function ControlContent({ code }: { code: string }) {
       baselineVisualsHidden,
       workingVisualsOrder,
       baselineVisualsOrder,
+      workingBackground,
+      baselineBackground,
     ]
   );
 
@@ -242,8 +289,9 @@ function ControlContent({ code }: { code: string }) {
     const visualsOrder = normalizeVisualsOrder(active.visualsOrder);
     setLayouts(parsedLayouts);
     setActiveLayoutId(active.id);
-    setWorkingHidden(active.hiddenButtons);
-    setBaselineHidden(active.hiddenButtons);
+    const hiddenButtons = migratePlaySectionIds(active.hiddenButtons);
+    setWorkingHidden(hiddenButtons);
+    setBaselineHidden(hiddenButtons);
     setWorkingPlayerChrome(active.playerChrome);
     setBaselinePlayerChrome(active.playerChrome);
     setWorkingOrder(order);
@@ -252,6 +300,15 @@ function ControlContent({ code }: { code: string }) {
     setBaselineVisualsHidden(active.visualsHidden);
     setWorkingVisualsOrder(visualsOrder);
     setBaselineVisualsOrder(visualsOrder);
+    const rigPalette =
+      Array.isArray(loadedRig.palette) && loadedRig.palette.length > 0
+        ? loadedRig.palette
+        : ['#FF0055', '#00FFCC'];
+    const bgDraft = backgroundToDraft(active.backgroundPattern, rigPalette);
+    setWorkingBackground(bgDraft);
+    setBaselineBackground(bgDraft);
+    setPreviewDraft(bgDraft);
+    setBgEditorKey((k) => k + 1);
   }, [loadedRig?.id]);
 
   function hideSection(sectionId: string) {
@@ -269,6 +326,10 @@ function ControlContent({ code }: { code: string }) {
       playerChrome: workingPlayerChrome,
       visualsHidden: workingVisualsHidden,
       visualsOrder: workingVisualsOrder,
+      backgroundPattern: {
+        palette: workingBackground.palette,
+        effects: workingBackground.effects,
+      },
     };
   }
 
@@ -296,6 +357,7 @@ function ControlContent({ code }: { code: string }) {
             hiddenButtons: active.hiddenButtons,
             playSectionOrder: active.playSectionOrder,
             playerChrome: active.playerChrome,
+            backgroundPattern: active.backgroundPattern,
           },
         }),
       });
@@ -311,17 +373,27 @@ function ControlContent({ code }: { code: string }) {
       setLoadedRig(updated);
       setLayouts(nextLayouts);
       setActiveLayoutId(active.id);
-      setBaselineHidden(active.hiddenButtons);
+      const migratedHidden = migratePlaySectionIds(active.hiddenButtons);
+      setBaselineHidden(migratedHidden);
       setBaselineOrder(activeOrder);
       setBaselinePlayerChrome(active.playerChrome);
       setBaselineVisualsHidden(active.visualsHidden);
       setBaselineVisualsOrder(activeVisualsOrder);
+      const rigPalette =
+        Array.isArray(updated.palette) && updated.palette.length > 0
+          ? updated.palette
+          : ['#FF0055', '#00FFCC'];
+      const activeBackground = backgroundToDraft(active.backgroundPattern, rigPalette);
+      setBaselineBackground(activeBackground);
       if (options?.loadWorking) {
-        setWorkingHidden(active.hiddenButtons);
+        setWorkingHidden(migratedHidden);
         setWorkingOrder(activeOrder);
         setWorkingPlayerChrome(active.playerChrome);
         setWorkingVisualsHidden(active.visualsHidden);
         setWorkingVisualsOrder(activeVisualsOrder);
+        setWorkingBackground(activeBackground);
+        setPreviewDraft(activeBackground);
+        setBgEditorKey((k) => k + 1);
       }
       return true;
     } catch (err) {
@@ -393,6 +465,9 @@ function ControlContent({ code }: { code: string }) {
     setWorkingPlayerChrome(baselinePlayerChrome);
     setWorkingVisualsHidden(baselineVisualsHidden);
     setWorkingVisualsOrder(baselineVisualsOrder);
+    setWorkingBackground(baselineBackground);
+    setPreviewDraft(baselineBackground);
+    setBgEditorKey((k) => k + 1);
     setMode('play');
   }
 
@@ -576,7 +651,7 @@ function ControlContent({ code }: { code: string }) {
   const sequenceSelector =
     seqSelect.options.length > 0 ? (
       <select
-        aria-label="Pattern sequence"
+        aria-label="Background"
         value={seqSelect.selectedId ?? ''}
         disabled={!connected}
         onChange={(event) => setSeqSignal({ id: event.target.value, nonce: Date.now() })}
@@ -637,13 +712,12 @@ function ControlContent({ code }: { code: string }) {
     async function loadRig() {
       rigLoaded.current = true;
       try {
-        const res = await fetch('/api/rigs');
+        const res = await fetch(`/api/rooms/${code.toUpperCase()}/rig`);
         if (!res.ok) return;
-        const rigs: RigWithCues[] = ((await res.json()) as unknown[]).map(normalizeRigResponse);
-        if (!rigs.length) return;
+        const raw = await res.json();
+        if (!raw) return;
 
-        const rig = rigs.find((r) => r.is_default) ?? rigs[0];
-        if (!rig) return;
+        const rig = normalizeRigResponse(raw);
 
         setLoadedRig(rig);
         const rigPalette =
@@ -669,7 +743,7 @@ function ControlContent({ code }: { code: string }) {
     }
 
     void loadRig();
-  }, [roomState]);
+  }, [roomState, code]);
 
   useEffect(() => {
     if (!streamOrchestratorAudio || !connected) return;
@@ -885,10 +959,6 @@ function ControlContent({ code }: { code: string }) {
             deviceCount={roomState?.devices.length ?? 0}
             mode={mode}
             onEnterEdit={enterEditMode}
-            onDoneEdit={() => void doneEditMode()}
-            onDiscardEdit={discardEditMode}
-            configDirty={configDirty}
-            savingConfig={savingConfig}
             visibleTabs={visibleTabs}
             activeTab={activeTab}
             onTabChange={switchTab}
@@ -896,6 +966,15 @@ function ControlContent({ code }: { code: string }) {
             onEndSession={() => void handleCloseRoom()}
             endingSession={closingRoom}
             showEndButton={!isHidden('terminate-rave')}
+            brandingControls={
+              <ShareBrandingPanel
+                roomCode={code}
+                loadedRig={loadedRig}
+                onLoadedRigChange={setLoadedRig}
+                entitlements={entitlements}
+                connected={connected}
+              />
+            }
             sequenceSelector={sequenceSelector}
             patternsShareControls={(segmentActive) =>
               visibleTabs.includes('patterns') ? (
@@ -933,6 +1012,8 @@ function ControlContent({ code }: { code: string }) {
               onSaveAsNew={(name) => void saveAsNewLayout(name)}
               onRename={(name) => void renameActiveLayout(name)}
               onDelete={() => void deleteActiveLayout()}
+              onDiscard={discardEditMode}
+              onDone={() => void doneEditMode()}
             />
           ) : null}
 
@@ -976,8 +1057,8 @@ function ControlContent({ code }: { code: string }) {
                 </div>
               ) : null}
 
-              {!isHidden('preset-sequences') ? (
-                <EditSectionChrome mode={mode} {...sectionChromeProps('preset-sequences')}>
+              {!isHidden('background') ? (
+                <EditSectionChrome mode={mode} {...sectionChromeProps('background')}>
                   <NeonCard
                     glowColor="violet"
                     borderVariant="violet"
@@ -987,17 +1068,19 @@ function ControlContent({ code }: { code: string }) {
                   >
                     <div className="mb-5">
                       <NeonTitle as="h2" color="violet" className="text-lg font-black tracking-widest">
-                        Rave Pattern Sequences
+                        Background
                       </NeonTitle>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Pick a sequence to send live. Edit below and save to overwrite, or rename to add new.
+                        {mode === 'edit'
+                          ? 'Edit the background pattern. Changes save with the layout.'
+                          : 'Edit and send live. Changes are not saved.'}
                       </p>
                     </div>
 
                     <PatternSequenceEditor
-                      key={loadedRig?.id ?? 'default'}
+                      key={`${bgEditorKey}-${mode}`}
                       variant="control"
-                      mode="operate"
+                      mode={mode === 'edit' ? 'edit' : 'operate'}
                       availablePresetIds={entitlements.availablePresets}
                       audioReactive={entitlements.audioReactive}
                       effectLayering={entitlements.effectLayering}
@@ -1005,12 +1088,23 @@ function ControlContent({ code }: { code: string }) {
                       disabled={!connected}
                       audioSource={audioSource}
                       onAudioSourceChange={setAudioSource}
-                      initialDraft={initialSequenceDraft}
-                      onPreviewChange={setPreviewDraft}
+                      initialDraft={mode === 'edit' ? workingBackground : previewDraft}
+                      onPreviewChange={(draft) => {
+                        if (mode === 'edit') {
+                          setWorkingBackground(draft);
+                          setPreviewDraft(draft);
+                        } else {
+                          setPreviewDraft(draft);
+                        }
+                      }}
                       onSelectionStateChange={setSeqSelect}
                       externalSelect={seqSignal}
                       hideInlineSelector
-                      onSendLive={(draft) => sendDistribution(draft, true)}
+                      hideLibraryControls={mode === 'edit'}
+                      onSendLive={(draft) => {
+                        if (mode === 'edit') return;
+                        sendDistribution(draft, true);
+                      }}
                       roomCode={code.toUpperCase()}
                       liveName={liveDraftName}
                       presetSeed={presetSeed}

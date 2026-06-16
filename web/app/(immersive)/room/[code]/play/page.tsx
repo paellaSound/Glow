@@ -16,22 +16,25 @@ import { parseMatrixParam } from '@/lib/glow/join-url';
 import { cn } from '@/lib/utils';
 import {
   clearStoredDeviceId,
+  dismissTorchPrompt,
   getStoredDeviceId,
   storeDeviceId,
   getStoredNickname,
   storeNickname,
   clearStoredNickname,
+  wasTorchPromptDismissed,
 } from '@/lib/glow/player-session';
 import { useOrchestratorDelay } from '@/lib/glow/use-orchestrator-delay';
 import { useTorch } from '@/lib/glow/torch';
 import { useLiveCallPublisher } from '@/lib/glow/use-live-call-publisher';
 import { PlayerMenu } from '@/components/glow/player-menu';
 import { PlayerFlashButton } from '@/components/glow/player-flash-button';
+import { PlayerFlashPermissionPrompt } from '@/components/glow/player-flash-permission-prompt';
 import { ReactionsToolbar } from '@/components/glow/reactions-toolbar';
 import { PlayerChromeOverlays } from '@/components/glow/player-chrome-overlays';
 import {
+  isPlayerMenuItemVisible,
   parsePlayerChromeConfig,
-  rigLogoPublicUrl,
   shouldShowFlashButton,
   shouldShowReactionsToolbar,
   shouldShowSyncDelay,
@@ -220,18 +223,16 @@ function PlayerContent({
     () => parsePlayerChromeConfig(fetchedShareInfo?.playerChrome),
     [fetchedShareInfo?.playerChrome]
   );
-  const playerLogoUrl = useMemo(() => {
-    if (!fetchedShareInfo?.customRigLogo || !fetchedShareInfo.logoAssetPath) return null;
-    return rigLogoPublicUrl(fetchedShareInfo.logoAssetPath);
-  }, [fetchedShareInfo?.customRigLogo, fetchedShareInfo?.logoAssetPath]);
   const playerEntitlements = mergeEntitlementsForUi(
     roomState?.entitlements ?? fetchedShareInfo?.entitlements,
     teamEntitlements
   );
   const showReactionsToolbar = shouldShowReactionsToolbar(playerChrome, playerEntitlements);
   const showFlashButton = shouldShowFlashButton(playerChrome);
+  const showFlashEffectsMenu = isPlayerMenuItemVisible(playerChrome, 'flash-effects');
   const showSyncDelay = shouldShowSyncDelay(playerChrome);
   const [joined, setJoined] = useState(false);
+  const [flashPromptOpen, setFlashPromptOpen] = useState(false);
 
   const handleExit = useCallback(() => {
     clearStoredDeviceId(roomCode);
@@ -534,7 +535,7 @@ function PlayerContent({
   }, [connected, joined, roomCode, emit, torchCapability.supported, torchCapability.enabled]);
 
   useEffect(() => {
-    if (!joined || !connected) return;
+    if (!connected || !joined) return;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && socket.current?.connected) {
@@ -555,6 +556,44 @@ function PlayerContent({
       window.removeEventListener('focus', handleFocus);
     };
   }, [joined, connected, resync, socket]);
+
+  useEffect(() => {
+    if (
+      !joined ||
+      pickMode ||
+      !showFlashEffectsMenu ||
+      torchCapability.enabled ||
+      liveCall.isLive ||
+      wasTorchPromptDismissed(roomCode)
+    ) {
+      setFlashPromptOpen(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setFlashPromptOpen(true);
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    joined,
+    pickMode,
+    showFlashEffectsMenu,
+    torchCapability.enabled,
+    liveCall.isLive,
+    roomCode,
+  ]);
+
+  useEffect(() => {
+    if (!torchCapability.enabled || !flashPromptOpen) return;
+    dismissTorchPrompt(roomCode);
+    setFlashPromptOpen(false);
+  }, [torchCapability.enabled, flashPromptOpen, roomCode]);
+
+  function handleDismissFlashPrompt() {
+    dismissTorchPrompt(roomCode);
+    setFlashPromptOpen(false);
+  }
 
   async function requestPosition(row: number, col: number) {
     const response = await emitWithCallback<{
@@ -770,11 +809,12 @@ function PlayerContent({
         </div>
       ) : null}
 
+      {/* TODO: implement logo support in the future — disabled for now because it doesn't work yet */}
       {!pickMode && joined ? (
         <PlayerChromeOverlays
           playerChrome={playerChrome}
           entitlements={playerEntitlements}
-          logoUrl={playerLogoUrl}
+          logoUrl={null}
         />
       ) : null}
 
@@ -820,6 +860,17 @@ function PlayerContent({
             </div>
           </div>
         </div>
+      ) : null}
+      {flashPromptOpen && joined && !pickMode ? (
+        <PlayerFlashPermissionPrompt
+          open={flashPromptOpen}
+          showFlashButton={showFlashButton}
+          torchCapability={torchCapability}
+          torchEnabling={torchEnabling}
+          torchError={torchError}
+          onEnable={requestTorchEnable}
+          onDismiss={handleDismissFlashPrompt}
+        />
       ) : null}
       {liveCall.publishRequest ? (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">

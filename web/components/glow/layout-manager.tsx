@@ -16,6 +16,8 @@ type LayoutManagerProps = {
   onSaveAsNew: (name: string) => void;
   onRename: (name: string) => void;
   onDelete: () => void;
+  onDiscard: () => void;
+  onDone: () => void;
 };
 
 const actionClass =
@@ -31,6 +33,8 @@ export function LayoutManager({
   onSaveAsNew,
   onRename,
   onDelete,
+  onDiscard,
+  onDone,
 }: LayoutManagerProps) {
   const [prompt, setPrompt] = useState<{ mode: 'new' | 'rename'; value: string } | null>(null);
   const activeName = layouts.find((layout) => layout.id === activeLayoutId)?.name ?? '';
@@ -125,6 +129,27 @@ export function LayoutManager({
           >
             <Trash2 className="size-3.5" />
             Delete
+          </button>
+
+          <span className="mx-1 hidden h-5 w-px shrink-0 bg-white/10 sm:block" aria-hidden />
+
+          <button
+            type="button"
+            onClick={onDiscard}
+            disabled={saving}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/15 px-3 text-[10px] font-cyber uppercase tracking-widest text-zinc-400 transition-colors hover:text-zinc-200 disabled:opacity-50"
+          >
+            <X className="size-3.5" />
+            Discard
+          </button>
+          <button
+            type="button"
+            onClick={onDone}
+            disabled={saving}
+            className={cn(actionClass, 'bg-neon-violet/20')}
+          >
+            <Check className="size-3.5" />
+            {saving ? 'Saving…' : dirty ? 'Save & done' : 'Done'}
           </button>
         </>
       )}

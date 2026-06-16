@@ -594,7 +594,7 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
           updatedAt: now,
         };
 
-        const playerVisualState: PlayerVisualState = {
+        let playerVisualState: PlayerVisualState = {
           kind: 'idle',
           payload: {},
           version: 1,
@@ -604,11 +604,30 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
         let room_rigCues: RoomState['rigCues'] = undefined;
         let rigName: string | null = null;
         let rigSocials: RigSocial[] = [];
+        let backgroundPattern:
+          | { palette: string[]; effects: Array<{ presetId: string; params?: any }> }
+          | null = null;
+
         if (payload.rigId) {
           const rig = await getRigById(payload.rigId);
           if (rig) {
             rigName = rig.name || null;
             rigSocials = await getRigSocials(payload.rigId);
+
+            // Extract background pattern from the active layout (if it exists).
+            const consoleConfig = rig.console_config as Record<string, any>;
+            const layouts = Array.isArray(consoleConfig?.layouts) ? consoleConfig.layouts : [];
+            const activeLayoutId = consoleConfig?.activeLayoutId;
+            const activeLayout = activeLayoutId
+              ? layouts.find((l: any) => l?.id === activeLayoutId)
+              : layouts[0];
+
+            if (activeLayout?.backgroundPattern) {
+              const { palette, effects } = activeLayout.backgroundPattern;
+              if (Array.isArray(effects) && effects.length > 0 && Array.isArray(palette)) {
+                backgroundPattern = { palette, effects };
+              }
+            }
             const logoConfig = rig.console_config?.logoConfig;
             const customLogo =
               rig.logo_enabled && rig.logo_asset_path
@@ -655,6 +674,64 @@ export function registerSocketHandlers(io: Server, socket: Socket) {
               }));
             }
           }
+        }
+
+        // Auto-play on join: seed an animated background pattern so phones that open
+        // /play immediately see a moving background instead of the idle dark screen.
+        // Use the layout's backgroundPattern if available, else fall back to pulse.
+        // The operator can override it by sending anything from the console.
+        if (backgroundPattern && backgroundPattern.effects.length > 0) {
+          const activeEffects = backgroundPattern.effects.filter((e: any) => e.active !== false);
+          if (activeEffects.length === 1) {
+            const effect = activeEffects[0]!;
+            playerVisualState = {
+              kind: 'preset',
+              payload: {
+                presetId: effect.presetId,
+                seedTimestamp: now,
+                targetTimestamp: now,
+                matrix: { rows, cols },
+                params: {
+                  ...effect.params,
+                  palette: backgroundPattern.palette.length > 0 ? backgroundPattern.palette : visualsState.palette,
+                },
+              },
+              version: 1,
+              updatedAt: now,
+            };
+          } else if (activeEffects.length > 1) {
+            playerVisualState = {
+              kind: 'distribution',
+              payload: {
+                effects: activeEffects.map((e: any) => ({
+                  presetId: e.presetId,
+                  params: {
+                    ...e.params,
+                    palette: backgroundPattern.palette.length > 0 ? backgroundPattern.palette : visualsState.palette,
+                  },
+                })),
+                seedTimestamp: now,
+                targetTimestamp: now,
+                matrix: { rows, cols },
+              },
+              version: 1,
+              updatedAt: now,
+            };
+          }
+        } else {
+          // Fallback: default pulse when no layout background is set
+          playerVisualState = {
+            kind: 'preset',
+            payload: {
+              presetId: 'pulse',
+              seedTimestamp: now,
+              targetTimestamp: now,
+              matrix: { rows, cols },
+              params: { palette: visualsState.palette },
+            },
+            version: 1,
+            updatedAt: now,
+          };
         }
 
         const room: RoomState = {

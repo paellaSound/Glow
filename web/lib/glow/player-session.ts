@@ -31,3 +31,15 @@ export function clearStoredNickname(roomCode: string): void {
   localStorage.removeItem(`${NICKNAME_PREFIX}${roomCode.toUpperCase()}`);
 }
 
+const TORCH_PROMPT_PREFIX = 'glow_torch_prompt_dismissed_';
+
+export function wasTorchPromptDismissed(roomCode: string): boolean {
+  if (typeof window === 'undefined') return false;
+  return sessionStorage.getItem(`${TORCH_PROMPT_PREFIX}${roomCode.toUpperCase()}`) === '1';
+}
+
+export function dismissTorchPrompt(roomCode: string): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(`${TORCH_PROMPT_PREFIX}${roomCode.toUpperCase()}`, '1');
+}
+
