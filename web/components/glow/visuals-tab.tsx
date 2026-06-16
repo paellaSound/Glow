@@ -19,7 +19,7 @@ import { PaletteEditor } from '@/components/glow/palette-editor';
 import type { RigCue } from '@/components/glow/cue-list';
 import type { Socket } from 'socket.io-client';
 import type { RoomStatePayload, VisualsMode, YoutubeQueueItem, YoutubeTransitionEffect } from '@/lib/glow/types';
-import { VISUAL_ART_REGISTRY } from 'glow-visuals';
+import { VISUAL_ART_REGISTRY, type AudioFeatures } from 'glow-visuals';
 import { LiveCallControls } from '@/components/glow/live-call-controls';
 import { PlanGate, PlanGateUpsell } from '@/components/glow/plan-gate';
 import { GlowLogo } from '@/components/glow/glow-logo';
@@ -262,6 +262,7 @@ export function VisualsTab({
     // cues: false,
     visualsMode: false,
     art: false,
+    audioInput: false,
     palette: false,
     showName: false,
     text: false,
@@ -656,6 +657,19 @@ export function VisualsTab({
       roomCode,
       artId,
       palette: workingState.palette,
+    });
+  }
+
+  function handleMicToggle(enabled: boolean) {
+    if (!canControlSurfaceForMode('standard')) return;
+    socket.current?.emit('orchestrator:visuals_set_scene', {
+      roomCode,
+      artId: workingState.artId,
+      palette: workingState.palette,
+      params: {
+        ...roomState?.visualsState?.params,
+        micEnabled: enabled,
+      },
     });
   }
 
@@ -1499,34 +1513,89 @@ export function VisualsTab({
                         <div className="grid grid-cols-1 gap-2">
                           {availableArts.map((art) => {
                             const active = art.id === workingState.artId;
-                            return (
-                              <button
-                                key={art.id}
-                                type="button"
-                                onClick={() => handleArtChange(art.id)}
-                                disabled={!connected}
-                                className={cn(
-                                  'w-full flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150',
-                                  active
-                                    ? 'border-neon-magenta/50 bg-neon-magenta/10 text-white'
-                                    : 'border-white/10 hover:border-white/20 hover:bg-white/5 text-zinc-400 hover:text-zinc-200'
-                                )}
-                                id={`art-${art.id}`}
-                              >
-                                <span
-                                  className={cn(
-                                    'w-3 h-3 rounded-full mt-0.5 flex-none border',
-                                    active ? 'bg-neon-magenta border-neon-magenta' : 'border-white/20 bg-transparent'
-                                  )}
-                                />
-                                <div>
-                                  <p className="text-xs font-cyber">{art.label}</p>
-                                  {art.description && (
-                                    <p className="text-[10px] text-zinc-500 leading-relaxed mt-0.5">{art.description}</p>
-                                  )}
+                            const micEnabled = roomState?.visualsState?.params?.micEnabled !== false;
+
+                            if (active) {
+                              return (
+                                <div
+                                  key={art.id}
+                                  className="w-full rounded-xl border border-neon-magenta/50 bg-neon-magenta/10 text-white px-4 py-4 text-left transition-all duration-150"
+                                  id={`art-${art.id}`}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <span className="w-3 h-3 rounded-full mt-0.5 flex-none border bg-neon-magenta border-neon-magenta" />
+                                    <div className="flex-1">
+                                      <p className="text-xs font-cyber">{art.label}</p>
+                                      {art.description && (
+                                        <p className="text-[10px] text-zinc-400 leading-relaxed mt-0.5">{art.description}</p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Nested Art Settings (Palette & Mic Options) */}
+                                  <div className="mt-4 pt-4 border-t border-white/10 space-y-4">
+                                    {/* 1. Palette Editor */}
+                                    <div>
+                                      <p className="text-[10px] font-cyber text-zinc-400 uppercase tracking-widest mb-2">Art Palette</p>
+                                      <PaletteEditor
+                                        palette={workingState.palette}
+                                        onChange={handlePaletteChange}
+                                        disabled={!connected}
+                                      />
+                                    </div>
+
+                                    {/* 2. Microphone Reactivity (if requiresAudio) */}
+                                    {art.requiresAudio && (
+                                      <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between gap-4">
+                                        <div className="pr-2">
+                                          <p className="text-xs font-cyber text-white uppercase tracking-wider">Microphone Reactivity</p>
+                                          <p className="text-[10px] text-zinc-500 leading-normal mt-0.5">
+                                            Activate microphone capture on the visuals display screen to animate this art reactively.
+                                          </p>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          disabled={!connected}
+                                          onClick={() => {
+                                            handleMicToggle(!micEnabled);
+                                          }}
+                                          className={cn(
+                                            'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-neon-violet focus:ring-offset-1 focus:ring-offset-black',
+                                            micEnabled ? 'bg-neon-violet' : 'bg-zinc-700'
+                                          )}
+                                        >
+                                          <span
+                                            className={cn(
+                                              'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                                              micEnabled ? 'translate-x-4' : 'translate-x-0'
+                                            )}
+                                          />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </button>
-                            );
+                              );
+                            } else {
+                              return (
+                                <button
+                                  key={art.id}
+                                  type="button"
+                                  onClick={() => handleArtChange(art.id)}
+                                  disabled={!connected}
+                                  className="w-full flex items-start gap-3 rounded-xl border border-white/10 hover:border-white/20 hover:bg-white/5 text-zinc-400 hover:text-zinc-200 px-4 py-3 text-left transition-all duration-150"
+                                  id={`art-${art.id}`}
+                                >
+                                  <span className="w-3 h-3 rounded-full mt-0.5 flex-none border border-white/20 bg-transparent" />
+                                  <div>
+                                    <p className="text-xs font-cyber">{art.label}</p>
+                                    {art.description && (
+                                      <p className="text-[10px] text-zinc-500 leading-relaxed mt-0.5">{art.description}</p>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            }
                           })}
                         </div>
                       </div>
@@ -1535,40 +1604,6 @@ export function VisualsTab({
                 </NeonCard>
               </EditSectionChrome>
             )}
-
-            {/* ── 5. Palette ────────────────────────────────────────────────── */}
-            {!isSectionHidden('palette') ? (
-              <EditSectionChrome mode={mode} {...sectionChromeProps('palette')}>
-                <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className={cn('p-5', editing && 'rounded-none border-0')}>
-                  <div
-                    className="flex items-center justify-between cursor-pointer select-none"
-                    onClick={() => toggleCollapse('palette')}
-                  >
-                    <SectionHeader title="LIVE PALETTE" color="cyan" />
-                    <button className="text-zinc-400 hover:text-white p-1">
-                      {collapsedSections.palette ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-                    </button>
-                  </div>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateRows: collapsedSections.palette ? '0fr' : '1fr',
-                      transition: 'grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1)',
-                    }}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="mt-4 pt-4 border-t border-white/5">
-                        <PaletteEditor
-                          palette={workingState.palette}
-                          onChange={handlePaletteChange}
-                          disabled={!connected}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </NeonCard>
-              </EditSectionChrome>
-            ) : null}
 
             {/* ── 6. Show Name & Logo (Mix layout) ───────────────────────────── */}
             {!isSectionHidden('showName') ? (

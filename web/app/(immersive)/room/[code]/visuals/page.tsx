@@ -8,6 +8,7 @@ import { YoutubeSurface, type YoutubeVisualsState } from '@/components/visuals/y
 import { ThreeDSurface, type ThreeDAction } from '@/components/visuals/three-d-surface';
 import type { VisualArtController, VisualArtInput, VisualArtId, ReactionEmoji } from 'glow-visuals';
 import type { AudioFeatures } from 'glow-visuals';
+import { useAudioAnalyzer } from '@/lib/glow/audio-analyzer';
 import QRCode from 'qrcode';
 import { buildPlayerJoinUrl } from '@/lib/glow/join-url';
 import { FullscreenButton } from '@/components/glow/fullscreen-button';
@@ -94,6 +95,16 @@ function VisualsContent({ code }: { code: string }) {
   const [threeDAction, setThreeDAction] = useState<ThreeDAction>(null);
   // Live input for the art (updated by realtime events)
   const inputRef = useRef<VisualArtInput>(makeDefaultInput(roomCode));
+
+  // Local audio analyzer for audio-reactive arts (like audio-shader)
+  const isAudioShaderActive = visualsMode === 'standard' && artId === 'audio-shader';
+  const isMicEnabled = inputRef.current.params?.micEnabled !== false;
+  const localAudio = useAudioAnalyzer({ enabled: isAudioShaderActive && isMicEnabled });
+
+  const localActiveRef = useRef(false);
+  useEffect(() => {
+    localActiveRef.current = localAudio.active;
+  }, [localAudio.active]);
 
   const [roomClosedReason, setRoomClosedReason] = useState<string>('The DJ has ended the session.');
 
@@ -238,8 +249,17 @@ function VisualsContent({ code }: { code: string }) {
       console.warn(`[visuals] Unknown art id: ${id}`);
       return;
     }
-    controllerRef.current = definition.mount(canvas, () => inputRef.current);
-  }, []);
+    controllerRef.current = definition.mount(canvas, () => {
+      const baseInput = inputRef.current;
+      if (localActiveRef.current) {
+        return {
+          ...baseInput,
+          audio: localAudio.featuresRef.current,
+        };
+      }
+      return baseInput;
+    });
+  }, [localAudio.featuresRef]);
 
   const canvasCallbackRef = useCallback((el: HTMLCanvasElement | null) => {
     canvasRef.current = el;
@@ -297,6 +317,9 @@ function VisualsContent({ code }: { code: string }) {
     }
     if (state.text !== undefined) {
       setLiveText(state.text || null);
+    }
+    if (state.params !== undefined) {
+      nextInput.params = state.params;
     }
     inputRef.current = nextInput;
     controllerRef.current?.setInput(nextInput);

@@ -7,6 +7,7 @@ export const VISUAL_ART_REGISTRY: Record<VisualArtId, VisualArtDefinition> = {
     label: 'Audio Shader',
     description: 'Music-reactive WebGL shader driven by bass and treble',
     minTier: 'free',
+    requiresAudio: true,
     mount: mountAudioShader,
   },
 };

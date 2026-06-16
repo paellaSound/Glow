@@ -65,6 +65,8 @@ export type VisualArtDefinition = {
   description?: string;
   /** Minimum plan tier required to select this art from the control desk. */
   minTier: PlanTier;
+  /** Whether this visual art requires audio/microphone input to animate reactively. */
+  requiresAudio?: boolean;
   /**
    * Mount the art into `canvas`. Return a controller so the caller can
    * update input and tear down later.
