@@ -33,10 +33,10 @@ export function GlowWatermark({ position = 'bottom-right', className }: GlowWate
       )}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={GLOW_LOGO_PATH} alt="" className="size-4 w-auto" />
-      <span className="text-[10px] font-cyber font-semibold uppercase tracking-widest text-white/90">
+      <img src={GLOW_LOGO_PATH} alt="" className="size-24 w-auto" />
+      {/* <span className="text-[10px] font-cyber font-semibold uppercase tracking-widest text-white/90">
         {GLOW_BRAND_NAME}
-      </span>
+      </span> */}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import type { PlanEntitlements } from '@/lib/glow/types';
 
-export const GLOW_BRAND_NAME = 'Glow Rave';
+export const GLOW_BRAND_NAME = 'Glow The Rave';
 export const GLOW_LOGO_PATH = '/glow-rave-logo.svg';
 
 export type SurfaceLogo = {
