@@ -65,8 +65,8 @@ function getConsoleConfig(rig: RigWithCues | null): { visibleTabs: ActiveTab[]; 
   return {
     visibleTabs: config.visibleTabs?.length
       ? (config.visibleTabs
-          .map((tab) => (tab === 'devices' ? 'patterns' : tab))
-          .filter((tab) => tab === 'patterns' || tab === 'visuals') as ActiveTab[])
+        .map((tab) => (tab === 'devices' ? 'patterns' : tab))
+        .filter((tab) => tab === 'patterns' || tab === 'visuals') as ActiveTab[])
       : ['patterns', 'visuals'],
     hiddenButtons: config.hiddenButtons ?? [],
   };
@@ -956,22 +956,22 @@ function ControlContent({ code }: { code: string }) {
                     Operator panels
                   </h3>
                   <div className="rounded-2xl border border-dashed border-white/15 bg-muted/40 p-4">
-                  <p className="mb-3 flex items-center gap-1.5 text-xs font-cyber uppercase tracking-wider text-muted-foreground">
-                    <Plus className="size-3.5" />
-                    Add section
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {hiddenPlaySections.map((section) => (
-                      <button
-                        key={section.id}
-                        type="button"
-                        onClick={() => showSection(section.id)}
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-cyber uppercase tracking-wider text-zinc-300 transition-colors hover:border-neon-violet/30 hover:text-neon-violet"
-                      >
-                        {section.label}
-                      </button>
-                    ))}
-                  </div>
+                    <p className="mb-3 flex items-center gap-1.5 text-xs font-cyber uppercase tracking-wider text-muted-foreground">
+                      <Plus className="size-3.5" />
+                      Add section
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {hiddenPlaySections.map((section) => (
+                        <button
+                          key={section.id}
+                          type="button"
+                          onClick={() => showSection(section.id)}
+                          className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-cyber uppercase tracking-wider text-zinc-300 transition-colors hover:border-neon-violet/30 hover:text-neon-violet"
+                        >
+                          {section.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ) : null}
@@ -985,40 +985,40 @@ function ControlContent({ code }: { code: string }) {
                     className={cn('p-5 sm:p-6', mode === 'edit' && 'rounded-none border-0')}
                     data-onboarding="preset"
                   >
-                  <div className="mb-5">
-                    <NeonTitle as="h2" color="violet" className="text-lg font-black tracking-widest">
-                      Rave Pattern Sequences
-                    </NeonTitle>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Pick a sequence to send live. Edit below and save to overwrite, or rename to add new.
-                    </p>
-                  </div>
+                    <div className="mb-5">
+                      <NeonTitle as="h2" color="violet" className="text-lg font-black tracking-widest">
+                        Rave Pattern Sequences
+                      </NeonTitle>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Pick a sequence to send live. Edit below and save to overwrite, or rename to add new.
+                      </p>
+                    </div>
 
-                  <PatternSequenceEditor
-                    key={loadedRig?.id ?? 'default'}
-                    variant="control"
-                    mode="operate"
-                    availablePresetIds={entitlements.availablePresets}
-                    audioReactive={entitlements.audioReactive}
-                    effectLayering={entitlements.effectLayering}
-                    maxPatternSequences={entitlements.maxPatternSequences}
-                    disabled={!connected}
-                    audioSource={audioSource}
-                    onAudioSourceChange={setAudioSource}
-                    initialDraft={initialSequenceDraft}
-                    onPreviewChange={setPreviewDraft}
-                    onSelectionStateChange={setSeqSelect}
-                    externalSelect={seqSignal}
-                    hideInlineSelector
-                    onSendLive={(draft) => sendDistribution(draft, true)}
-                    roomCode={code.toUpperCase()}
-                    liveName={liveDraftName}
-                    presetSeed={presetSeed}
-                    fallbackEnabled={fallbackEnabled}
-                    fallbackSeed={fallbackSeed}
-                    roomState={roomState || undefined}
-                  />
-                </NeonCard>
+                    <PatternSequenceEditor
+                      key={loadedRig?.id ?? 'default'}
+                      variant="control"
+                      mode="operate"
+                      availablePresetIds={entitlements.availablePresets}
+                      audioReactive={entitlements.audioReactive}
+                      effectLayering={entitlements.effectLayering}
+                      maxPatternSequences={entitlements.maxPatternSequences}
+                      disabled={!connected}
+                      audioSource={audioSource}
+                      onAudioSourceChange={setAudioSource}
+                      initialDraft={initialSequenceDraft}
+                      onPreviewChange={setPreviewDraft}
+                      onSelectionStateChange={setSeqSelect}
+                      externalSelect={seqSignal}
+                      hideInlineSelector
+                      onSendLive={(draft) => sendDistribution(draft, true)}
+                      roomCode={code.toUpperCase()}
+                      liveName={liveDraftName}
+                      presetSeed={presetSeed}
+                      fallbackEnabled={fallbackEnabled}
+                      fallbackSeed={fallbackSeed}
+                      roomState={roomState || undefined}
+                    />
+                  </NeonCard>
                 </EditSectionChrome>
               ) : null}
 
@@ -1087,15 +1087,15 @@ function ControlContent({ code }: { code: string }) {
                     hoverEffect={false}
                     className={cn('p-5 sm:p-6', mode === 'edit' && 'rounded-none border-0')}
                   >
-                  <NeonTitle as="h3" color="cyan" className="mb-4 text-base font-black tracking-widest">
-                    Grid Matrix
-                  </NeonTitle>
-                  <MatrixPanel
-                    roomState={roomState}
-                    selectedCell={selectedCell}
-                    onCellClick={(row, col) => setSelectedCell({ row, col })}
-                  />
-                </NeonCard>
+                    <NeonTitle as="h3" color="cyan" className="mb-4 text-base font-black tracking-widest">
+                      Grid Matrix
+                    </NeonTitle>
+                    <MatrixPanel
+                      roomState={roomState}
+                      selectedCell={selectedCell}
+                      onCellClick={(row, col) => setSelectedCell({ row, col })}
+                    />
+                  </NeonCard>
                 </EditSectionChrome>
               ) : null}
             </PlayDevicesDesk>
@@ -1125,7 +1125,7 @@ function ControlContent({ code }: { code: string }) {
             />
           ) : null}
 
-          <OnboardingDebugPanel />
+          {/* <OnboardingDebugPanel />
 
           <FirstPartyOnboarding
             roomCode={code}
@@ -1135,7 +1135,7 @@ function ControlContent({ code }: { code: string }) {
             shareAcknowledged={shareAcknowledged}
             onRequestVisualsTab={() => switchTab('visuals')}
             onActiveStepChange={setOnboardingActiveStep}
-          />
+          /> */}
 
         </PageTransitionWrapper>
 
