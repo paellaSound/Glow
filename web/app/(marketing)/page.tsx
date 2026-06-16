@@ -23,7 +23,7 @@ export const metadata: Metadata = buildMarketingMetadata({
 
 const CTAS = [
   {
-    href: '/rave/new',
+    href: '/room/new',
     label: 'Glow Your Rave',
     color: 'magenta' as const,
     variant: 'solid' as const,
