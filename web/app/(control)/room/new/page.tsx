@@ -61,7 +61,7 @@ export default function CreateRoomPage() {
     entitlements: PlanEntitlements;
   }>('/api/team', fetcher);
   const { data: rigsList } = useSWR<Rig[]>('/api/rigs', fetcher);
-  
+
   const { emitWithCallback, connected } = useGlowSocket();
   const [positionRequired, setPositionRequired] = useState(false);
   const [rows, setRows] = useState(3);
@@ -274,7 +274,7 @@ export default function CreateRoomPage() {
           </div>
 
           <div className="flex flex-col gap-6">
-            <div className="rounded-xl border border-white/5 dark:bg-white/5 bg-zinc-50 p-4 transition-all duration-300">
+            {/* <div className="rounded-xl border border-white/5 dark:bg-white/5 bg-zinc-50 p-4 transition-all duration-300">
               <label className="flex cursor-pointer items-start gap-3">
                 <input
                   type="checkbox"
@@ -313,7 +313,7 @@ export default function CreateRoomPage() {
                   </div>
                 </div>
               </label>
-            </div>
+            </div> */}
 
             {positionRequired ? (
               <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -386,11 +386,10 @@ export default function CreateRoomPage() {
 
             {requiresCoverageAck ? (
               <div
-                className={`rounded-xl border p-4 transition-colors ${
-                  coverageError && !coverageAck
+                className={`rounded-xl border p-4 transition-colors ${coverageError && !coverageAck
                     ? 'border-amber-400/60 bg-amber-400/10'
                     : 'border-amber-400/20 bg-amber-400/5'
-                }`}
+                  }`}
               >
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
