@@ -1,12 +1,14 @@
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { NeonCard, NeonTitle } from '@/components/ui/neon';
 import { ArrowLeft, Scale } from 'lucide-react';
+import { buildMarketingMetadata } from '@/lib/seo/site';
 
-export const metadata: Metadata = {
-  title: 'Terms of Service | Glow',
+export const metadata: Metadata = buildMarketingMetadata({
+  title: 'Terms of Service',
   description: 'Terms of Service for Glow - The Rave screen syncing platform.',
-};
+  alternates: { canonical: '/terms' },
+});
 
 export default function TermsOfServicePage() {
   return (

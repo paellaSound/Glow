@@ -1,12 +1,14 @@
-import { Metadata } from 'next';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { NeonCard, NeonTitle } from '@/components/ui/neon';
 import { ArrowLeft, ShieldAlert } from 'lucide-react';
+import { buildMarketingMetadata } from '@/lib/seo/site';
 
-export const metadata: Metadata = {
-  title: 'Privacy Policy | Glow',
+export const metadata: Metadata = buildMarketingMetadata({
+  title: 'Privacy Policy',
   description: 'Privacy Policy for Glow - The Rave screen syncing platform.',
-};
+  alternates: { canonical: '/privacy' },
+});
 
 export default function PrivacyPolicyPage() {
   return (
