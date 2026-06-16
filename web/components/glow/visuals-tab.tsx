@@ -1027,49 +1027,6 @@ export function VisualsTab({
               </EditSectionChrome>
             ) : null}
 
-            {/* ── 1. Output ──────────────────────────────────────────────────── */}
-            {!isSectionHidden('output') ? (
-              <EditSectionChrome mode={mode} {...sectionChromeProps('output')}>
-                <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className={cn('p-5', editing && 'rounded-none border-0')}>
-                  <div
-                    className="flex items-center justify-between cursor-pointer select-none"
-                    onClick={() => toggleCollapse('output')}
-                  >
-                    <div className="flex items-center gap-4">
-                      <SectionHeader title="OUTPUT SURFACE" color="cyan" />
-                      {surfaceConnected && (
-                        <span className="flex items-center gap-1.5 text-[9px] font-cyber text-neon-cyan tracking-widest uppercase">
-                          <span className="w-1.5 h-1.5 rounded-full bg-neon-cyan animate-pulse" />
-                          Surface linked
-                        </span>
-                      )}
-                    </div>
-                    <button className="text-zinc-400 hover:text-white p-1">
-                      {collapsedSections.output ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
-                    </button>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateRows: collapsedSections.output ? '0fr' : '1fr',
-                      transition: 'grid-template-rows 250ms cubic-bezier(0.4, 0, 0.2, 1)',
-                    }}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="mt-4 pt-4 border-t border-white/5">
-                        <p className="text-xs leading-relaxed text-muted-foreground">
-                          The visuals surface runs on a separate display or projector. Use the{' '}
-                          <strong className="font-semibold text-foreground">Share</strong> action on the
-                          Visuals tab to generate the projector link.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </NeonCard>
-              </EditSectionChrome>
-            ) : null}
-
             {/* ── 2. Live call mosaic ───────────────────────────────────────── */}
             {roomState && !isSectionHidden('liveCall') ? (
               <EditSectionChrome mode={mode} {...sectionChromeProps('liveCall')}>

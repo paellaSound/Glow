@@ -142,7 +142,6 @@ function VisualsContent({ code }: { code: string }) {
   const socketRef = useRef<Socket | null>(null);
   const tokenRef = useRef<string | null>(null);
 
-  const [showInfo, setShowInfo] = useState(false);
   const [activeMedia, setActiveMedia] = useState<any | null>(null);
   const [matrixSize, setMatrixSize] = useState({ rows: 3, cols: 3 });
   // Branding: show the Glow watermark unless the room's plan removes it (Venue+).
@@ -727,10 +726,10 @@ function VisualsContent({ code }: { code: string }) {
       {(() => {
         const positionClasses = (pos: string) =>
           pos === 'center' ? 'inset-0 flex items-center justify-center' :
-          pos === 'top-left' ? 'top-8 left-8 items-start max-w-[30%]' :
-          pos === 'top-right' ? 'top-8 right-8 items-end max-w-[30%]' :
-          pos === 'bottom-left' ? 'bottom-8 left-8 items-start max-w-[30%]' :
-          'bottom-8 right-8 items-end max-w-[30%]';
+            pos === 'top-left' ? 'top-8 left-8 items-start max-w-[30%]' :
+              pos === 'top-right' ? 'top-8 right-8 items-end max-w-[30%]' :
+                pos === 'bottom-left' ? 'bottom-8 left-8 items-start max-w-[30%]' :
+                  'bottom-8 right-8 items-end max-w-[30%]';
 
         const logoPos = logo?.position ?? 'center';
         const logoRect = logo?.rect;
@@ -741,15 +740,13 @@ function VisualsContent({ code }: { code: string }) {
           <img
             src={logo.url}
             alt="Branding Logo"
-            className={`object-contain ${
-              logoRect ? 'w-full h-auto' : logoPos === 'center' ? 'max-w-[30%] max-h-[30%]' : 'w-24 h-24'
-            } ${
-              logo.effect === 'pulse' ? 'animate-[pulse_2s_ease-in-out_infinite]' :
-              logo.effect === 'spin' ? 'animate-[spin_8s_linear_infinite]' :
-              logo.effect === 'float' ? 'animate-[float_4s_ease-in-out_infinite]' :
-              logo.effect === 'neon' ? 'animate-[neon-glow_3s_ease-in-out_infinite]' :
-              ''
-            }`}
+            className={`object-contain ${logoRect ? 'w-full h-auto' : logoPos === 'center' ? 'max-w-[30%] max-h-[30%]' : 'w-24 h-24'
+              } ${logo.effect === 'pulse' ? 'animate-[pulse_2s_ease-in-out_infinite]' :
+                logo.effect === 'spin' ? 'animate-[spin_8s_linear_infinite]' :
+                  logo.effect === 'float' ? 'animate-[float_4s_ease-in-out_infinite]' :
+                    logo.effect === 'neon' ? 'animate-[neon-glow_3s_ease-in-out_infinite]' :
+                      ''
+              }`}
           />
         ) : null;
 
@@ -773,11 +770,11 @@ function VisualsContent({ code }: { code: string }) {
                 style={
                   logoRect
                     ? {
-                        left: `${logoRect.x}%`,
-                        top: `${logoRect.y}%`,
-                        width: `${logoRect.width}%`,
-                        opacity: logo!.opacity,
-                      }
+                      left: `${logoRect.x}%`,
+                      top: `${logoRect.y}%`,
+                      width: `${logoRect.width}%`,
+                      opacity: logo!.opacity,
+                    }
                     : { opacity: logo!.opacity }
                 }
               >
@@ -815,8 +812,8 @@ function VisualsContent({ code }: { code: string }) {
               className={cn(
                 "rounded-lg border-2 border-white bg-white",
                 qrConfig.size === 'small' ? 'w-20 h-20' :
-                qrConfig.size === 'large' ? 'w-48 h-48' :
-                'w-32 h-32' // medium
+                  qrConfig.size === 'large' ? 'w-48 h-48' :
+                    'w-32 h-32' // medium
               )}
             />
             <span className="font-cyber font-black tracking-widest text-[9px] text-neon-cyan neon-text-cyan">
@@ -837,8 +834,8 @@ function VisualsContent({ code }: { code: string }) {
                 className={cn(
                   "rounded-2xl border-4 border-white shadow-2xl",
                   qrConfig?.size === 'small' ? 'w-48 h-48' :
-                  qrConfig?.size === 'large' ? 'w-80 h-80' :
-                  'w-64 h-64' // medium
+                    qrConfig?.size === 'large' ? 'w-80 h-80' :
+                      'w-64 h-64' // medium
                 )}
               />
               <div className="text-center mt-2 space-y-1">
@@ -885,32 +882,9 @@ function VisualsContent({ code }: { code: string }) {
         </div>
       )}
 
-      {/* ── Info badge (corner, hover) ── */}
       <div className="absolute right-3 top-3 z-20 flex items-center gap-2">
-        <button
-          onClick={() => setShowInfo((v) => !v)}
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs text-white/40 transition hover:bg-white/20 hover:text-white"
-          aria-label="Connection info"
-        >
-          ℹ
-        </button>
         <FullscreenButton />
       </div>
-
-      {showInfo && (
-        <div className="absolute right-14 top-3 z-20 min-w-[160px] rounded-xl border border-white/10 bg-black/75 px-3 py-2 text-xs backdrop-blur-sm">
-          <p className="font-mono font-semibold text-white">Room: {roomCode}</p>
-          <p className={`mt-0.5 ${connectionState === 'subscribed' ? 'text-green-400' : isError ? 'text-red-400' : 'text-white/50'}`}>
-            {statusLabel[connectionState]}
-          </p>
-          <p className="mt-0.5 text-white/30">Art: {artId}</p>
-          {token && (
-            <p className="mt-0.5 font-mono text-white/20">
-              Token: {token.slice(0, 14)}…
-            </p>
-          )}
-        </div>
-      )}
 
       {/* ── Visuals and Reaction CSS animations ── */}
       <style>{`
