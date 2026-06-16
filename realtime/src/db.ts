@@ -44,6 +44,8 @@ const DEFAULT_ENTITLEMENTS: PlanEntitlements = {
   visualsEmitSlotsPerMode: 1,
   liveCallTestModeOnly: true,
   pollProductionEnabled: false,
+  removeWatermark: false,
+  requiresCoverageAck: false,
 };
 
 const KEY_MAP: Record<string, keyof PlanEntitlements> = {
@@ -79,6 +81,8 @@ const KEY_MAP: Record<string, keyof PlanEntitlements> = {
   visuals_emit_slots_per_mode: 'visualsEmitSlotsPerMode',
   live_call_test_mode_only: 'liveCallTestModeOnly',
   poll_production_enabled: 'pollProductionEnabled',
+  remove_watermark: 'removeWatermark',
+  requires_coverage_ack: 'requiresCoverageAck',
 };
 
 export async function getTeamContextForUser(userId: string) {

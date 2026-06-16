@@ -2,9 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Download, ExternalLink, QrCode, Share2, X } from 'lucide-react';
+import { ChevronDown, Download, ExternalLink, QrCode, Share2, X } from 'lucide-react';
 import QRCode from 'qrcode';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ShareIconTrigger } from '@/components/glow/share-icon-trigger';
 import { RoomQrPanel } from '@/components/glow/room-qr-panel';
 import { buildPlayerJoinUrl } from '@/lib/glow/join-url';
 import type { RigSocial } from '@/lib/glow/social-kinds';
@@ -14,7 +22,8 @@ type RoomShareControlsProps = {
   matrixEnabled: boolean;
   onMatrixEnabledChange: (enabled: boolean) => void;
   showMatrixOption?: boolean;
-  compact?: boolean;
+  iconOnly?: boolean;
+  segmentActive?: boolean;
   onShareAction?: () => void;
 };
 
@@ -30,7 +39,8 @@ export function RoomShareControls({
   matrixEnabled,
   onMatrixEnabledChange,
   showMatrixOption = true,
-  compact = false,
+  iconOnly = false,
+  segmentActive = false,
   onShareAction,
 }: RoomShareControlsProps) {
   const [copied, setCopied] = useState(false);
@@ -91,33 +101,50 @@ export function RoomShareControls({
   }
 
   const actions = (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" size="sm" onClick={() => void copyJoinLink()}>
-        <Share2 className="mr-2 h-4 w-4" />
-        {copied ? 'Copied!' : 'Share'}
-      </Button>
-      <Button type="button" variant="outline" size="sm" onClick={() => { setQrModalOpen(true); onShareAction?.(); }}>
-        <QrCode className="mr-2 h-4 w-4" />
-        View QR
-      </Button>
-      <Button type="button" variant="outline" size="sm" onClick={openQrInNewTab}>
-        <ExternalLink className="mr-2 h-4 w-4" />
-        Open QR in new tab
-      </Button>
-      <Button type="button" variant="outline" size="sm" onClick={() => void downloadQr()}>
-        <Download className="mr-2 h-4 w-4" />
-        Download QR
-      </Button>
-    </div>
-  );
-
-  return (
-    <>
-      {compact ? (
-        <div className="flex flex-col gap-2" data-onboarding="share">
-          {actions}
-          {showMatrixOption ? (
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        {iconOnly ? (
+          <ShareIconTrigger
+            copied={copied}
+            copiedLabel="Copied!"
+            embedded
+            segmentActive={segmentActive}
+            aria-label="Share party join link"
+          />
+        ) : (
+          <Button type="button" variant="outline" size="sm">
+            <Share2 className="h-4 w-4" />
+            {copied ? 'Copied!' : 'Share'}
+            <ChevronDown className="h-4 w-4 opacity-60" />
+          </Button>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onClick={() => void copyJoinLink()}>
+          <Share2 className="h-4 w-4" />
+          Copy join link
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            setQrModalOpen(true);
+            onShareAction?.();
+          }}
+        >
+          <QrCode className="h-4 w-4" />
+          View QR
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={openQrInNewTab}>
+          <ExternalLink className="h-4 w-4" />
+          Open QR in new tab
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void downloadQr()}>
+          <Download className="h-4 w-4" />
+          Download QR
+        </DropdownMenuItem>
+        {showMatrixOption ? (
+          <>
+            <DropdownMenuSeparator />
+            <label className="flex cursor-pointer items-center gap-2 px-2 py-1.5 text-xs text-zinc-400">
               <input
                 type="checkbox"
                 checked={matrixEnabled}
@@ -126,8 +153,16 @@ export function RoomShareControls({
               />
               <span>Require matrix position in join link</span>
             </label>
-          ) : null}
-        </div>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  return (
+    <>
+      {iconOnly ? (
+        <div>{actions}</div>
       ) : (
         <div className="flex flex-col gap-3" data-onboarding="share">
           {actions}

@@ -176,7 +176,7 @@ function NicknameGate({
                 </p>
               )}
             </div>
-            
+
             <NeonButton type="submit" color="cyan" variant="solid" className="w-full text-xs uppercase tracking-widest h-11 mt-2">
               Enter the Grid
             </NeonButton>
@@ -202,13 +202,6 @@ function PlayerContent({
 }) {
   const roomCode = code.toUpperCase();
   const router = useRouter();
-  const { setTheme } = useTheme();
-
-  // Force dark theme on mount
-  useEffect(() => {
-    setTheme('dark');
-  }, [setTheme]);
-
   const [fetchedShareInfo, setFetchedShareInfo] = useState<ShareInfo | null>(null);
   const { teamEntitlements } = useTeamEntitlements();
 
@@ -219,7 +212,7 @@ function PlayerContent({
       .then((data: ShareInfo | null) => {
         if (data) setFetchedShareInfo(data);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [roomCode]);
 
   const { connected, emit, emitWithCallback, on, socket, roomState } = useGlowSocket();
@@ -666,7 +659,7 @@ function PlayerContent({
                 clearStoredDeviceId(roomCode);
                 clearStoredNickname(roomCode);
                 router.push('/');
-           
+
               }}
             >
               Return to Home
@@ -697,9 +690,9 @@ function PlayerContent({
       style={
         !pickMode
           ? {
-              backgroundColor:
-                visual.identifying || torchScreenFlash ? '#ffffff' : visual.color,
-            }
+            backgroundColor:
+              visual.identifying || torchScreenFlash ? '#ffffff' : visual.color,
+          }
           : undefined
       }
     >
@@ -1019,7 +1012,7 @@ function SequencedTextRenderer({
     const pageSize = matrix.rows * matrix.cols;
     const numPages = Math.ceil(words.length / pageSize);
     const pageDurationMs = (pageSize / Math.max(0.1, speed)) * 1000;
-    
+
     return { cellIndex, pageSize, numPages, pageDurationMs };
   }, [mode, row, col, words.length, matrix.rows, matrix.cols, speed]);
 

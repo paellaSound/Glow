@@ -3,7 +3,7 @@
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { captureClientEvent } from '@/lib/posthog-client';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, EyeOff, Plus, Smartphone } from 'lucide-react';
+import { Plus, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import QRCode from 'qrcode';
 import { parseMatrixParam } from '@/lib/glow/join-url';
@@ -14,9 +14,18 @@ import { FirstPartyOnboarding } from '@/components/glow/first-party-onboarding';
 import { OnboardingDebugPanel } from '@/components/glow/onboarding-debug-panel';
 import type { OnboardingStepId } from '@/lib/onboarding/constants';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
+import { CollapsibleDeskCard } from '@/components/glow/collapsible-desk-card';
 import { ControlHeader, type ActiveTab } from '@/components/glow/control-header';
-import { PlayDevicesDesk, getPlayerChromeFromRig } from '@/components/glow/play-devices-desk';
+import { EditSectionChrome } from '@/components/glow/edit-section-chrome';
+import { PlayDevicesDesk } from '@/components/glow/play-devices-desk';
+import { LayoutManager } from '@/components/glow/layout-manager';
+import {
+  createLayoutId,
+  parseConsoleLayouts,
+  type ConsoleLayout,
+} from '@/lib/glow/console-layouts';
 import { RoomShareControls } from '@/components/glow/room-share-controls';
+import { VisualsSurfaceShareControls } from '@/components/glow/visuals-surface-share-controls';
 import type { ConsoleMode } from '@/lib/glow/console-mode';
 import {
   getUserLogoLayer,
@@ -79,69 +88,38 @@ function arraysEqual(a: string[], b: string[]): boolean {
 
 const PLAY_SECTION_IDS: string[] = PLAY_SECTIONS.map((section) => section.id);
 
+const VISUALS_SECTIONS = [
+  { id: 'showName', label: 'Show Name & Logo' },
+  { id: 'text', label: 'Live Text Overlay' },
+  { id: 'qr', label: 'Live QR Overlay' },
+  { id: 'liveCall', label: 'Live Call Mosaic', when: 'room' as const },
+  { id: 'visualsMode', label: 'Visuals Mode' },
+  { id: 'output', label: 'Output Surface' },
+  { id: 'art', label: 'Visual Art' },
+  // { id: 'cues', label: 'Cue List' }, — hidden permanently
+  { id: 'palette', label: 'Live Palette' },
+  { id: 'rig', label: 'Rig' },
+] as const;
+
+const VISUALS_SECTION_IDS: string[] = VISUALS_SECTIONS.map((section) => section.id);
+
 function sequenceEqual(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 /** Known section ids in saved order, then any known ids missing from the saved order. */
-function normalizePlayOrder(saved: string[] | undefined): string[] {
-  const known = (saved ?? []).filter((id) => PLAY_SECTION_IDS.includes(id));
-  const missing = PLAY_SECTION_IDS.filter((id) => !known.includes(id));
+function normalizeOrder(ids: string[], saved: string[] | undefined): string[] {
+  const known = (saved ?? []).filter((id) => ids.includes(id));
+  const missing = ids.filter((id) => !known.includes(id));
   return [...known, ...missing];
 }
 
-function EditSectionChrome({
-  mode,
-  order,
-  onHide,
-  onMoveUp,
-  onMoveDown,
-  children,
-}: {
-  mode: ConsoleMode;
-  order?: number;
-  onHide: () => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
-  children: React.ReactNode;
-}) {
-  if (mode !== 'edit') return <div style={{ order }}>{children}</div>;
+function normalizePlayOrder(saved: string[] | undefined): string[] {
+  return normalizeOrder(PLAY_SECTION_IDS, saved);
+}
 
-  return (
-    <div style={{ order }} className="overflow-hidden rounded-2xl border border-white/10">
-      <div className="flex items-center justify-between border-b border-white/10 bg-white/5 px-3 py-1.5">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onMoveUp}
-            disabled={!onMoveUp}
-            aria-label="Move section up"
-            className="inline-flex size-6 items-center justify-center rounded text-zinc-400 transition-colors hover:text-zinc-200 disabled:opacity-30"
-          >
-            <ArrowUp className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={onMoveDown}
-            disabled={!onMoveDown}
-            aria-label="Move section down"
-            className="inline-flex size-6 items-center justify-center rounded text-zinc-400 transition-colors hover:text-zinc-200 disabled:opacity-30"
-          >
-            <ArrowDown className="size-3.5" />
-          </button>
-        </div>
-        <button
-          type="button"
-          onClick={onHide}
-          className="inline-flex items-center gap-1.5 text-[10px] font-cyber uppercase tracking-widest text-zinc-400 transition-colors hover:text-zinc-200"
-        >
-          <EyeOff className="size-3.5" />
-          Hide
-        </button>
-      </div>
-      {children}
-    </div>
-  );
+function normalizeVisualsOrder(saved: string[] | undefined): string[] {
+  return normalizeOrder(VISUALS_SECTION_IDS, saved);
 }
 
 function ControlContent({ code }: { code: string }) {
@@ -173,10 +151,21 @@ function ControlContent({ code }: { code: string }) {
   const [baselineHidden, setBaselineHidden] = useState<string[]>([]);
   const [workingOrder, setWorkingOrder] = useState<string[]>(() => normalizePlayOrder(undefined));
   const [baselineOrder, setBaselineOrder] = useState<string[]>(() => normalizePlayOrder(undefined));
+  const [workingVisualsHidden, setWorkingVisualsHidden] = useState<string[]>([]);
+  const [baselineVisualsHidden, setBaselineVisualsHidden] = useState<string[]>([]);
+  const [workingVisualsOrder, setWorkingVisualsOrder] = useState<string[]>(() =>
+    normalizeVisualsOrder(undefined)
+  );
+  const [baselineVisualsOrder, setBaselineVisualsOrder] = useState<string[]>(() =>
+    normalizeVisualsOrder(undefined)
+  );
+  const [layouts, setLayouts] = useState<ConsoleLayout[]>([]);
+  const [activeLayoutId, setActiveLayoutId] = useState<string>('default');
   const [savingConfig, setSavingConfig] = useState(false);
   const [workingPlayerChrome, setWorkingPlayerChrome] = useState<PlayerChromeConfig>({});
   const [baselinePlayerChrome, setBaselinePlayerChrome] = useState<PlayerChromeConfig>({});
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [visualsSurfaceConnected, setVisualsSurfaceConnected] = useState(false);
 
   useEffect(() => {
     if (onboardingActiveStep === 2) {
@@ -226,21 +215,43 @@ function ControlContent({ code }: { code: string }) {
     () =>
       !arraysEqual(workingHidden, baselineHidden) ||
       !sequenceEqual(workingOrder, baselineOrder) ||
-      !playerChromeConfigsEqual(workingPlayerChrome, baselinePlayerChrome),
-    [workingHidden, baselineHidden, workingOrder, baselineOrder, workingPlayerChrome, baselinePlayerChrome]
+      !playerChromeConfigsEqual(workingPlayerChrome, baselinePlayerChrome) ||
+      !arraysEqual(workingVisualsHidden, baselineVisualsHidden) ||
+      !sequenceEqual(workingVisualsOrder, baselineVisualsOrder),
+    [
+      workingHidden,
+      baselineHidden,
+      workingOrder,
+      baselineOrder,
+      workingPlayerChrome,
+      baselinePlayerChrome,
+      workingVisualsHidden,
+      baselineVisualsHidden,
+      workingVisualsOrder,
+      baselineVisualsOrder,
+    ]
   );
 
   useEffect(() => {
     if (!loadedRig) return;
-    const hidden = getConsoleConfig(loadedRig).hiddenButtons;
-    const chrome = getPlayerChromeFromRig(loadedRig.console_config);
-    const order = normalizePlayOrder((loadedRig.console_config as any)?.playSectionOrder);
-    setWorkingHidden(hidden);
-    setBaselineHidden(hidden);
-    setWorkingPlayerChrome(chrome);
-    setBaselinePlayerChrome(chrome);
+    const { layouts: parsedLayouts, activeLayoutId: parsedActiveId } = parseConsoleLayouts(
+      loadedRig.console_config as Record<string, unknown>
+    );
+    const active = parsedLayouts.find((layout) => layout.id === parsedActiveId) ?? parsedLayouts[0]!;
+    const order = normalizePlayOrder(active.playSectionOrder);
+    const visualsOrder = normalizeVisualsOrder(active.visualsOrder);
+    setLayouts(parsedLayouts);
+    setActiveLayoutId(active.id);
+    setWorkingHidden(active.hiddenButtons);
+    setBaselineHidden(active.hiddenButtons);
+    setWorkingPlayerChrome(active.playerChrome);
+    setBaselinePlayerChrome(active.playerChrome);
     setWorkingOrder(order);
     setBaselineOrder(order);
+    setWorkingVisualsHidden(active.visualsHidden);
+    setBaselineVisualsHidden(active.visualsHidden);
+    setWorkingVisualsOrder(visualsOrder);
+    setBaselineVisualsOrder(visualsOrder);
   }, [loadedRig?.id]);
 
   function hideSection(sectionId: string) {
@@ -251,8 +262,26 @@ function ControlContent({ code }: { code: string }) {
     setWorkingHidden((prev) => prev.filter((id) => id !== sectionId));
   }
 
-  async function saveConsoleConfig(): Promise<boolean> {
+  function workingLayoutValues() {
+    return {
+      hiddenButtons: workingHidden,
+      playSectionOrder: workingOrder,
+      playerChrome: workingPlayerChrome,
+      visualsHidden: workingVisualsHidden,
+      visualsOrder: workingVisualsOrder,
+    };
+  }
+
+  // Persist the full layouts array + active id, mirroring the active layout's
+  // fields to the top-level console_config so /play (share-info) keeps working.
+  async function commitConfig(
+    nextLayouts: ConsoleLayout[],
+    nextActiveId: string,
+    options?: { loadWorking?: boolean }
+  ): Promise<boolean> {
     if (!loadedRig || savingConfig) return false;
+    const active = nextLayouts.find((layout) => layout.id === nextActiveId) ?? nextLayouts[0];
+    if (!active) return false;
 
     setSavingConfig(true);
     try {
@@ -262,9 +291,11 @@ function ControlContent({ code }: { code: string }) {
         body: JSON.stringify({
           consoleConfig: {
             ...loadedRig.console_config,
-            hiddenButtons: workingHidden,
-            playSectionOrder: workingOrder,
-            playerChrome: workingPlayerChrome,
+            layouts: nextLayouts,
+            activeLayoutId: active.id,
+            hiddenButtons: active.hiddenButtons,
+            playSectionOrder: active.playSectionOrder,
+            playerChrome: active.playerChrome,
           },
         }),
       });
@@ -275,11 +306,23 @@ function ControlContent({ code }: { code: string }) {
       }
 
       const updated = normalizeRigResponse(await res.json());
+      const activeOrder = normalizePlayOrder(active.playSectionOrder);
+      const activeVisualsOrder = normalizeVisualsOrder(active.visualsOrder);
       setLoadedRig(updated);
-      setBaselineHidden(workingHidden);
-      setBaselineOrder(workingOrder);
-      setBaselinePlayerChrome(workingPlayerChrome);
-      toast.success('Configuration saved');
+      setLayouts(nextLayouts);
+      setActiveLayoutId(active.id);
+      setBaselineHidden(active.hiddenButtons);
+      setBaselineOrder(activeOrder);
+      setBaselinePlayerChrome(active.playerChrome);
+      setBaselineVisualsHidden(active.visualsHidden);
+      setBaselineVisualsOrder(activeVisualsOrder);
+      if (options?.loadWorking) {
+        setWorkingHidden(active.hiddenButtons);
+        setWorkingOrder(activeOrder);
+        setWorkingPlayerChrome(active.playerChrome);
+        setWorkingVisualsHidden(active.visualsHidden);
+        setWorkingVisualsOrder(activeVisualsOrder);
+      }
       return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not save configuration');
@@ -287,6 +330,49 @@ function ControlContent({ code }: { code: string }) {
     } finally {
       setSavingConfig(false);
     }
+  }
+
+  // Overwrite the active layout with the current working values.
+  async function saveConsoleConfig(): Promise<boolean> {
+    const active = layouts.find((layout) => layout.id === activeLayoutId);
+    if (!active) return false;
+    const next = layouts.map((layout) =>
+      layout.id === active.id ? { ...layout, ...workingLayoutValues() } : layout
+    );
+    const ok = await commitConfig(next, active.id);
+    if (ok) toast.success('Layout saved');
+    return ok;
+  }
+
+  async function saveAsNewLayout(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const layout: ConsoleLayout = { id: createLayoutId(), name: trimmed, ...workingLayoutValues() };
+    const ok = await commitConfig([...layouts, layout], layout.id);
+    if (ok) toast.success(`Saved layout "${trimmed}"`);
+  }
+
+  async function renameActiveLayout(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const next = layouts.map((layout) =>
+      layout.id === activeLayoutId ? { ...layout, name: trimmed } : layout
+    );
+    await commitConfig(next, activeLayoutId);
+  }
+
+  async function deleteActiveLayout() {
+    if (layouts.length <= 1) return;
+    if (!window.confirm('Delete this layout? This cannot be undone.')) return;
+    const next = layouts.filter((layout) => layout.id !== activeLayoutId);
+    const ok = await commitConfig(next, next[0]!.id, { loadWorking: true });
+    if (ok) toast.success('Layout deleted');
+  }
+
+  async function switchLayout(id: string) {
+    if (id === activeLayoutId) return;
+    if (configDirty && !window.confirm('Discard unsaved changes to the current layout?')) return;
+    await commitConfig(layouts, id, { loadWorking: true });
   }
 
   function enterEditMode() {
@@ -305,6 +391,8 @@ function ControlContent({ code }: { code: string }) {
     setWorkingHidden(baselineHidden);
     setWorkingOrder(baselineOrder);
     setWorkingPlayerChrome(baselinePlayerChrome);
+    setWorkingVisualsHidden(baselineVisualsHidden);
+    setWorkingVisualsOrder(baselineVisualsOrder);
     setMode('play');
   }
 
@@ -405,6 +493,81 @@ function ControlContent({ code }: { code: string }) {
       onMoveUp: visibleIndex > 0 ? () => moveSection(id, -1) : undefined,
       onMoveDown:
         visibleIndex >= 0 && visibleIndex < lastIndex ? () => moveSection(id, 1) : undefined,
+    };
+  }
+
+  const isVisualsHidden = useCallback(
+    (sectionId: string) => workingVisualsHidden.includes(sectionId),
+    [workingVisualsHidden]
+  );
+
+  function hideVisualsSection(sectionId: string) {
+    setWorkingVisualsHidden((prev) => (prev.includes(sectionId) ? prev : [...prev, sectionId]));
+  }
+
+  function showVisualsSection(sectionId: string) {
+    setWorkingVisualsHidden((prev) => prev.filter((id) => id !== sectionId));
+  }
+
+  const hiddenVisualsSections = useMemo(
+    () =>
+      VISUALS_SECTIONS.filter((section) => {
+        if ('when' in section && section.when === 'room' && !roomState) return false;
+        return isVisualsHidden(section.id);
+      }),
+    [isVisualsHidden, roomState]
+  );
+
+  const hasVisualsSectionContent = useCallback(
+    (id: string): boolean => {
+      if (id === 'liveCall') return Boolean(roomState);
+      return true;
+    },
+    [roomState]
+  );
+
+  const effectiveVisualsOrder = useMemo(
+    () => normalizeVisualsOrder(workingVisualsOrder),
+    [workingVisualsOrder]
+  );
+
+  const visibleVisualsSectionIds = useMemo(
+    () =>
+      effectiveVisualsOrder.filter(
+        (id) => !isVisualsHidden(id) && hasVisualsSectionContent(id)
+      ),
+    [effectiveVisualsOrder, isVisualsHidden, hasVisualsSectionContent]
+  );
+
+  function moveVisualsSection(id: string, dir: -1 | 1) {
+    setWorkingVisualsOrder((prev) => {
+      const order = normalizeVisualsOrder(prev);
+      const visible = order.filter(
+        (sid) => !isVisualsHidden(sid) && hasVisualsSectionContent(sid)
+      );
+      const vi = visible.indexOf(id);
+      const target = vi + dir;
+      if (vi < 0 || target < 0 || target >= visible.length) return prev;
+      const swapId = visible[target]!;
+      const next = [...order];
+      const a = next.indexOf(id);
+      const b = next.indexOf(swapId);
+      [next[a], next[b]] = [next[b]!, next[a]!];
+      return next;
+    });
+  }
+
+  function visualsSectionChromeProps(id: string) {
+    const visibleIndex = visibleVisualsSectionIds.indexOf(id);
+    const lastIndex = visibleVisualsSectionIds.length - 1;
+    return {
+      order: effectiveVisualsOrder.indexOf(id),
+      onHide: () => hideVisualsSection(id),
+      onMoveUp: visibleIndex > 0 ? () => moveVisualsSection(id, -1) : undefined,
+      onMoveDown:
+        visibleIndex >= 0 && visibleIndex < lastIndex
+          ? () => moveVisualsSection(id, 1)
+          : undefined,
     };
   }
 
@@ -734,17 +897,44 @@ function ControlContent({ code }: { code: string }) {
             endingSession={closingRoom}
             showEndButton={!isHidden('terminate-rave')}
             sequenceSelector={sequenceSelector}
-            shareControls={
-              <RoomShareControls
-                roomCode={code}
-                matrixEnabled={shareMatrixEnabled}
-                onMatrixEnabledChange={setShareMatrixEnabled}
-                showMatrixOption={roomHasMatrix}
-                compact
-                onShareAction={() => setShareAcknowledged(true)}
-              />
+            patternsShareControls={(segmentActive) =>
+              visibleTabs.includes('patterns') ? (
+                <RoomShareControls
+                  roomCode={code}
+                  matrixEnabled={shareMatrixEnabled}
+                  onMatrixEnabledChange={setShareMatrixEnabled}
+                  showMatrixOption={roomHasMatrix}
+                  iconOnly
+                  segmentActive={segmentActive}
+                  onShareAction={() => setShareAcknowledged(true)}
+                />
+              ) : null
+            }
+            visualsShareControls={(segmentActive) =>
+              visibleTabs.includes('visuals') ? (
+                <VisualsSurfaceShareControls
+                  roomCode={code}
+                  connected={connected}
+                  segmentActive={segmentActive}
+                  onSurfaceOpened={() => setVisualsSurfaceConnected(true)}
+                />
+              ) : null
             }
           />
+
+          {mode === 'edit' && layouts.length > 0 ? (
+            <LayoutManager
+              layouts={layouts.map((layout) => ({ id: layout.id, name: layout.name }))}
+              activeLayoutId={activeLayoutId}
+              dirty={configDirty}
+              saving={savingConfig}
+              onSelect={(id) => void switchLayout(id)}
+              onSave={() => void saveConsoleConfig()}
+              onSaveAsNew={(name) => void saveAsNewLayout(name)}
+              onRename={(name) => void renameActiveLayout(name)}
+              onDelete={() => void deleteActiveLayout()}
+            />
+          ) : null}
 
           {activeTab === 'patterns' && visibleTabs.includes('patterns') ? (
             <PlayDevicesDesk
@@ -760,13 +950,12 @@ function ControlContent({ code }: { code: string }) {
               onEnterEditLayout={enterEditMode}
               onPlayerChromeChange={setWorkingPlayerChrome}
             >
-            <div className="flex flex-col gap-6">
               {mode === 'edit' && hiddenPlaySections.length > 0 ? (
                 <div style={{ order: -2 }}>
                   <h3 className="mb-2 text-xs font-cyber font-bold uppercase tracking-widest text-zinc-400">
                     Operator panels
                   </h3>
-                  <div className="rounded-2xl border border-dashed border-white/15 bg-black/20 p-4">
+                  <div className="rounded-2xl border border-dashed border-white/15 bg-muted/40 p-4">
                   <p className="mb-3 flex items-center gap-1.5 text-xs font-cyber uppercase tracking-wider text-muted-foreground">
                     <Plus className="size-3.5" />
                     Add section
@@ -852,55 +1041,41 @@ function ControlContent({ code }: { code: string }) {
               ) : null}
 
               {roomState ? (
-                <div style={{ order: -1 }}>
-                  <DeviceCapBanner
-                    deviceCount={roomState.devices.length}
-                    maxDevices={entitlements.maxDevices}
-                    returnUrl={controlReturnUrl}
-                  />
-                </div>
+                <DeviceCapBanner
+                  deviceCount={roomState.devices.length}
+                  maxDevices={entitlements.maxDevices}
+                  returnUrl={controlReturnUrl}
+                />
               ) : null}
 
               {!isHidden('connected-screens') ? (
                 <EditSectionChrome mode={mode} {...sectionChromeProps('connected-screens')}>
-                  <NeonCard
-                    glowColor="none"
-                    borderVariant="default"
-                    hoverEffect={false}
-                    className={cn('overflow-hidden', mode === 'edit' && 'rounded-none border-0')}
+                  <CollapsibleDeskCard
+                    title="Connected Screens"
+                    titleColor="foreground"
+                    subtitle={
+                      <>
+                        {roomState?.devices.length ?? 0} / {entitlements.maxDevices} devices online
+                      </>
+                    }
+                    open={devicesOpen}
+                    onOpenChange={setDevicesOpen}
+                    editModeFlat={mode === 'edit'}
                     data-onboarding="devices"
                   >
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-5 py-4 text-left"
-                  onClick={() => setDevicesOpen((value) => !value)}
-                >
-                  <div>
-                    <NeonTitle as="h3" color="white" className="text-base font-black tracking-widest">
-                      Connected Screens
-                    </NeonTitle>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {roomState?.devices.length ?? 0} / {entitlements.maxDevices} devices online
-                    </p>
-                  </div>
-                  {devicesOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                </button>
-
-                {devicesOpen && roomState ? (
-                  <div className="border-t border-white/10 px-5 pb-5">
-                    <DeviceList
-                      roomState={roomState}
-                      showOnboardingHint={onboardingActiveStep !== null}
-                      onIdentify={(publicId) =>
-                        socket.current?.emit('orchestrator:identify_device', {
-                          roomCode: code.toUpperCase(),
-                          devicePublicId: publicId,
-                        })
-                      }
-                    />
-                  </div>
-                ) : null}
-                  </NeonCard>
+                    {roomState ? (
+                      <DeviceList
+                        roomState={roomState}
+                        showOnboardingHint={onboardingActiveStep !== null}
+                        onIdentify={(publicId) =>
+                          socket.current?.emit('orchestrator:identify_device', {
+                            roomCode: code.toUpperCase(),
+                            devicePublicId: publicId,
+                          })
+                        }
+                      />
+                    ) : null}
+                  </CollapsibleDeskCard>
                 </EditSectionChrome>
               ) : null}
 
@@ -923,7 +1098,6 @@ function ControlContent({ code }: { code: string }) {
                 </NeonCard>
                 </EditSectionChrome>
               ) : null}
-            </div>
             </PlayDevicesDesk>
           ) : null}
 
@@ -938,6 +1112,16 @@ function ControlContent({ code }: { code: string }) {
                 setWorkingState((prev) => ({ ...prev, ...patch }))
               }
               loadedRig={loadedRig}
+              onLoadedRigChange={setLoadedRig}
+              mode={mode}
+              surfaceConnected={visualsSurfaceConnected}
+              isSectionHidden={isVisualsHidden}
+              sectionChromeProps={visualsSectionChromeProps}
+              hiddenSections={hiddenVisualsSections.map((section) => ({
+                id: section.id,
+                label: section.label,
+              }))}
+              onShowSection={showVisualsSection}
             />
           ) : null}
 
@@ -953,60 +1137,60 @@ function ControlContent({ code }: { code: string }) {
             onActiveStepChange={setOnboardingActiveStep}
           />
 
-          {/* Mobile Device Control QR Modal */}
-          {showMobileModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-              <NeonCard glowColor="cyan" borderVariant="cyan" className="p-6 max-w-sm w-full relative">
-                <button
-                  type="button"
-                  className="absolute top-4 right-4 text-zinc-400 hover:text-white text-sm"
+        </PageTransitionWrapper>
+
+        {/* Mobile Device Control QR Modal — outside PageTransitionWrapper so fixed positioning uses the viewport, not the transformed page shell */}
+        {showMobileModal && (
+          <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] w-full items-center justify-center overflow-y-auto bg-black/85 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <NeonCard glowColor="cyan" borderVariant="cyan" className="relative my-auto w-full max-w-sm p-6">
+              <button
+                type="button"
+                className="absolute top-4 right-4 text-sm text-zinc-400 hover:text-white"
+                onClick={() => setShowMobileModal(false)}
+              >
+                ✕
+              </button>
+              <div className="text-center">
+                <Smartphone className="mx-auto mb-2 size-8 text-neon-cyan" />
+                <NeonTitle as="h3" color="cyan" className="text-lg font-black uppercase tracking-wider">
+                  Control from Device
+                </NeonTitle>
+                <p className="mt-2 text-xs text-zinc-400">
+                  Scan this QR code to load the operate-only interface on your mobile or tablet.
+                </p>
+
+                <div className="my-5 flex justify-center">
+                  {mobileQrUrl ? (
+                    <div className="rounded-xl bg-white p-2">
+                      <img
+                        src={mobileQrUrl}
+                        alt="Mobile Control QR"
+                        className="size-48"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex size-48 animate-pulse items-center justify-center font-cyber text-xs text-zinc-500">
+                      Generating QR...
+                    </div>
+                  )}
+                </div>
+
+                <p className="break-all select-all font-mono text-[10px] text-zinc-500">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/room/${code.toLowerCase()}/control-device` : ''}
+                </p>
+
+                <NeonButton
+                  color="cyan"
+                  variant="solid"
+                  className="mt-6 h-10 w-full text-xs uppercase tracking-widest"
                   onClick={() => setShowMobileModal(false)}
                 >
-                  ✕
-                </button>
-                <div className="text-center">
-                  <Smartphone className="size-8 mx-auto text-neon-cyan mb-2" />
-                  <NeonTitle as="h3" color="cyan" className="text-lg font-black tracking-wider uppercase">
-                    Control from Device
-                  </NeonTitle>
-                  <p className="mt-2 text-xs text-zinc-400">
-                    Scan this QR code to load the operate-only interface on your mobile or tablet.
-                  </p>
-
-                  <div className="my-5 flex justify-center">
-                    {mobileQrUrl ? (
-                      <div className="bg-white p-2 rounded-xl">
-                        <img
-                          src={mobileQrUrl}
-                          alt="Mobile Control QR"
-                          className="size-48"
-                        />
-                      </div>
-                    ) : (
-                      <div className="size-48 flex items-center justify-center text-xs text-zinc-500 font-cyber animate-pulse">
-                        Generating QR...
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="text-[10px] font-mono text-zinc-500 break-all select-all">
-                    {typeof window !== 'undefined' ? `${window.location.origin}/room/${code.toLowerCase()}/control-device` : ''}
-                  </p>
-
-                  <NeonButton
-                    color="cyan"
-                    variant="solid"
-                    className="mt-6 w-full text-xs uppercase tracking-widest h-10"
-                    onClick={() => setShowMobileModal(false)}
-                  >
-                    Got it
-                  </NeonButton>
-                </div>
-              </NeonCard>
-            </div>
-          )}
-
-        </PageTransitionWrapper>
+                  Got it
+                </NeonButton>
+              </div>
+            </NeonCard>
+          </div>
+        )}
       </main>
     </LiveCallDeskProvider>
   );

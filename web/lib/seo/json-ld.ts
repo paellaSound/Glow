@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   getSiteUrl,
   OG_IMAGE_PATH,
@@ -55,3 +56,15 @@ export function buildHomePageJsonLd() {
     ],
   };
 }
+
+export function JsonLd({ data }: { data: Record<string, any> }) {
+  return React.createElement('script', {
+    type: 'application/ld+json',
+    dangerouslySetInnerHTML: { __html: JSON.stringify(data) },
+  });
+}
+
+export function HomePageJsonLd() {
+  return React.createElement(JsonLd, { data: buildHomePageJsonLd() });
+}
+

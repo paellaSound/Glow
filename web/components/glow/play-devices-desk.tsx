@@ -3,7 +3,6 @@
 import type { ReactNode } from 'react';
 import type { ConsoleMode } from '@/lib/glow/console-mode';
 import {
-  getUserLogoLayer,
   parsePlayerChromeConfig,
   type PlayerChromeConfig,
   type PlayerChromeUserLogoLayer,
@@ -16,6 +15,7 @@ import {
   PlayerChromeOperateHint,
 } from '@/components/glow/player-chrome-layers-panel';
 import { PlayerChromePreviewShell } from '@/components/glow/player-chrome-preview-shell';
+import { ResizableTwoColumn } from '@/components/glow/resizable-two-column';
 import { cn } from '@/lib/utils';
 
 type PlayDevicesDeskProps = {
@@ -60,43 +60,47 @@ export function PlayDevicesDesk({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)] lg:items-start">
-      <NeonCard
-        glowColor={editing ? 'violet' : 'cyan'}
-        borderVariant={editing ? 'violet' : 'cyan'}
-        hoverEffect={false}
-        className={cn('p-4 lg:sticky lg:top-6', editing && 'ring-1 ring-neon-violet/30')}
-      >
-        <PlayerChromePreviewShell
-          roomCode={roomCode}
-          renderMode={editing ? 'embedded' : 'iframe'}
-          backgroundColor={previewBackgroundColor}
-          playerChrome={playerChrome}
-          entitlements={entitlements}
-          logoUrl={logoUrl}
-          editMode={editing}
-          draft={previewDraft}
-          onUserLogoChange={editing ? handleUserLogoChange : undefined}
-        />
-        {editing && onLogoUpload ? (
-          <PlayerChromeLayersPanel
+    <ResizableTwoColumn
+      storageKey="glow_desk_preview_w"
+      left={
+        <NeonCard
+          glowColor={editing ? 'violet' : 'cyan'}
+          borderVariant={editing ? 'violet' : 'cyan'}
+          hoverEffect={false}
+          className={cn('p-5 sm:p-6 lg:sticky lg:top-6', editing && 'ring-1 ring-neon-violet/30')}
+        >
+          <PlayerChromePreviewShell
+            roomCode={roomCode}
+            renderMode="embedded"
+            backgroundColor={previewBackgroundColor}
             playerChrome={playerChrome}
-            onPlayerChromeChange={onPlayerChromeChange}
             entitlements={entitlements}
             logoUrl={logoUrl}
-            uploadingLogo={uploadingLogo}
-            onLogoUpload={onLogoUpload}
+            editMode={editing}
+            draft={previewDraft}
+            onUserLogoChange={editing ? handleUserLogoChange : undefined}
           />
-        ) : !editing && onEnterEditLayout ? (
-          <PlayerChromeOperateHint onEditLayout={onEnterEditLayout} />
-        ) : null}
-      </NeonCard>
-
-      <div className="flex min-w-0 flex-col gap-6">{children}</div>
-    </div>
+          {editing && onLogoUpload ? (
+            <PlayerChromeLayersPanel
+              playerChrome={playerChrome}
+              onPlayerChromeChange={onPlayerChromeChange}
+              entitlements={entitlements}
+              logoUrl={logoUrl}
+              uploadingLogo={uploadingLogo}
+              onLogoUpload={onLogoUpload}
+            />
+          ) : !editing && onEnterEditLayout ? (
+            <PlayerChromeOperateHint onEditLayout={onEnterEditLayout} />
+          ) : null}
+        </NeonCard>
+      }
+      right={<div className="flex min-w-0 flex-col gap-6">{children}</div>}
+    />
   );
 }
 
-export function getPlayerChromeFromRig(consoleConfig: Record<string, unknown> | undefined): PlayerChromeConfig {
+export function getPlayerChromeFromRig(
+  consoleConfig: Record<string, unknown> | undefined
+): PlayerChromeConfig {
   return parsePlayerChromeConfig(consoleConfig?.playerChrome);
 }

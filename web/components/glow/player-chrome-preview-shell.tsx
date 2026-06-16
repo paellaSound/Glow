@@ -66,7 +66,7 @@ export function PlayerChromePreviewShell({
           ref={iframeRef}
           title="Player chrome preview"
           src={`/room/${roomCode.toLowerCase()}/play-preview?embedded=1`}
-          className="mx-auto w-full max-w-[280px] rounded-[1.75rem] border border-white/15 bg-black shadow-lg"
+          // className="mx-auto w-full max-w-[280px] rounded-[1.75rem] border border-white/15 bg-black shadow-lg"
           style={{ aspectRatio: '19.5 / 9', minHeight: 140 }}
         />
         <p className="text-center text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">

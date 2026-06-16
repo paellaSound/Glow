@@ -4,6 +4,7 @@ import { Pencil, Smartphone, Sparkles, Vibrate } from 'lucide-react';
 import { NeonButton, NeonTitle } from '@/components/ui/neon';
 import type { ConsoleMode } from '@/lib/glow/console-mode';
 import { cn } from '@/lib/utils';
+import { UserAccountMenu } from '@/components/glow/user-account-menu';
 
 export type ActiveTab = 'patterns' | 'visuals';
 
@@ -24,7 +25,8 @@ export type ControlHeaderProps = {
   onEndSession: () => void;
   endingSession: boolean;
   showEndButton: boolean;
-  shareControls: React.ReactNode;
+  patternsShareControls?: (segmentActive: boolean) => React.ReactNode;
+  visualsShareControls?: (segmentActive: boolean) => React.ReactNode;
   sequenceSelector?: React.ReactNode;
 };
 
@@ -50,15 +52,17 @@ export function ControlHeader({
   onEndSession,
   endingSession,
   showEndButton,
-  shareControls,
+  patternsShareControls,
+  visualsShareControls,
   sequenceSelector,
 }: ControlHeaderProps) {
   const editing = mode === 'edit';
+  const visibleTabDefs = TABS.filter((tab) => visibleTabs.includes(tab.id));
 
   return (
     <div
       className={cn(
-        'mb-5 flex flex-col gap-3 rounded-2xl border bg-black/20 p-4 transition-colors sm:gap-4 sm:p-5',
+        'mb-5 flex flex-col gap-3 rounded-2xl border bg-muted/40 p-4 transition-colors sm:gap-4 sm:p-5',
         editing ? 'border-neon-violet/40 bg-neon-violet/[0.04]' : 'border-white/10'
       )}
     >
@@ -111,7 +115,6 @@ export function ControlHeader({
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {shareControls}
           <NeonButton
             color="cyan"
             variant="outline"
@@ -143,36 +146,66 @@ export function ControlHeader({
               {endingSession ? 'Closing...' : 'End session'}
             </NeonButton>
           ) : null}
+          <UserAccountMenu variant="inline" hideSessionInfo />
         </div>
       </div>
 
-      {visibleTabs.length > 1 || sequenceSelector ? (
+      {visibleTabDefs.length > 0 || sequenceSelector ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.07] pt-2">
-          <div role="tablist" aria-label="Control desk sections" className="flex gap-1">
-            {TABS.filter((tab) => visibleTabs.includes(tab.id)).map(({ id, label, Icon }) => {
-              const active = activeTab === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  id={`tab-${id}`}
-                  data-onboarding={id === 'visuals' ? 'visuals' : undefined}
-                  onClick={() => onTabChange(id)}
-                  className={cn(
-                    'flex items-center gap-2 border-b-2 px-4 py-2.5 text-xs font-cyber uppercase tracking-widest transition-all',
-                    active
-                      ? 'border-neon-cyan text-neon-cyan [text-shadow:0_0_8px_rgba(0,255,204,0.4)]'
-                      : 'border-transparent text-zinc-500 hover:text-zinc-200'
-                  )}
-                >
-                  <Icon className="size-3.5" />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          {visibleTabDefs.length > 0 ? (
+            <div
+              role="tablist"
+              aria-label="Control desk sections"
+              className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-white/10 bg-black/20 p-1"
+            >
+              {visibleTabDefs.map(({ id, label, Icon }) => {
+                const active = activeTab === id;
+                const renderShare =
+                  id === 'patterns'
+                    ? patternsShareControls
+                    : id === 'visuals'
+                      ? visualsShareControls
+                      : undefined;
+
+                return (
+                  <div
+                    key={id}
+                    className={cn(
+                      'inline-flex items-center gap-0.5 rounded-lg transition-all duration-200',
+                      active
+                        ? 'bg-neon-cyan/15 text-neon-cyan shadow-[inset_0_0_0_1px_rgba(0,255,204,0.28)]'
+                        : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
+                    )}
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      id={`tab-${id}`}
+                      data-onboarding={id === 'visuals' ? 'visuals' : id === 'patterns' ? 'share' : undefined}
+                      onClick={() => onTabChange(id)}
+                      className={cn(
+                        'flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-cyber uppercase tracking-widest transition-colors',
+                        active && '[text-shadow:0_0_8px_rgba(0,255,204,0.35)]'
+                      )}
+                    >
+                      <Icon className="size-3.5 shrink-0" />
+                      {label}
+                    </button>
+                    {renderShare ? (
+                      <div
+                        className="flex items-center pr-1"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        {renderShare(active)}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           {sequenceSelector ? <div className="shrink-0">{sequenceSelector}</div> : null}
         </div>
       ) : null}

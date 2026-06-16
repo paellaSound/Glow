@@ -282,8 +282,8 @@ export default function CreateRoomPage() {
                   onChange={(e) => setPositionRequired(e.target.checked)}
                   className="mt-1 rounded-full border-border bg-transparent text-neon-magenta focus:ring-neon-magenta"
                 />
-                <span className="flex flex-col gap-1">
-                  <span className="flex items-center gap-1.5 font-cyber text-sm font-semibold tracking-wide text-foreground">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 font-cyber text-sm font-semibold tracking-wide text-foreground">
                     Position phones in a fixed grid matrix?
                     {showModeTip ? (
                       <Tooltip
@@ -305,13 +305,13 @@ export default function CreateRoomPage() {
                         </button>
                       </Tooltip>
                     ) : null}
-                  </span>
-                  <span className="text-xs text-muted-foreground leading-normal">
+                  </div>
+                  <div className="text-xs text-muted-foreground leading-normal">
                     {positionRequired
                       ? 'Each phone locks to a grid cell. Use only when devices stay in fixed positions for spatial patterns.'
                       : 'All devices flash in sync as one unified light — the default for handheld or moving devices. (Only recommended when you left the play devices ex. smartphones in a fixed position)'}
-                  </span>
-                </span>
+                  </div>
+                </div>
               </label>
             </div>
 

@@ -320,7 +320,7 @@ export function LiveCallControls({
       ) : null}
 
       {liveState?.active && liveState.publishers.length > 0 ? (
-        <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3">
+        <div className="mt-4 rounded-xl border border-white/10 bg-muted/50 p-3">
           <p className="text-[10px] font-cyber uppercase tracking-wider text-zinc-400 mb-2">
             Publisher status
           </p>

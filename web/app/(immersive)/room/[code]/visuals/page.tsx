@@ -117,6 +117,7 @@ function VisualsContent({ code }: { code: string }) {
     opacity: number;
     position: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
     effect?: 'none' | 'pulse' | 'spin' | 'float' | 'neon';
+    rect?: { x: number; y: number; width: number };
   } | null>(null);
 
   // QR periodic overlay state
@@ -449,6 +450,7 @@ function VisualsContent({ code }: { code: string }) {
           opacity: number;
           position: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
           effect?: 'none' | 'pulse' | 'spin' | 'float' | 'neon';
+          rect?: { x: number; y: number; width: number };
         } | null;
       }) => {
         setLogo(payload.logo);
@@ -731,14 +733,16 @@ function VisualsContent({ code }: { code: string }) {
           'bottom-8 right-8 items-end max-w-[30%]';
 
         const logoPos = logo?.position ?? 'center';
-        const stacked = Boolean(logo?.url) && displayName && logoPos === displayNamePosition;
+        const logoRect = logo?.rect;
+        const stacked =
+          Boolean(logo?.url) && displayName && logoPos === displayNamePosition && !logoRect;
 
         const logoImg = logo?.url ? (
           <img
             src={logo.url}
             alt="Branding Logo"
             className={`object-contain ${
-              logoPos === 'center' ? 'max-w-[30%] max-h-[30%]' : 'w-24 h-24'
+              logoRect ? 'w-full h-auto' : logoPos === 'center' ? 'max-w-[30%] max-h-[30%]' : 'w-24 h-24'
             } ${
               logo.effect === 'pulse' ? 'animate-[pulse_2s_ease-in-out_infinite]' :
               logo.effect === 'spin' ? 'animate-[spin_8s_linear_infinite]' :
@@ -762,8 +766,20 @@ function VisualsContent({ code }: { code: string }) {
           <>
             {logoImg && (
               <div
-                className={`absolute pointer-events-none z-10 transition-all duration-500 flex flex-col items-center gap-2 ${positionClasses(logoPos)}`}
-                style={{ opacity: logo!.opacity }}
+                className={cn(
+                  'absolute pointer-events-none z-10 transition-all duration-500 flex flex-col items-center gap-2',
+                  !logoRect && positionClasses(logoPos)
+                )}
+                style={
+                  logoRect
+                    ? {
+                        left: `${logoRect.x}%`,
+                        top: `${logoRect.y}%`,
+                        width: `${logoRect.width}%`,
+                        opacity: logo!.opacity,
+                      }
+                    : { opacity: logo!.opacity }
+                }
               >
                 {logoImg}
                 {stacked && nameSpan}

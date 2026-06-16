@@ -91,7 +91,7 @@ export function DeviceTargetSlider({ devices, value, onChange }: DeviceTargetSli
   };
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-black/30 p-4 sm:p-5">
+    <div className="flex flex-col gap-4 rounded-xl border border-white/10 bg-muted/50 p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h4 className="font-cyber text-[10px] font-black uppercase tracking-wider text-muted-foreground">
@@ -150,7 +150,7 @@ export function DeviceTargetSlider({ devices, value, onChange }: DeviceTargetSli
                       "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-cyber uppercase tracking-wider transition-all",
                       isSelected
                         ? "border-neon-cyan bg-neon-cyan/15 text-neon-cyan shadow-[0_0_8px_rgba(6,182,212,0.2)]"
-                        : "border-white/10 bg-black/20 text-zinc-400 hover:border-white/20 hover:text-white"
+                        : "border-white/10 bg-muted/40 text-zinc-400 hover:border-white/20 hover:text-white"
                     )}
                   >
                     <span className={cn("size-1.5 rounded-full", device.status === 'online' ? 'bg-green-400' : 'bg-zinc-600')} />

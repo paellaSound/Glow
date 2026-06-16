@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 // 1. NeonTitle Component
 // ==========================================
 interface NeonTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
-  color?: 'cyan' | 'magenta' | 'violet' | 'white';
+  color?: 'cyan' | 'magenta' | 'violet' | 'white' | 'foreground';
   flicker?: boolean;
   as?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
 }
@@ -20,6 +20,7 @@ export const NeonTitle = React.forwardRef<HTMLHeadingElement, NeonTitleProps>(
       magenta: 'text-neon-magenta neon-text-magenta',
       violet: 'text-neon-violet neon-text-violet',
       white: 'text-white neon-text-white',
+      foreground: 'text-foreground',
     };
 
     return (
@@ -221,6 +222,7 @@ interface TooltipProps {
   children: React.ReactNode;
   title?: string;
   color?: 'cyan' | 'magenta' | 'violet';
+  className?: string;
   panelClassName?: string;
 }
 
@@ -229,6 +231,7 @@ export function Tooltip({
   children,
   title = 'HELP / INFO',
   color = 'cyan',
+  className,
   panelClassName,
 }: TooltipProps) {
   const colorTitles = {
@@ -244,7 +247,7 @@ export function Tooltip({
   };
 
   return (
-    <div className="group relative inline-block">
+    <div className={cn("group relative inline-block", className)}>
       {children}
       <div className={cn(
         "pointer-events-none absolute bottom-full left-1/2 z-50 mb-3 w-64 -translate-x-1/2 scale-95 rounded-xl border border-border bg-card/95 p-4 text-[11px] leading-relaxed text-muted-foreground opacity-0 shadow-xl backdrop-blur-md transition-all duration-300 group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:scale-100 group-focus-within:opacity-100 select-none",

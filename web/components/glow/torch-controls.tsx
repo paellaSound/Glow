@@ -143,8 +143,8 @@ export function TorchControls({
   return (
     <PlanGate feature="deviceFlashControl" roomEntitlements={roomState.entitlements}>
       <div className="flex flex-col gap-5">
-        <div>
-          <NeonTitle as="h3" color="white" className="text-base font-black tracking-widest">
+        <div className="mb-5">
+          <NeonTitle as="h2" color="cyan" className="text-lg font-black tracking-widest">
             Device Flash / Torch
           </NeonTitle>
           <p className="mt-1 text-xs text-muted-foreground">

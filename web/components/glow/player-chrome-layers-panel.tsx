@@ -40,7 +40,7 @@ function LayerRow({
   locked?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
+    <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-muted/50 px-3 py-2.5">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           {locked ? <Lock className="size-3 shrink-0 text-zinc-500" /> : null}
@@ -232,7 +232,7 @@ export function PlayerChromeLayersPanel({
           type="button"
           onClick={() => setHudOpen((value) => !value)}
           aria-expanded={hudOpen}
-          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-left transition-colors hover:border-white/20"
+          className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-muted/50 px-3 py-2.5 text-left transition-colors hover:border-white/20"
         >
           <span className="text-[10px] font-cyber uppercase tracking-widest text-zinc-200">
             Player menu (HUD)
@@ -302,7 +302,7 @@ export function PlayerChromeLayersPanel({
 
 export function PlayerChromeOperateHint({ onEditLayout }: { onEditLayout: () => void }) {
   return (
-    <div className="mt-3 rounded-xl border border-white/10 bg-black/20 px-3 py-2.5">
+    <div className="mt-3 rounded-xl border border-white/10 bg-muted/40 px-3 py-2.5">
       <div className="flex items-start gap-2">
         <ImageIcon className="mt-0.5 size-3.5 shrink-0 text-neon-cyan" />
         <div className="min-w-0 flex-1">

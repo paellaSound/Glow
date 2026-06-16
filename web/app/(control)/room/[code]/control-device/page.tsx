@@ -2,9 +2,10 @@
 
 import { Suspense, use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronDown, ChevronUp, Users, LogOut, Radio, HelpCircle } from 'lucide-react';
+import { Users, LogOut, Radio, HelpCircle } from 'lucide-react';
 import { parseMatrixParam } from '@/lib/glow/join-url';
 import { NeonButton, NeonCard, NeonTitle, PageTransitionWrapper, SectionGlow } from '@/components/ui/neon';
+import { CollapsibleDeskCard } from '@/components/glow/collapsible-desk-card';
 import { DeviceList } from '@/components/glow/device-list';
 import { MatrixPanel } from '@/components/glow/matrix-panel';
 import {
@@ -434,38 +435,29 @@ function ControlDeviceContent({ code }: { code: string }) {
                 </NeonCard>
               )}
 
-              {/* Connected Players Toggle list */}
-              <NeonCard glowColor="none" borderVariant="default" hoverEffect={false} className="overflow-hidden">
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-4 py-3 text-left"
-                  onClick={() => setDevicesOpen((value) => !value)}
-                >
-                  <div>
-                    <NeonTitle as="h3" color="white" className="text-sm font-black tracking-widest">
-                      CONNECTED SCREENS
-                    </NeonTitle>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
-                      {roomState?.devices.length ?? 0} / {entitlements.maxDevices} devices online
-                    </p>
-                  </div>
-                  {devicesOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                </button>
-
-                {devicesOpen && roomState && (
-                  <div className="border-t border-white/10 px-4 pb-4">
-                    <DeviceList
-                      roomState={roomState}
-                      onIdentify={(publicId) =>
-                        socket.current?.emit('orchestrator:identify_device', {
-                          roomCode: code.toUpperCase(),
-                          devicePublicId: publicId,
-                        })
-                      }
-                    />
-                  </div>
-                )}
-              </NeonCard>
+              <CollapsibleDeskCard
+                title="Connected Screens"
+                titleColor="foreground"
+                subtitle={
+                  <>
+                    {roomState?.devices.length ?? 0} / {entitlements.maxDevices} devices online
+                  </>
+                }
+                open={devicesOpen}
+                onOpenChange={setDevicesOpen}
+              >
+                {roomState ? (
+                  <DeviceList
+                    roomState={roomState}
+                    onIdentify={(publicId) =>
+                      socket.current?.emit('orchestrator:identify_device', {
+                        roomCode: code.toUpperCase(),
+                        devicePublicId: publicId,
+                      })
+                    }
+                  />
+                ) : null}
+              </CollapsibleDeskCard>
 
               {roomHasMatrix && roomState && (
                 <NeonCard glowColor="cyan" borderVariant="cyan" hoverEffect={false} className="p-4">
@@ -494,7 +486,7 @@ function ControlDeviceContent({ code }: { code: string }) {
                 setWorkingState((prev) => ({ ...prev, ...patch }))
               }
               loadedRig={loadedRig}
-              mode="operate"
+              mode="play"
             />
           )}
 

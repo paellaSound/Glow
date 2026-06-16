@@ -124,7 +124,7 @@ export function EffectStackEditor({
               <div
                 key={layer.id}
                 className={cn(
-                  'rounded-lg border border-white/10 bg-black/20 p-3',
+                  'rounded-lg border border-white/10 bg-muted/40 p-3',
                   layer.muted && 'opacity-50'
                 )}
               >

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import useSWR from 'swr';
-import { CreditCard, Home, Layers, LogOut, PlusCircle, Radio, Sliders, User, XCircle } from 'lucide-react';
+import { CreditCard, Home, Layers, Loader2, LogOut, PlusCircle, Radio, Sliders, User, XCircle } from 'lucide-react';
 import { signOut } from '@/lib/auth/actions';
 import { ThemeMenuItems } from '@/components/glow/theme-menu-items';
 import { useActiveRoom, useEndActiveRoom } from '@/components/glow/ongoing-session-banner';
@@ -80,17 +80,45 @@ function MenuTrigger({
 
 type UserAccountMenuProps = {
   variant?: 'floating' | 'inline';
+  hideSessionInfo?: boolean;
 };
 
-export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) {
-  const { data } = useSWR<UserApiResponse>('/api/user', fetcher);
+const ENABLE_THEME_TOGGLE = false;
+
+export function UserAccountMenu({ variant = 'floating', hideSessionInfo = false }: UserAccountMenuProps) {
+  const { data, isLoading } = useSWR<UserApiResponse>('/api/user', fetcher);
   const { data: activeRoom } = useActiveRoom();
   const { endSession, ending } = useEndActiveRoom(activeRoom?.roomCode);
   const isInline = variant === 'inline';
   const hasLiveSession = Boolean(activeRoom?.roomCode);
 
+  if (isLoading) {
+    if (isInline) {
+      return (
+        <div className="relative flex size-9 items-center justify-center rounded-full border border-border/60 bg-background/60">
+          <Loader2 className="size-4 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+    return (
+      <div className="fixed right-4 z-50 top-[max(1rem,env(safe-area-inset-top))]">
+        <div className="relative flex size-12 items-center justify-center rounded-full border border-border bg-card shadow-lg ring-2 ring-orange-500/30">
+          <Loader2 className="size-5 animate-spin text-orange-500" />
+        </div>
+      </div>
+    );
+  }
+
   if (isInline && !data?.user) {
-    return null;
+    return (
+      <Link
+        href="/auth/signin"
+        className="inline-flex items-center gap-1.5 rounded-full px-3 h-9 text-xs text-muted-foreground transition-colors hover:text-neon-cyan hover:neon-text-cyan"
+      >
+        <User className="size-3.5 opacity-70" aria-hidden />
+        Account
+      </Link>
+    );
   }
 
   const menu = (
@@ -100,7 +128,7 @@ export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) 
           <User className="size-5 text-muted-foreground" />
         </MenuTrigger>
       ) : (
-        <MenuTrigger label="Account menu" variant={variant} showLiveDot={hasLiveSession}>
+        <MenuTrigger label="Account menu" variant={variant} showLiveDot={hideSessionInfo ? false : hasLiveSession}>
           <Avatar className={isInline ? 'size-8' : 'size-11'}>
             <AvatarImage
               src={data.user.avatarUrl ?? undefined}
@@ -114,7 +142,7 @@ export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) 
       )}
 
       <DropdownMenuContent
-        side={isInline ? 'bottom' : 'top'}
+        side="bottom"
         align="end"
         className="w-56"
       >
@@ -128,7 +156,7 @@ export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) 
                 </span>
               </div>
             </DropdownMenuLabel>
-            {hasLiveSession && activeRoom?.roomCode ? (
+            {!hideSessionInfo && hasLiveSession && activeRoom?.roomCode ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="text-[10px] font-cyber uppercase tracking-widest text-green-500">
@@ -160,24 +188,14 @@ export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) 
                 Billing & plan
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/rigs" className="cursor-pointer">
-                <Sliders />
-                My Rigs
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/pattern-sequences" className="cursor-pointer">
-                <Layers />
-                Pattern Sequences
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/room/new" className="cursor-pointer">
-                <PlusCircle />
-                Create room
-              </Link>
-            </DropdownMenuItem>
+            {
+              !hideSessionInfo && <DropdownMenuItem asChild>
+                <Link href="/room/new" className="cursor-pointer">
+                  <PlusCircle />
+                  Create room
+                </Link>
+              </DropdownMenuItem>
+            }
             <DropdownMenuItem asChild>
               <Link href="/" className="cursor-pointer">
                 <Home />
@@ -197,7 +215,7 @@ export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) 
           </>
         )}
 
-        {!isInline ? <ThemeMenuItems /> : null}
+        {!isInline && ENABLE_THEME_TOGGLE ? <ThemeMenuItems /> : null}
 
         {data?.user ? (
           <>
@@ -228,7 +246,7 @@ export function UserAccountMenu({ variant = 'floating' }: UserAccountMenuProps) 
   }
 
   return (
-    <div className="fixed right-4 z-50 bottom-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="fixed right-4 z-50 top-[max(1rem,env(safe-area-inset-top))]">
       {menu}
     </div>
   );

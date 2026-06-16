@@ -14,15 +14,15 @@ export default function MarketingLayout({
   return (
     <div className="relative flex min-h-screen flex-col bg-background text-foreground overflow-x-hidden">
       <SectionGlow glowColor="mixed" position="top" />
-      
+
       <MarketingHeader />
 
-      <div className="flex flex-1 flex-col pb-12">
+      <div className="flex flex-1 flex-col">
         {children}
       </div>
-      
-      <footer className="border-t border-border/40 bg-background/20 backdrop-blur-md py-6 mt-auto">
-        <div className="mx-auto flex max-w-6xl flex-col sm:flex-row items-center justify-between px-6 gap-4 text-[10px] sm:text-xs text-muted-foreground font-sans">
+
+      <footer>
+        <div className="px-6 gap-4 flex justify-between text-xxs sm:text-xs text-muted-foreground font-sans">
           <div className="font-cyber uppercase tracking-wider text-center sm:text-left">
             &copy; {new Date().getFullYear()} Glow. All rights reserved. Created by Luis Millán.
           </div>

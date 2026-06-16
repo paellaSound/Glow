@@ -158,7 +158,7 @@ export function PlayerChromePreview({
       <div
         ref={containerRef}
         className={cn(
-          'control-live-preview-shell-enter relative mx-auto w-full max-w-[280px] overflow-hidden rounded-[1.75rem] border shadow-lg',
+          'control-live-preview-shell-enter relative mx-auto w-full overflow-hidden rounded-[1.75rem] border shadow-lg',
           editMode ? 'border-neon-violet/40' : 'border-white/15',
           'bg-black'
         )}

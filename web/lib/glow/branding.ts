@@ -8,6 +8,8 @@ export type SurfaceLogo = {
   opacity: number;
   position: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   effect?: 'none' | 'pulse' | 'spin' | 'float' | 'neon';
+  /** Free placement (percent of surface). When present it overrides `position`. */
+  rect?: { x: number; y: number; width: number };
 };
 
 export function getGlowLogoUrl(origin?: string): string {

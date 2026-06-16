@@ -169,6 +169,7 @@ export type VisualsState = {
     opacity: number;
     position: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
     effect?: 'none' | 'pulse' | 'spin' | 'float' | 'neon';
+    rect?: { x: number; y: number; width: number };
   } | null;
   transition?: 'cut' | 'fade';
   qrConfig?: {
