@@ -203,7 +203,7 @@ export function PatternSequenceEditor({
 
   const isDirty = selectedId
     ? JSON.stringify(savedSequences?.find((seq) => seq.id === selectedId)) !==
-      JSON.stringify({ ...draft, id: selectedId, createdAt: '', updatedAt: '', isDefault: draft.isDefault ?? false })
+    JSON.stringify({ ...draft, id: selectedId, createdAt: '', updatedAt: '', isDefault: draft.isDefault ?? false })
     : true;
 
   const debouncedSendTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -443,161 +443,161 @@ export function PatternSequenceEditor({
   return (
     <div className="flex flex-col gap-6">
       {showTopPanel ? (
-      <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-4">
-        {isControlVariant ? (
-          <>
-            {!hideInlineSelector ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">
-                Pattern sequence
-              </label>
-              <select
-                value={selectedId ?? ''}
-                disabled={disabled || !hasSavedSequences}
-                onChange={(event) => handleSequenceSelect(event.target.value)}
-                className="h-9 min-w-[12rem] flex-1 rounded-md border border-white/10 bg-black/40 px-2 text-xs text-foreground"
-              >
-                {!hasSavedSequences ? (
-                  <option value="">No saved sequences yet</option>
-                ) : (
-                  savedSequences?.map((sequence) => (
+        <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-4">
+          {isControlVariant ? (
+            <>
+              {!hideInlineSelector ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">
+                    Pattern sequence
+                  </label>
+                  <select
+                    value={selectedId ?? ''}
+                    disabled={disabled || !hasSavedSequences}
+                    onChange={(event) => handleSequenceSelect(event.target.value)}
+                    className="h-9 min-w-[12rem] flex-1 rounded-md border border-white/10 bg-black/40 px-2 text-xs text-foreground"
+                  >
+                    {!hasSavedSequences ? (
+                      <option value="">No saved sequences yet</option>
+                    ) : (
+                      savedSequences?.map((sequence) => (
+                        <option key={sequence.id} value={sequence.id}>
+                          {sequence.name}
+                          {sequence.isDefault ? ' (default)' : ''}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              ) : null}
+
+              {mode !== 'operate' && (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <Input
+                      value={draft.name}
+                      disabled={disabled}
+                      onChange={(event) => patchDraft({ name: event.target.value })}
+                      placeholder={namePlaceholder}
+                      aria-invalid={duplicateName}
+                      className={cn(
+                        'min-w-[12rem] flex-1',
+                        duplicateName && 'border-red-400/50 focus-visible:ring-red-400/30'
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={
+                        disabled || saving || !canSave || (saveAsNew && atSequenceLimit)
+                      }
+                      onClick={() => void saveSequence()}
+                    >
+                      <Save data-icon="inline-start" />
+                      {saveButtonLabel}
+                    </Button>
+                  </div>
+
+                  {!hasSavedSequences ? (
+                    <p className="text-xs text-muted-foreground">
+                      Name and save your first sequence to load it in any room.
+                    </p>
+                  ) : duplicateName ? (
+                    <p className="text-xs text-red-400">
+                      A sequence with this name already exists. Choose a different name to add a new one.
+                    </p>
+                  ) : nameChanged ? (
+                    <p className="text-xs text-muted-foreground">
+                      Name changed — will create a new sequence. Keep the original name to overwrite.
+                    </p>
+                  ) : isDirty && selectedId ? (
+                    <p className="text-xs text-muted-foreground">
+                      Unsaved changes — Overwrite current pattern to save them.
+                    </p>
+                  ) : null}
+
+                  <p className="text-xs text-muted-foreground">
+                    To rename or delete sequences, go to the{' '}
+                    <Link href="/pattern-sequences" className="text-neon-violet underline">
+                      sequence library
+                    </Link>
+                    .
+                  </p>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">
+                  Saved sequence
+                </label>
+                <select
+                  value={selectedId ?? ''}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    const id = event.target.value;
+                    if (!id) {
+                      setSelectedId(null);
+                      const fresh = createDefaultDraft(draft.palette);
+                      setDraft(fresh);
+                      onPreviewChange?.(fresh);
+                      return;
+                    }
+                    const sequence = savedSequences?.find((item) => item.id === id);
+                    if (sequence) loadSequence(sequence);
+                  }}
+                  className="h-9 min-w-[12rem] flex-1 rounded-md border border-white/10 bg-black/40 px-2 text-xs text-foreground"
+                >
+                  <option value="">New draft</option>
+                  {savedSequences?.map((sequence) => (
                     <option key={sequence.id} value={sequence.id}>
                       {sequence.name}
                       {sequence.isDefault ? ' (default)' : ''}
                     </option>
-                  ))
-                )}
-              </select>
-            </div>
-            ) : null}
+                  ))}
+                </select>
+              </div>
 
-            {mode !== 'operate' && (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  <Input
-                    value={draft.name}
-                    disabled={disabled}
-                    onChange={(event) => patchDraft({ name: event.target.value })}
-                    placeholder={namePlaceholder}
-                    aria-invalid={duplicateName}
-                    className={cn(
-                      'min-w-[12rem] flex-1',
-                      duplicateName && 'border-red-400/50 focus-visible:ring-red-400/30'
-                    )}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={
-                      disabled || saving || !canSave || (saveAsNew && atSequenceLimit)
-                    }
-                    onClick={() => void saveSequence()}
-                  >
-                    <Save data-icon="inline-start" />
-                    {saveButtonLabel}
-                  </Button>
-                </div>
-
-                {!hasSavedSequences ? (
-                  <p className="text-xs text-muted-foreground">
-                    Name and save your first sequence to load it in any room.
-                  </p>
-                ) : duplicateName ? (
-                  <p className="text-xs text-red-400">
-                    A sequence with this name already exists. Choose a different name to add a new one.
-                  </p>
-                ) : nameChanged ? (
-                  <p className="text-xs text-muted-foreground">
-                    Name changed — will create a new sequence. Keep the original name to overwrite.
-                  </p>
-                ) : isDirty && selectedId ? (
-                  <p className="text-xs text-muted-foreground">
-                    Unsaved changes — Overwrite current pattern to save them.
-                  </p>
-                ) : null}
-
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  value={draft.name}
+                  disabled={disabled}
+                  onChange={(event) => patchDraft({ name: event.target.value })}
+                  placeholder="Sequence name"
+                  className="min-w-[12rem] flex-1"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={disabled || saving || !trimmedName || (saveAsNew && atSequenceLimit)}
+                  onClick={() => void saveSequence()}
+                >
+                  <Save data-icon="inline-start" />
+                  {saveButtonLabel}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={disabled || activeEffects.length === 0}
+                  onClick={handleSendLive}
+                >
+                  Send live
+                </Button>
+              </div>
+              {nameChanged ? (
                 <p className="text-xs text-muted-foreground">
-                  To rename or delete sequences, go to the{' '}
-                  <Link href="/pattern-sequences" className="text-neon-violet underline">
-                    sequence library
-                  </Link>
-                  .
+                  Name changed — will create a new sequence. Keep the original name to overwrite.
                 </p>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="text-[10px] font-cyber uppercase tracking-wider text-muted-foreground">
-                Saved sequence
-              </label>
-              <select
-                value={selectedId ?? ''}
-                disabled={disabled}
-                onChange={(event) => {
-                  const id = event.target.value;
-                  if (!id) {
-                    setSelectedId(null);
-                    const fresh = createDefaultDraft(draft.palette);
-                    setDraft(fresh);
-                    onPreviewChange?.(fresh);
-                    return;
-                  }
-                  const sequence = savedSequences?.find((item) => item.id === id);
-                  if (sequence) loadSequence(sequence);
-                }}
-                className="h-9 min-w-[12rem] flex-1 rounded-md border border-white/10 bg-black/40 px-2 text-xs text-foreground"
-              >
-                <option value="">New draft</option>
-                {savedSequences?.map((sequence) => (
-                  <option key={sequence.id} value={sequence.id}>
-                    {sequence.name}
-                    {sequence.isDefault ? ' (default)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+              ) : null}
+            </>
+          )}
 
-            <div className="flex flex-wrap gap-2">
-              <Input
-                value={draft.name}
-                disabled={disabled}
-                onChange={(event) => patchDraft({ name: event.target.value })}
-                placeholder="Sequence name"
-                className="min-w-[12rem] flex-1"
-              />
-              <Button
-                type="button"
-                size="sm"
-                disabled={disabled || saving || !trimmedName || (saveAsNew && atSequenceLimit)}
-                onClick={() => void saveSequence()}
-              >
-                <Save data-icon="inline-start" />
-                {saveButtonLabel}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={disabled || activeEffects.length === 0}
-                onClick={handleSendLive}
-              >
-                Send live
-              </Button>
-            </div>
-            {nameChanged ? (
-              <p className="text-xs text-muted-foreground">
-                Name changed — will create a new sequence. Keep the original name to overwrite.
-              </p>
-            ) : null}
-          </>
-        )}
-
-        {status ? <p className="text-xs text-muted-foreground">{status}</p> : null}
-        {!effectLayering ? (
-          <PlanGateBanner feature="effect_layering" roomEntitlements={roomState?.entitlements} />
-        ) : null}
-      </div>
+          {status ? <p className="text-xs text-muted-foreground">{status}</p> : null}
+          {!effectLayering ? (
+            <PlanGateBanner feature="effect_layering" roomEntitlements={roomState?.entitlements} />
+          ) : null}
+        </div>
       ) : null}
 
       <PatternSequencePreview
@@ -831,7 +831,7 @@ export function PatternSequenceEditor({
                   </span>
                 )}
               </div>
-              
+
               {/* COLLAPSED TEXT IN HORIZONTAL LAYOUT */}
               {!isMediaExpanded && (
                 <div className="mt-1 flex items-center gap-2 text-xs text-zinc-300 flex-wrap">
@@ -867,7 +867,7 @@ export function PatternSequenceEditor({
                 </p>
               )}
             </div>
-            
+
             <button
               type="button"
               className="text-zinc-400 hover:text-white p-1 rounded transition-colors"
@@ -926,253 +926,253 @@ export function PatternSequenceEditor({
 
               {draft.media.kind === 'text' && (
                 <PlanGate feature="sequencedText" roomEntitlements={roomState?.entitlements}>
-                <div className="relative space-y-4">
-                  
-                  {/* EXPANDED FORM: PLOTTED VERTICALLY FOR PLENTY OF SPACE */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="media-text" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
-                      Overlay text
-                    </Label>
-                    <Input
-                      id="media-text"
-                      value={draft.media.text || ''}
-                      disabled={disabled}
-                      onChange={(e) => {
-                        const updatedMedia = { ...draft.media!, text: e.target.value };
-                        patchDraft({ media: updatedMedia });
-                        if (draft.media?.active) {
-                          sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                        }
-                      }}
-                      placeholder="TYPE OVERLAY TEXT..."
-                      className="font-cyber h-8 text-xs uppercase"
-                    />
-                  </div>
+                  <div className="relative space-y-4">
 
-                  <div className="space-y-1.5">
-                    <Label className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
-                      Mode
-                    </Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['marquee', 'word_by_word', 'spread_grid'] as const).map((mode) => (
+                    {/* EXPANDED FORM: PLOTTED VERTICALLY FOR PLENTY OF SPACE */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="media-text" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                        Overlay text
+                      </Label>
+                      <Input
+                        id="media-text"
+                        value={draft.media.text || ''}
+                        disabled={disabled}
+                        onChange={(e) => {
+                          const updatedMedia = { ...draft.media!, text: e.target.value };
+                          patchDraft({ media: updatedMedia });
+                          if (draft.media?.active) {
+                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                          }
+                        }}
+                        placeholder="TYPE OVERLAY TEXT..."
+                        className="font-cyber h-8 text-xs uppercase"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                        Mode
+                      </Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(['marquee', 'word_by_word', 'spread_grid'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => {
+                              const updatedMedia = {
+                                ...draft.media!,
+                                mode,
+                                speed: mode === 'word_by_word' ? 3 : mode === 'marquee' ? 12 : 4,
+                              };
+                              patchDraft({ media: updatedMedia });
+                              if (draft.media?.active) {
+                                sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                              }
+                            }}
+                            className={cn(
+                              'rounded-lg border px-2 py-1.5 text-[9px] font-cyber uppercase tracking-wider text-center transition-all cursor-pointer',
+                              draft.media?.mode === mode
+                                ? 'border-neon-magenta bg-neon-magenta/10 text-neon-magenta'
+                                : 'border-white/5 bg-black/20 text-zinc-400 hover:border-white/10'
+                            )}
+                          >
+                            {mode === 'marquee' ? 'Marquee' : mode === 'word_by_word' ? 'Word' : 'Grid'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="media-speed" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                        Speed
+                      </Label>
+                      <div className="flex items-center gap-3">
                         <button
-                          key={mode}
                           type="button"
-                          disabled={disabled}
                           onClick={() => {
-                            const updatedMedia = {
-                              ...draft.media!,
-                              mode,
-                              speed: mode === 'word_by_word' ? 3 : mode === 'marquee' ? 12 : 4,
-                            };
+                            const currentSpeed = draft.media?.speed || 5;
+                            const nextSpeed = Math.max(1, currentSpeed - 1);
+                            const updatedMedia = { ...draft.media!, speed: nextSpeed };
                             patchDraft({ media: updatedMedia });
                             if (draft.media?.active) {
                               sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                             }
                           }}
-                          className={cn(
-                            'rounded-lg border px-2 py-1.5 text-[9px] font-cyber uppercase tracking-wider text-center transition-all cursor-pointer',
-                            draft.media?.mode === mode
-                              ? 'border-neon-magenta bg-neon-magenta/10 text-neon-magenta'
-                              : 'border-white/5 bg-black/20 text-zinc-400 hover:border-white/10'
-                          )}
+                          className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
                         >
-                          {mode === 'marquee' ? 'Marquee' : mode === 'word_by_word' ? 'Word' : 'Grid'}
+                          -
                         </button>
-                      ))}
+                        <input
+                          id="media-speed"
+                          type="range"
+                          min="1"
+                          max="30"
+                          disabled={disabled}
+                          value={draft.media.speed || 5}
+                          onChange={(e) => {
+                            const updatedMedia = { ...draft.media!, speed: parseInt(e.target.value) };
+                            patchDraft({ media: updatedMedia });
+                            if (draft.media?.active) {
+                              sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                            }
+                          }}
+                          className="flex-1 accent-neon-magenta cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentSpeed = draft.media?.speed || 5;
+                            const nextSpeed = Math.min(30, currentSpeed + 1);
+                            const updatedMedia = { ...draft.media!, speed: nextSpeed };
+                            patchDraft({ media: updatedMedia });
+                            if (draft.media?.active) {
+                              sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                            }
+                          }}
+                          className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
+                        >
+                          +
+                        </button>
+                        <span className="font-cyber text-xs text-white min-w-[20px]">{draft.media.speed || 5}</span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="media-speed" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
-                      Speed
-                    </Label>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const currentSpeed = draft.media?.speed || 5;
-                          const nextSpeed = Math.max(1, currentSpeed - 1);
-                          const updatedMedia = { ...draft.media!, speed: nextSpeed };
-                          patchDraft({ media: updatedMedia });
-                          if (draft.media?.active) {
-                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                          }
-                        }}
-                        className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
-                      >
-                        -
-                      </button>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="media-fontsize" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                        Font Size
+                      </Label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentSize = draft.media?.fontSize || 48;
+                            const nextSize = Math.max(12, currentSize - 4);
+                            const updatedMedia = { ...draft.media!, fontSize: nextSize };
+                            patchDraft({ media: updatedMedia });
+                            if (draft.media?.active) {
+                              sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                            }
+                          }}
+                          className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
+                        >
+                          -
+                        </button>
+                        <input
+                          id="media-fontsize"
+                          type="range"
+                          min="12"
+                          max="120"
+                          disabled={disabled}
+                          value={draft.media.fontSize || 48}
+                          onChange={(e) => {
+                            const updatedMedia = { ...draft.media!, fontSize: parseInt(e.target.value) };
+                            patchDraft({ media: updatedMedia });
+                            if (draft.media?.active) {
+                              sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                            }
+                          }}
+                          className="flex-1 accent-neon-magenta cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentSize = draft.media?.fontSize || 48;
+                            const nextSize = Math.min(120, currentSize + 4);
+                            const updatedMedia = { ...draft.media!, fontSize: nextSize };
+                            patchDraft({ media: updatedMedia });
+                            if (draft.media?.active) {
+                              sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                            }
+                          }}
+                          className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
+                        >
+                          +
+                        </button>
+                        <span className="font-cyber text-xs text-white min-w-[30px]">{draft.media.fontSize || 48}px</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="media-color" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
+                        Color
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="media-color"
+                          value={draft.media.colorHex || '#ffffff'}
+                          disabled={disabled}
+                          onChange={(e) => {
+                            const updatedMedia = { ...draft.media!, colorHex: e.target.value };
+                            patchDraft({ media: updatedMedia });
+                            if (draft.media?.active) {
+                              sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                            }
+                          }}
+                          placeholder="#FFFFFF"
+                          className="font-cyber h-8 text-xs text-white border-white/10"
+                          maxLength={7}
+                        />
+                        <input
+                          type="color"
+                          disabled={disabled}
+                          value={draft.media.colorHex?.startsWith('#') ? draft.media.colorHex : '#ffffff'}
+                          onChange={(e) => {
+                            const updatedMedia = { ...draft.media!, colorHex: e.target.value };
+                            patchDraft({ media: updatedMedia });
+                            if (draft.media?.active) {
+                              sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                            }
+                          }}
+                          className="size-8 p-0 rounded bg-transparent border border-white/10 overflow-hidden cursor-pointer shrink-0"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 py-1">
                       <input
-                        id="media-speed"
-                        type="range"
-                        min="1"
-                        max="30"
+                        id="media-loop"
+                        type="checkbox"
                         disabled={disabled}
-                        value={draft.media.speed || 5}
+                        checked={draft.media.loop !== false}
                         onChange={(e) => {
-                          const updatedMedia = { ...draft.media!, speed: parseInt(e.target.value) };
+                          const updatedMedia = { ...draft.media!, loop: e.target.checked };
                           patchDraft({ media: updatedMedia });
                           if (draft.media?.active) {
                             sendLiveUpdate({ ...draft, media: updatedMedia }, true);
                           }
                         }}
-                        className="flex-1 accent-neon-magenta cursor-pointer"
+                        className="accent-neon-magenta size-4 rounded cursor-pointer"
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const currentSpeed = draft.media?.speed || 5;
-                          const nextSpeed = Math.min(30, currentSpeed + 1);
-                          const updatedMedia = { ...draft.media!, speed: nextSpeed };
-                          patchDraft({ media: updatedMedia });
-                          if (draft.media?.active) {
-                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                          }
-                        }}
-                        className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
-                      >
-                        +
-                      </button>
-                      <span className="font-cyber text-xs text-white min-w-[20px]">{draft.media.speed || 5}</span>
+                      <Label htmlFor="media-loop" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400 select-none cursor-pointer">
+                        Loop message
+                      </Label>
                     </div>
                   </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="media-fontsize" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
-                      Font Size
-                    </Label>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const currentSize = draft.media?.fontSize || 48;
-                          const nextSize = Math.max(12, currentSize - 4);
-                          const updatedMedia = { ...draft.media!, fontSize: nextSize };
-                          patchDraft({ media: updatedMedia });
-                          if (draft.media?.active) {
-                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                          }
-                        }}
-                        className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
-                      >
-                        -
-                      </button>
-                      <input
-                        id="media-fontsize"
-                        type="range"
-                        min="12"
-                        max="120"
-                        disabled={disabled}
-                        value={draft.media.fontSize || 48}
-                        onChange={(e) => {
-                          const updatedMedia = { ...draft.media!, fontSize: parseInt(e.target.value) };
-                          patchDraft({ media: updatedMedia });
-                          if (draft.media?.active) {
-                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                          }
-                        }}
-                        className="flex-1 accent-neon-magenta cursor-pointer"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const currentSize = draft.media?.fontSize || 48;
-                          const nextSize = Math.min(120, currentSize + 4);
-                          const updatedMedia = { ...draft.media!, fontSize: nextSize };
-                          patchDraft({ media: updatedMedia });
-                          if (draft.media?.active) {
-                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                          }
-                        }}
-                        className="flex items-center justify-center size-8 rounded-lg bg-black/40 border border-white/10 text-white font-bold text-sm select-none"
-                      >
-                        +
-                      </button>
-                      <span className="font-cyber text-xs text-white min-w-[30px]">{draft.media.fontSize || 48}px</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="media-color" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400">
-                      Color
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="media-color"
-                        value={draft.media.colorHex || '#ffffff'}
-                        disabled={disabled}
-                        onChange={(e) => {
-                          const updatedMedia = { ...draft.media!, colorHex: e.target.value };
-                          patchDraft({ media: updatedMedia });
-                          if (draft.media?.active) {
-                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                          }
-                        }}
-                        placeholder="#FFFFFF"
-                        className="font-cyber h-8 text-xs text-white border-white/10"
-                        maxLength={7}
-                      />
-                      <input
-                        type="color"
-                        disabled={disabled}
-                        value={draft.media.colorHex?.startsWith('#') ? draft.media.colorHex : '#ffffff'}
-                        onChange={(e) => {
-                          const updatedMedia = { ...draft.media!, colorHex: e.target.value };
-                          patchDraft({ media: updatedMedia });
-                          if (draft.media?.active) {
-                            sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                          }
-                        }}
-                        className="size-8 p-0 rounded bg-transparent border border-white/10 overflow-hidden cursor-pointer shrink-0"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 py-1">
-                    <input
-                      id="media-loop"
-                      type="checkbox"
-                      disabled={disabled}
-                      checked={draft.media.loop !== false}
-                      onChange={(e) => {
-                        const updatedMedia = { ...draft.media!, loop: e.target.checked };
-                        patchDraft({ media: updatedMedia });
-                        if (draft.media?.active) {
-                          sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                        }
-                      }}
-                      className="accent-neon-magenta size-4 rounded cursor-pointer"
-                    />
-                    <Label htmlFor="media-loop" className="font-cyber text-[9px] uppercase tracking-wider text-zinc-400 select-none cursor-pointer">
-                      Loop message
-                    </Label>
-                  </div>
-                </div>
                 </PlanGate>
               )}
 
               {draft.media.kind === 'gif' && (
                 <PlanGate feature="gifBroadcast" roomEntitlements={roomState?.entitlements}>
-                <div className="relative space-y-3 min-h-[150px]">
-                  <GifSearch
-                    gifSearchMode={roomState?.entitlements.gifSearchMode}
-                    onSelect={(gif) => {
-                      const updatedMedia = {
-                        ...draft.media!,
-                        gifSlug: gif.slug,
-                        gifUrl: gif.url,
-                        gifWidth: gif.width,
-                        gifHeight: gif.height,
-                      };
-                      patchDraft({ media: updatedMedia });
-                      if (draft.media?.active) {
-                        sendLiveUpdate({ ...draft, media: updatedMedia }, true);
-                      }
-                    }}
-                    selectedSlug={draft.media.gifSlug}
-                  />
-                </div>
+                  <div className="relative space-y-3 min-h-[150px]">
+                    <GifSearch
+                      gifSearchMode={roomState?.entitlements.gifSearchMode}
+                      onSelect={(gif) => {
+                        const updatedMedia = {
+                          ...draft.media!,
+                          gifSlug: gif.slug,
+                          gifUrl: gif.url,
+                          gifWidth: gif.width,
+                          gifHeight: gif.height,
+                        };
+                        patchDraft({ media: updatedMedia });
+                        if (draft.media?.active) {
+                          sendLiveUpdate({ ...draft, media: updatedMedia }, true);
+                        }
+                      }}
+                      selectedSlug={draft.media.gifSlug}
+                    />
+                  </div>
                 </PlanGate>
               )}
             </div>

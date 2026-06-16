@@ -10,6 +10,8 @@ import {
   Smartphone,
   Layers,
   Tv,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   computeDistributionColor,
@@ -119,6 +121,7 @@ export function PatternSequencePreview({
   fallbackEnabled = false,
   fallbackSeed = 0,
 }: PatternSequencePreviewProps) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [playing, setPlaying] = useState(true);
   const [orientation, setOrientation] = useState<Orientation>('landscape');
   const [viewport, setViewport] = useState<ViewportMode>('mobile');
@@ -174,6 +177,8 @@ export function PatternSequencePreview({
   ]);
 
   useEffect(() => {
+    if (isCollapsed) return;
+
     const canvas = presetCanvasRef.current;
     if (!canvas) return;
 
@@ -347,6 +352,7 @@ export function PatternSequencePreview({
     renderDimensions.width,
     renderDimensions.height,
     previewMode,
+    isCollapsed,
   ]);
 
   return (
@@ -363,11 +369,24 @@ export function PatternSequencePreview({
         <canvas ref={presetCanvasRef} className="absolute inset-0 size-full" />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-cyber uppercase tracking-widest text-neon-cyan">
-            Sequence preview
-          </p>
+      <div className={cn(
+        "flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition-colors duration-200",
+        !isCollapsed && "border-b border-white/10"
+      )}>
+        <div
+          className="flex-1 min-w-0 cursor-pointer select-none group/title"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+        >
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] font-cyber uppercase tracking-widest text-neon-cyan group-hover/title:text-neon-cyan/80 transition-colors">
+              Sequence preview
+            </p>
+            {isCollapsed && (
+              <span className="text-[9px] font-cyber uppercase text-zinc-500 animate-pulse">
+                (Click to expand)
+              </span>
+            )}
+          </div>
           <p className="truncate text-[11px] font-cyber uppercase tracking-wider text-zinc-400">
             {statusLabel}
           </p>
@@ -392,94 +411,109 @@ export function PatternSequencePreview({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1 rounded-full border border-white/15 bg-black/75 p-1">
-          <IconToggle
-            icons={[Layers, Tv]}
-            labels={['Group View (Room)', 'Single Device View (Device)']}
-            activeIndex={previewMode === 'split' ? 0 : 1}
-            onToggle={() =>
-              setPreviewMode((value) => (value === 'split' ? 'device' : 'split'))
-            }
-            isActive={previewMode === 'device'}
-          />
-          <IconToggle
-            icons={[Pause, Play]}
-            labels={['Pause preview', 'Play preview']}
-            activeIndex={playing ? 0 : 1}
-            onToggle={() => {
-              playingRef.current = !playingRef.current;
-              setPlaying(playingRef.current);
-            }}
-          />
-          <IconToggle
-            icons={[RectangleHorizontal, RectangleVertical]}
-            labels={['Landscape preview', 'Portrait preview']}
-            activeIndex={orientation === 'landscape' ? 0 : 1}
-            onToggle={() =>
-              setOrientation((value) => (value === 'landscape' ? 'portrait' : 'landscape'))
-            }
-            isActive={orientation === 'portrait'}
-          />
-          <IconToggle
-            icons={[Smartphone, Monitor]}
-            labels={['Mobile preview', 'Desktop preview']}
-            activeIndex={viewport === 'mobile' ? 0 : 1}
-            onToggle={() => setViewport((value) => (value === 'mobile' ? 'desktop' : 'mobile'))}
-          />
-        </div>
-      </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {!isCollapsed && (
+            <div className="flex items-center gap-1 rounded-full border border-white/15 bg-black/75 p-1 animate-in fade-in duration-200">
+              <IconToggle
+                icons={[Layers, Tv]}
+                labels={['Group View (Room)', 'Single Device View (Device)']}
+                activeIndex={previewMode === 'split' ? 0 : 1}
+                onToggle={() =>
+                  setPreviewMode((value) => (value === 'split' ? 'device' : 'split'))
+                }
+                isActive={previewMode === 'device'}
+              />
+              <IconToggle
+                icons={[Pause, Play]}
+                labels={['Pause preview', 'Play preview']}
+                activeIndex={playing ? 0 : 1}
+                onToggle={() => {
+                  playingRef.current = !playingRef.current;
+                  setPlaying(playingRef.current);
+                }}
+              />
+              <IconToggle
+                icons={[RectangleHorizontal, RectangleVertical]}
+                labels={['Landscape preview', 'Portrait preview']}
+                activeIndex={orientation === 'landscape' ? 0 : 1}
+                onToggle={() =>
+                  setOrientation((value) => (value === 'landscape' ? 'portrait' : 'landscape'))
+                }
+                isActive={orientation === 'portrait'}
+              />
+              <IconToggle
+                icons={[Smartphone, Monitor]}
+                labels={['Mobile preview', 'Desktop preview']}
+                activeIndex={viewport === 'mobile' ? 0 : 1}
+                onToggle={() => setViewport((value) => (value === 'mobile' ? 'desktop' : 'mobile'))}
+              />
+            </div>
+          )}
 
-      <div className="p-3">
-        <div
-          className="relative mx-auto w-full max-w-md"
-          style={{ maxWidth: viewport === 'mobile' ? '20rem' : '100%' }}
-        >
-          <div
-            ref={previewFrameRef}
-            className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-black"
-            style={{ aspectRatio }}
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="flex size-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-zinc-300 transition-colors hover:border-white/20 hover:text-white"
+            aria-label={isCollapsed ? "Expand preview" : "Collapse preview"}
           >
-            <canvas ref={displayCanvasRef} className="absolute inset-0 size-full" />
-            
-            {/* Media Overlay Layer */}
-            {draft.media && draft.media.active && (
-              <div className="absolute inset-0 z-5 pointer-events-none flex items-center justify-center overflow-hidden bg-black/20">
-                {draft.media.kind === 'gif' && draft.media.gifUrl && (
-                  <img
-                    src={draft.media.gifUrl}
-                    alt="Preview GIF"
-                    className="w-full h-full object-contain"
-                  />
-                )}
-                {draft.media.kind === 'text' && draft.media.text && (
-                  <div className="w-full h-full flex items-center justify-center p-2">
-                    <SequencedTextRenderer
-                      text={draft.media.text}
-                      mode={draft.media.mode || 'marquee'}
-                      speed={draft.media.speed || 5}
-                      colorHex={draft.media.colorHex || '#ffffff'}
-                      loop={draft.media.loop ?? true}
-                      fontSize={draft.media.fontSize ? draft.media.fontSize * 0.45 : undefined} // Scaled down for preview size
-                      matrix={{ rows: PREVIEW_ROWS, cols: PREVIEW_COLS }}
-                      row={previewMode === 'device' ? 0 : 1} // center row for preview grid
-                      col={previewMode === 'device' ? 0 : 3} // center col for preview grid
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent"
-              style={{ boxShadow: `inset 0 -8px 24px -8px ${accentColor}40` }}
-            />
-          </div>
+            {isCollapsed ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
+          </button>
         </div>
-        <p className="mt-2 text-center text-[9px] font-cyber uppercase tracking-widest text-zinc-500">
-          {viewportLabel} · {previewModeLabel(draft, previewEffectId, previewMode)}
-          {!playing ? ' · Paused' : ''}
-        </p>
       </div>
+
+      {!isCollapsed && (
+        <div className="p-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div
+            className="relative mx-auto w-full max-w-md"
+            style={{ maxWidth: viewport === 'mobile' ? '20rem' : '100%' }}
+          >
+            <div
+              ref={previewFrameRef}
+              className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-black"
+              style={{ aspectRatio }}
+            >
+              <canvas ref={displayCanvasRef} className="absolute inset-0 size-full" />
+              
+              {/* Media Overlay Layer */}
+              {draft.media && draft.media.active && (
+                <div className="absolute inset-0 z-5 pointer-events-none flex items-center justify-center overflow-hidden bg-black/20">
+                  {draft.media.kind === 'gif' && draft.media.gifUrl && (
+                    <img
+                      src={draft.media.gifUrl}
+                      alt="Preview GIF"
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                  {draft.media.kind === 'text' && draft.media.text && (
+                    <div className="w-full h-full flex items-center justify-center p-2">
+                      <SequencedTextRenderer
+                        text={draft.media.text}
+                        mode={draft.media.mode || 'marquee'}
+                        speed={draft.media.speed || 5}
+                        colorHex={draft.media.colorHex || '#ffffff'}
+                        loop={draft.media.loop ?? true}
+                        fontSize={draft.media.fontSize ? draft.media.fontSize * 0.45 : undefined} // Scaled down for preview size
+                        matrix={{ rows: PREVIEW_ROWS, cols: PREVIEW_COLS }}
+                        row={previewMode === 'device' ? 0 : 1} // center row for preview grid
+                        col={previewMode === 'device' ? 0 : 3} // center col for preview grid
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent"
+                style={{ boxShadow: `inset 0 -8px 24px -8px ${accentColor}40` }}
+              />
+            </div>
+          </div>
+          <p className="mt-2 text-center text-[9px] font-cyber uppercase tracking-widest text-zinc-500">
+            {viewportLabel} · {previewModeLabel(draft, previewEffectId, previewMode)}
+            {!playing ? ' · Paused' : ''}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
